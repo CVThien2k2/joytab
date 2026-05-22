@@ -1,0 +1,82 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  moduleFormat    = "cjs"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               String        @id @default(uuid()) @db.Uuid
+  provider         String        @default("google") @db.VarChar(30)
+  provider_user_id String        @unique @db.VarChar(255)
+  email            String        @unique @db.VarChar(255)
+  email_verified   Boolean       @default(false)
+  full_name        String?       @db.VarChar(255)
+  avatar_url       String?
+  last_login_at    DateTime?     @db.Timestamptz(6)
+  status           String        @default("active") @db.VarChar(30)
+  created_at       DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime      @updatedAt @db.Timestamptz(6)
+  is_deleted       Boolean       @default(false)
+  deleted_by       String?       @db.Uuid
+  deleted_at       DateTime?     @db.Timestamptz(6)
+  device_users     DeviceUser[]
+  user_sessions    UserSession[]
+
+  @@unique([provider, provider_user_id])
+  @@map("users")
+}
+
+model Device {
+  id                 String        @id @default(uuid()) @db.Uuid
+  device_fingerprint String        @unique @db.VarChar(255)
+  device_name        String?       @db.VarChar(255)
+  platform           String?       @db.VarChar(50)
+  last_seen_at       DateTime?     @db.Timestamptz(6)
+  created_at         DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime      @updatedAt @db.Timestamptz(6)
+  device_users       DeviceUser[]
+  user_sessions      UserSession[]
+
+  @@map("devices")
+}
+
+model DeviceUser {
+  id         String   @id @default(uuid()) @db.Uuid
+  device_id  String   @db.Uuid
+  user_id    String   @db.Uuid
+  is_active  Boolean  @default(false)
+  linked_at  DateTime @default(now()) @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+  device     Device   @relation(fields: [device_id], references: [id])
+  user       User     @relation(fields: [user_id], references: [id])
+
+  @@unique([device_id, user_id])
+  @@unique([device_id], where: { is_active: true })
+  @@map("device_users")
+}
+
+model UserSession {
+  id                 String    @id @default(uuid()) @db.Uuid
+  user_id            String    @db.Uuid
+  device_id          String    @db.Uuid
+  refresh_token_hash String
+  access_expires_at  DateTime  @db.Timestamptz(6)
+  refresh_expires_at DateTime  @db.Timestamptz(6)
+  is_revoked         Boolean   @default(false)
+  revoked_at         DateTime? @db.Timestamptz(6)
+  revoke_reason      String?   @db.VarChar(100)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @updatedAt @db.Timestamptz(6)
+  user               User      @relation(fields: [user_id], references: [id])
+  device             Device    @relation(fields: [device_id], references: [id])
+
+  @@index([user_id, is_revoked])
+  @@index([device_id, is_revoked])
+  @@map("user_sessions")
+}

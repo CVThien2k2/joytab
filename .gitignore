@@ -59,4 +59,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 *.sublime-workspace
 .DS_Store
 *.pem
-site
+site/
+
+# generated code (api)
+api/src/generated/

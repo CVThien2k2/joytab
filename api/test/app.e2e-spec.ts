@@ -8,6 +8,14 @@ describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeEach(async () => {
+    process.env.GOOGLE_CLIENT_ID =
+      process.env.GOOGLE_CLIENT_ID ?? 'test-client-id';
+    process.env.GOOGLE_CLIENT_SECRET =
+      process.env.GOOGLE_CLIENT_SECRET ?? 'test-client-secret';
+    process.env.GOOGLE_CALLBACK_URL =
+      process.env.GOOGLE_CALLBACK_URL ??
+      'http://localhost:3000/auth/google/callback';
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -16,10 +24,7 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  it('/ (GET) should return 404 when no route is defined', () => {
+    return request(app.getHttpServer()).get('/').expect(404);
   });
 });

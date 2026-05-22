@@ -13,7 +13,13 @@
 | Biến | Module | Bắt buộc | Mặc định | Mô tả |
 |---|---|---|---|---|
 | `PORT` | api | Y | `3000` | Cổng chạy Service API. |
-| `DATABASE_URL` | api | Y | - | Chuỗi kết nối PostgreSQL. |
+| `DB_HOST` | api | Y | - | Host PostgreSQL server (bắt buộc, không fallback trong code). |
+| `DB_USER` | api | Y | - | Username kết nối PostgreSQL (bắt buộc, không fallback trong code). |
+| `DB_PASSWORD` | api | Y | - | Password kết nối PostgreSQL (bắt buộc, không fallback trong code). |
+| `DB_NAME` | api | Y | - | Tên database PostgreSQL (bắt buộc, không fallback trong code). |
+| `GOOGLE_CLIENT_ID` | api | Y | - | Client ID OAuth 2.0 cho đăng nhập Google. |
+| `GOOGLE_CLIENT_SECRET` | api | Y | - | Client secret OAuth 2.0 cho đăng nhập Google. |
+| `GOOGLE_CALLBACK_URL` | api | Y | `http://localhost:3000/auth/google/callback` | Callback URL nhận redirect từ Google OAuth. |
 | `REDIS_HOST` | api | Y | `127.0.0.1` | Host Redis server. |
 | `REDIS_PORT` | api | Y | `6379` | Port Redis server. |
 | `REDIS_PASSWORD` | api | N | - | Mật khẩu Redis nếu môi trường bật auth. |
@@ -24,7 +30,10 @@
 - <Danh sách biến>
 
 ### 4.2 Database
-- `DATABASE_URL`
+- `DB_HOST`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
 
 ### 4.3 Cache/Queue
 - `REDIS_HOST`
@@ -33,7 +42,7 @@
 - `REDIS_DB`
 
 ### 4.4 Bảo mật
-- <Danh sách biến nhạy cảm>
+- `GOOGLE_CLIENT_SECRET`
 
 ## 5. Quy trình cập nhật cấu hình
 1. <Bước 1>

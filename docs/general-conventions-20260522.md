@@ -10,7 +10,7 @@
 ```json
 {
   "success": true,
-  "message": "ok",
+  "message": "ok | custom message",
   "data": {}
 }
 ```
@@ -19,9 +19,8 @@
 ```json
 {
   "success": false,
-  "code": "string",
+  "code": "AUTH_001 | AUTH_002 | VALIDATION_001 | SYS_404 | SYS_001 | SYS_002 | SYS_003 | SYS_004 | SYS_005 | SYS_006 | SYS_007 | SYS_008 | UNKNOWN_001",
   "details": {},
-  "retryable": false,
   "message": "string"
 }
 ```
@@ -30,11 +29,16 @@
 ```json
 {
   "success": true,
-  "message": "ok",
+  "message": "ok | custom message",
   "data": [],
   "meta": {}
 }
 ```
+
+### 2.4 Quy ước áp dụng trong NestJS
+- Dùng `ResponseInterceptor` global để tự wrap success response nếu handler chưa trả format chuẩn.
+- Dùng `HttpExceptionFilter` global để map lỗi về format chuẩn và gán mã lỗi thống nhất.
+- Dùng `AppException` cho business rule cần chỉ định rõ `error code object` và `HTTP status`.
 
 ## 3. Quy ước chung cho database
 
