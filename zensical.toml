@@ -44,10 +44,18 @@ Copyright &copy; 2026 The authors
 # can be defined using TOML syntax.
 #
 # Read more: https://zensical.org/docs/setup/navigation/
-# nav = [
-#   { "Get started" = "index.md" },
-#   { "Markdown in 5min" = "markdown.md" },
-# ]
+nav = [
+  { "Trang chủ" = "index.md" },
+  { "Tổng quan nghiệp vụ" = "business-overview-and-system-requirements-20260522.md" },
+  { "Kiến trúc hệ thống" = "system-architecture-20260522.md" },
+  { "Cấu trúc dự án" = "project-structure-20260522.md" },
+  { "Thiết kế database" = "database-design-20260522.md" },
+  { "Công nghệ lựa chọn" = "technology-selection-20260522.md" },
+  { "Quy ước chung" = "general-conventions-20260522.md" },
+  { "Bảo mật" = "security-20260522.md" },
+  { "Tra cứu cấu hình môi trường" = "environment-configuration-reference-20260522.md" },
+  { "Mã lỗi dự án" = "project-error-codes-20260522.md" },
+]
 
 # With the "extra_css" option you can add your own CSS styling to customize
 # your Zensical project according to your needs. You can add any number of
