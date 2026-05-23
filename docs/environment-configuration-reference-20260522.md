@@ -20,6 +20,8 @@
 | `GOOGLE_CLIENT_ID` | api | Y | - | Client ID OAuth 2.0 cho đăng nhập Google. |
 | `GOOGLE_CLIENT_SECRET` | api | Y | - | Client secret OAuth 2.0 cho đăng nhập Google. |
 | `GOOGLE_CALLBACK_URL` | api | Y | `http://localhost:3000/auth/google/callback` | Callback URL nhận redirect từ Google OAuth. |
+| `FRONTEND_ORIGIN` | api | N | `http://localhost:3000` | Origin FE để BE validate/fallback khi callback Google không có redirectTo hợp lệ. |
+| `NEXT_PUBLIC_API_BASE_URL` | ui | N | `http://localhost:3000` | Base URL API để FE gọi endpoint `/auth/google`. |
 | `REDIS_HOST` | api | Y | `127.0.0.1` | Host Redis server. |
 | `REDIS_PORT` | api | Y | `6379` | Port Redis server. |
 | `REDIS_PASSWORD` | api | N | - | Mật khẩu Redis nếu môi trường bật auth. |
@@ -43,6 +45,10 @@
 
 ### 4.4 Bảo mật
 - `GOOGLE_CLIENT_SECRET`
+
+### 4.5 Tích hợp FE-BE đăng nhập Google
+- `FRONTEND_ORIGIN`
+- `NEXT_PUBLIC_API_BASE_URL`
 
 ## 5. Quy trình cập nhật cấu hình
 1. <Bước 1>

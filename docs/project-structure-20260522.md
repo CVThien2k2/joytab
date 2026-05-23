@@ -40,8 +40,9 @@ api/
 │  ├─ auth/
 │  │  ├─ auth.controller.ts
 │  │  ├─ auth.module.ts
-│  │  ├─ auth.service.spec.ts
+│  │  ├─ auth.spec.ts
 │  │  ├─ auth.service.ts
+│  │  └─ auth.utils.ts
 │  ├─ common/
 │  │  ├─ constants/
 │  │  │  └─ error-codes.constant.ts
@@ -86,13 +87,14 @@ Bảng mô tả chi tiết Backend:
 | `api/src/main.ts` | Mã nguồn | Entry point khởi tạo và chạy ứng dụng NestJS. |
 | `api/src/app.module.ts` | Mã nguồn | Module gốc, đăng ký các module/provider dùng chung. |
 | `api/src/auth/auth.module.ts` | Mã nguồn | Module xác thực, gom controller/service/strategy cho OAuth Google. |
-| `api/src/auth/auth.controller.ts` | Mã nguồn | Endpoint khởi tạo Google OAuth và xử lý callback đăng nhập. |
+| `api/src/auth/auth.controller.ts` | Mã nguồn | Endpoint khởi tạo Google OAuth, callback đăng nhập, và redirect về FE khi thành công. |
+| `api/src/auth/auth.spec.ts` | Test | File unit test duy nhất của module `auth`, bao gồm service/controller/utils. |
+| `api/src/auth/auth.utils.ts` | Mã nguồn | Utility nội bộ module `auth` để chuẩn hóa redirectTo và build URL success. |
 | `api/src/auth/auth.service.ts` | Mã nguồn | Nghiệp vụ đồng bộ user Google vào bảng `users`. |
-| `api/src/auth/auth.service.spec.ts` | Test | Unit test cho nghiệp vụ đăng nhập Google trong auth service. |
 | `api/src/common/constants/error-codes.constant.ts` | Mã nguồn | Danh sách mã lỗi chuẩn dùng chung toàn backend. |
 | `api/src/common/exceptions/app.exception.ts` | Mã nguồn | Exception nghiệp vụ dùng object mã lỗi chuẩn và HTTP status tương ứng. |
 | `api/src/common/filters/http-exception.filter.ts` | Mã nguồn | Global filter map exception về format lỗi chuẩn của dự án. |
-| `api/src/common/guards/google-auth.guard.ts` | Mã nguồn | Guard bọc `AuthGuard('google')` để tái sử dụng trong controller. |
+| `api/src/common/guards/google-auth.guard.ts` | Mã nguồn | Guard bọc `AuthGuard('google')`, chuẩn hóa redirectTo và đính vào OAuth state trước khi chuyển hướng sang Google. |
 | `api/src/common/interfaces/express-user.d.ts` | Khai báo kiểu | Mở rộng type `Express.User` dùng chung cho `req.user`. |
 | `api/src/common/interceptors/response.interceptor.ts` | Mã nguồn | Global interceptor chuẩn hóa success response. |
 | `api/src/common/loggers/app.logger.ts` | Mã nguồn | Custom logger rút gọn log lỗi bootstrap/runtime, tránh in stack trace quá dài. |
@@ -150,7 +152,7 @@ Bảng mô tả chi tiết Frontend:
 | `ui/public/vercel.svg` | Asset tĩnh | Biểu tượng tĩnh cho giao diện. |
 | `ui/public/window.svg` | Asset tĩnh | Biểu tượng tĩnh cho giao diện. |
 | `ui/src/app/layout.tsx` | Mã nguồn | Root layout của App Router. |
-| `ui/src/app/page.tsx` | Mã nguồn | Trang chủ mặc định của ứng dụng. |
+| `ui/src/app/page.tsx` | Mã nguồn | Trang login Google, truyền redirectTo khi gọi endpoint `/auth/google`. |
 | `ui/src/app/globals.css` | Mã nguồn CSS | Khai báo style global của UI. |
 | `ui/src/app/favicon.ico` | Asset giao diện | Favicon của ứng dụng. |
 | `ui/tsconfig.json` | Cấu hình | Cấu hình TypeScript chính của frontend. |
@@ -162,6 +164,7 @@ docs/
 ├─ database-design-20260522.md
 ├─ environment-configuration-reference-20260522.md
 ├─ general-conventions-20260522.md
+├─ google-auth-redirect-api-20260523.md
 ├─ index.md
 ├─ project-error-codes-20260522.md
 ├─ project-structure-20260522.md

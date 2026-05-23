@@ -19,6 +19,7 @@ Trang này là mục lục tổng hợp các tài liệu nền tảng của dự
 9. [Tra cứu cấu hình môi trường](environment-configuration-reference-20260522.md)
 10. [Mã lỗi dự án](project-error-codes-20260522.md)
 11. [Phiên bản](phien-ban-20260522.md)
+12. [API Google login redirect](google-auth-redirect-api-20260523.md)
 
 ## Ghi chú sử dụng
 - Các file trên hiện là khung tài liệu để điền chi tiết dần.
