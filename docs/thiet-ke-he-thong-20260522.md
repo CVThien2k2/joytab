@@ -56,7 +56,7 @@ sequenceDiagram
     API-->>UI: Set cookie HttpOnly JWT (change token) + redirect /login/callback?code=...
     UI->>API: POST /auth/google/exchange (code + cookie change token)
     API->>RD: Validate code với email trong JWT, xóa code (one-time)
-    API-->>UI: Tạo token + user tại bước exchange rồi trả về
+    API-->>UI: Trả access token + Google user, đồng thời set cookie HttpOnly refresh token
     UI-->>ND: Đăng nhập thành công
   else Credential không hợp lệ
     API-->>UI: Redirect về /login

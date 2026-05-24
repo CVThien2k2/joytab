@@ -37,8 +37,8 @@ export function HomePageClient() {
 
         <div className="mt-4 space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-600">
           <p>User: {session.user.email}</p>
+          <p>Provider: {session.user.provider}</p>
           <p>Access token: {session.accessToken.slice(0, 18)}...</p>
-          <p>Refresh token: {session.refreshToken.slice(0, 18)}...</p>
         </div>
 
         <Button

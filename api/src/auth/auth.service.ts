@@ -1,6 +1,8 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable } from '@nestjs/common';
 import { Cache } from 'cache-manager';
+import { ERROR_CODES } from '../common/constants/error-codes.constant';
+import { AppException } from '../common/exceptions/app.exception';
 import { GoogleUser } from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
 import { TokenService } from './token.service';
@@ -8,6 +10,14 @@ import { TokenService } from './token.service';
 type GoogleLoginCallbackArtifacts = {
   code: string;
   changeToken: string;
+};
+
+type GoogleLoginExchangeArtifacts = {
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: string;
+  refreshTokenExpiresAt: string;
+  user: GoogleUser;
 };
 
 @Injectable()
@@ -34,9 +44,55 @@ export class AuthService {
     const code = this.tokenService.createGoogleLoginCode();
     const normalizedEmail = user.email.trim().toLowerCase();
     const changeToken = this.tokenService.createGoogleChangeToken(normalizedEmail);
-    console.log(changeToken);
     await this.cacheManager.set(this.getAuthCodeCacheKey(code), normalizedEmail, AuthService.GOOGLE_LOGIN_CODE_TTL_MS);
     return { code, changeToken };
+  }
+
+  /**
+   * Input: Callback code từ FE và change token lấy từ cookie HttpOnly.
+   * Output: Validate one-time code rồi trả access token + refresh token + Google user.
+   */
+  async exchangeGoogleLoginCode(code: string, changeToken: string): Promise<GoogleLoginExchangeArtifacts> {
+    const normalizedCode = code.trim();
+    if (!normalizedCode) {
+      throw new AppException(ERROR_CODES.AUTH_003);
+    }
+
+    const normalizedEmailFromToken = this.tokenService.parseGoogleChangeToken(changeToken);
+    const authCodeCacheKey = this.getAuthCodeCacheKey(normalizedCode);
+    const normalizedEmailFromCode = await this.cacheManager.get<string>(authCodeCacheKey);
+    if (!normalizedEmailFromCode || normalizedEmailFromCode !== normalizedEmailFromToken) {
+      throw new AppException(ERROR_CODES.AUTH_003);
+    }
+
+    await this.cacheManager.del(authCodeCacheKey);
+    const user = await this.databaseService.user.findUnique({
+      where: { email: normalizedEmailFromToken },
+    });
+    if (!user) {
+      throw new AppException(ERROR_CODES.AUTH_003);
+    }
+
+    const accessToken = this.tokenService.createAccessToken(user.id, normalizedEmailFromToken);
+    const refreshToken = this.tokenService.createRefreshToken(user.id, normalizedEmailFromToken);
+    const nowMs = Date.now();
+    const accessTokenExpiresAt = new Date(nowMs + this.tokenService.getAccessTokenTtlSeconds() * 1000).toISOString();
+    const refreshTokenExpiresAt = new Date(nowMs + this.tokenService.getRefreshTokenTtlSeconds() * 1000).toISOString();
+
+    return {
+      accessToken,
+      refreshToken,
+      accessTokenExpiresAt,
+      refreshTokenExpiresAt,
+      user: {
+        provider: 'google',
+        providerUserId: user.provider_user_id,
+        email: user.email,
+        emailVerified: user.email_verified,
+        fullName: user.full_name,
+        avatarUrl: user.avatar_url,
+      },
+    };
   }
 
   /**

@@ -1,14 +1,20 @@
-import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
+import { ERROR_CODES } from '../common/constants/error-codes.constant';
+import { AppException } from '../common/exceptions/app.exception';
 import { GoogleAuthGuard } from '../common/guards/google-auth.guard';
 import { isProductionEnvironment } from '../common/utils/functions';
 import { AuthService } from './auth.service';
+import { ExchangeGoogleCodeDto } from './dto/exchange-google-code.dto';
 import {
   buildGoogleLoginCallbackRedirectUrl,
   buildGoogleLoginFailedRedirectUrl,
   GOOGLE_CALLBACK_EXCHANGE_TTL_MS,
   GOOGLE_CHANGE_TOKEN_COOKIE_NAME,
+  readCookieValue,
+  REFRESH_TOKEN_COOKIE_NAME,
+  REFRESH_TOKEN_TTL_MS,
 } from './auth.utils';
 
 @Controller('auth')
@@ -56,15 +62,30 @@ export class AuthController {
 
   /**
    * Input: Mã code một lần được FE gửi sau redirect callback Google.
-   * Output: Trả cặp token + user nếu code còn hiệu lực.
+   * Output: Trả access token + user và set refresh token vào cookie nếu code còn hiệu lực.
    */
   @Post('google/exchange')
-  exchangeGoogleCode() {
-    // try {
-    //   return await this.authService.exchangeGoogleLoginCode(body.code, changeToken);
-    // } finally {
-    //   response.clearCookie(GOOGLE_CHANGE_TOKEN_COOKIE_NAME, cookieOptions);
-    // }
+  async exchangeGoogleCode(
+    @Body() body: ExchangeGoogleCodeDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const changeToken = readCookieValue(request.headers.cookie, GOOGLE_CHANGE_TOKEN_COOKIE_NAME);
+    if (!changeToken) {
+      throw new AppException(ERROR_CODES.AUTH_003);
+    }
+
+    try {
+      const exchangeArtifacts = await this.authService.exchangeGoogleLoginCode(body.code, changeToken);
+      response.cookie(REFRESH_TOKEN_COOKIE_NAME, exchangeArtifacts.refreshToken, this.buildRefreshTokenCookieOptions());
+      return {
+        accessToken: exchangeArtifacts.accessToken,
+        accessTokenExpiresAt: exchangeArtifacts.accessTokenExpiresAt,
+        user: exchangeArtifacts.user,
+      };
+    } finally {
+      response.clearCookie(GOOGLE_CHANGE_TOKEN_COOKIE_NAME, this.buildGoogleChangeTokenCookieOptions());
+    }
   }
 
   /**
@@ -79,6 +100,21 @@ export class AuthController {
       sameSite: isProduction ? ('none' as const) : ('lax' as const),
       path: '/auth/google/exchange',
       maxAge: GOOGLE_CALLBACK_EXCHANGE_TTL_MS,
+    };
+  }
+
+  /**
+   * Input: NODE_ENV từ env để xác định chính sách secure/sameSite cho refresh token.
+   * Output: Trả cookie options dùng chung cho refresh token ở flow exchange Google.
+   */
+  private buildRefreshTokenCookieOptions() {
+    const isProduction = isProductionEnvironment(this.configService);
+    return {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? ('none' as const) : ('lax' as const),
+      path: '/',
+      maxAge: REFRESH_TOKEN_TTL_MS,
     };
   }
 }

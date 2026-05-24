@@ -88,11 +88,11 @@ Bảng mô tả chi tiết Backend:
 | `api/src/app.module.ts` | Mã nguồn | Module gốc, đăng ký Config global với validate env bắt buộc (fail-fast khi thiếu biến) và import các module nghiệp vụ. |
 | `api/src/cache/redis-cache.module.ts` | Mã nguồn | Module tách riêng cấu hình Redis cache, đọc env bắt buộc qua ConfigService và đăng ký CacheModule global. |
 | `api/src/auth/auth.module.ts` | Mã nguồn | Module xác thực, gom controller/service/strategy cho OAuth Google và code-exchange flow qua cache manager. |
-| `api/src/auth/auth.controller.ts` | Mã nguồn | Endpoint khởi tạo Google OAuth, callback set cookie HttpOnly `google_change_token` theo `NODE_ENV` (`production` => `None+Secure`, dev => `Lax`) + redirect `/login/callback?code=...`, và endpoint exchange `code` bằng cặp cookie one-time token. |
+| `api/src/auth/auth.controller.ts` | Mã nguồn | Endpoint khởi tạo Google OAuth, callback set cookie HttpOnly `google_change_token` theo `NODE_ENV` (`production` => `None+Secure`, dev => `Lax`) + redirect `/login/callback?code=...`, và endpoint exchange trả access token + Google user, đồng thời set cookie HttpOnly `refresh_token`. |
 | `api/src/auth/dto/exchange-google-code.dto.ts` | Mã nguồn | DTO validate request body cho endpoint `POST /auth/google/exchange`. |
 | `api/src/auth/auth.utils.ts` | Mã nguồn | Utility nội bộ module `auth` để build URL redirect Google, khai báo hằng số cookie/tTL callback, và đọc giá trị cookie từ header. |
-| `api/src/auth/token.service.ts` | Mã nguồn | Service tách riêng trách nhiệm sinh token/code và parse payload exchange token từ cache. |
-| `api/src/auth/auth.service.ts` | Mã nguồn | Nghiệp vụ đồng bộ user Google, lưu one-time `code -> email` TTL 60s trong Redis, rồi exchange bằng đối soát code với email trong JWT cookie. |
+| `api/src/auth/token.service.ts` | Mã nguồn | Service tách riêng trách nhiệm sinh one-time code, ký access/refresh token, và parse JWT change token của flow exchange. |
+| `api/src/auth/auth.service.ts` | Mã nguồn | Nghiệp vụ đồng bộ user Google, lưu one-time `code -> email` TTL 60s trong Redis, rồi exchange bằng đối soát code với email trong JWT cookie để cấp access/refresh token và trả Google user. |
 | `api/src/common/constants/error-codes.constant.ts` | Mã nguồn | Danh sách mã lỗi chuẩn dùng chung toàn backend. |
 | `api/src/common/exceptions/app.exception.ts` | Mã nguồn | Exception nghiệp vụ dùng object mã lỗi chuẩn và HTTP status tương ứng. |
 | `api/src/common/filters/http-exception.filter.ts` | Mã nguồn | Global filter map exception về format lỗi chuẩn của dự án. |

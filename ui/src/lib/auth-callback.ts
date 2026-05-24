@@ -9,17 +9,14 @@ const exchangeResponseSchema = z.object({
   message: z.string(),
   data: z.object({
     accessToken: z.string().min(1),
-    refreshToken: z.string().min(1),
     accessTokenExpiresAt: z.string().min(1),
-    refreshTokenExpiresAt: z.string().min(1),
     user: z.object({
-      userId: z.string().min(1),
+      provider: z.literal("google"),
+      providerUserId: z.string().min(1),
       email: z.string().min(1),
+      emailVerified: z.boolean(),
       fullName: z.string().nullable(),
       avatarUrl: z.string().nullable(),
-      provider: z.string().min(1),
-      providerUserId: z.string().min(1),
-      lastLoginAt: z.string().nullable(),
     }),
   }),
 })

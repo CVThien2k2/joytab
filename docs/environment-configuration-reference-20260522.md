@@ -22,6 +22,8 @@
 | `GOOGLE_CLIENT_SECRET` | api | Y | - | Client secret OAuth 2.0 cho đăng nhập Google. |
 | `GOOGLE_CALLBACK_URL` | api | Y | `http://localhost:3000/auth/google/callback` | Callback URL nhận redirect từ Google OAuth. |
 | `GOOGLE_CALLBACK_JWT_SECRET` | api | Y | - | Secret ký JWT `google_change_token` cho bước exchange callback Google (hết hạn 60 giây). |
+| `ACCESS_TOKEN_JWT_SECRET` | api | Y | - | Secret ký access token trả về ở `POST /auth/google/exchange`. |
+| `REFRESH_TOKEN_JWT_SECRET` | api | Y | - | Secret ký refresh token lưu trong cookie HttpOnly `refresh_token`. |
 | `FRONTEND_ORIGIN` | api | N | `http://localhost:3000` | Origin FE để BE redirect cố định và cấu hình CORS `credentials: true` cho Google OAuth. |
 | `NEXT_PUBLIC_API_BASE_URL` | ui | N | `http://localhost:8000` | Base URL API để FE gọi endpoint `/auth/google` và `/auth/google/exchange`. |
 | `REDIS_HOST` | api | Y | - | Host Redis server (bắt buộc, không fallback trong code). |
@@ -48,11 +50,14 @@
 ### 4.4 Bảo mật
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_CALLBACK_JWT_SECRET`
+- `ACCESS_TOKEN_JWT_SECRET`
+- `REFRESH_TOKEN_JWT_SECRET`
 
 ### 4.5 Tích hợp FE-BE đăng nhập Google
 - `FRONTEND_ORIGIN`
 - `NEXT_PUBLIC_API_BASE_URL`
 - FE gọi `POST /auth/google/exchange` phải bật gửi credentials để kèm cookie `google_change_token`.
+- BE trả access token trong JSON response và set refresh token vào cookie HttpOnly `refresh_token`.
 
 ## 5. Quy trình cập nhật cấu hình
 1. <Bước 1>
@@ -62,4 +67,4 @@
 ## 6. Lưu ý an toàn
 - Không commit secret vào Git.
 - Dùng file `.env.example` để mô tả biến bắt buộc.
-- API sẽ dừng ngay ở lúc khởi động nếu thiếu các biến bắt buộc (`DB_*`, `REDIS_*`, `GOOGLE_*` theo bảng trên).
+- API sẽ dừng ngay ở lúc khởi động nếu thiếu các biến bắt buộc (`DB_*`, `REDIS_*`, `GOOGLE_*`, `ACCESS_TOKEN_JWT_SECRET`, `REFRESH_TOKEN_JWT_SECRET` theo bảng trên).

@@ -1,6 +1,8 @@
 const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:3000';
 export const GOOGLE_CHANGE_TOKEN_COOKIE_NAME = 'google_change_token';
 export const GOOGLE_CALLBACK_EXCHANGE_TTL_MS = 60_000;
+export const REFRESH_TOKEN_COOKIE_NAME = 'refresh_token';
+export const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Input: FRONTEND_ORIGIN và callback code một lần do backend tạo.

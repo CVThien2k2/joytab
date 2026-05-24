@@ -40,6 +40,9 @@ export class AppException extends HttpException {
       case 'SYS_010':
       case 'SYS_011':
       case 'SYS_012':
+      case 'SYS_013':
+      case 'SYS_014':
+      case 'SYS_015':
       case 'UNKNOWN_001':
       default:
         return HttpStatus.INTERNAL_SERVER_ERROR;
