@@ -44,18 +44,22 @@ sequenceDiagram
   participant API as Service API
   participant GG as Google
   participant DB as Database
+  participant RD as Redis
 
   ND->>UI: Chọn đăng nhập Google
-  UI->>API: Gửi authorization code hoặc token
-  API->>GG: Xác thực credential
-  GG-->>API: Kết quả xác thực
-  alt Credential hợp lệ
+  UI->>API: GET /auth/google
+  API->>GG: Redirect sang Google OAuth
+  GG-->>API: Callback /auth/google/callback + profile
+  alt Callback hợp lệ
     API->>DB: Tạo hoặc cập nhật user
-    API->>DB: Tạo user_session cho thiết bị hiện tại
-    API-->>UI: Trả token hoặc session
+    API->>RD: Lưu one-time mapping code -> email (TTL 60s)
+    API-->>UI: Set cookie HttpOnly JWT (change token) + redirect /login/callback?code=...
+    UI->>API: POST /auth/google/exchange (code + cookie change token)
+    API->>RD: Validate code với email trong JWT, xóa code (one-time)
+    API-->>UI: Tạo token + user tại bước exchange rồi trả về
     UI-->>ND: Đăng nhập thành công
   else Credential không hợp lệ
-    API-->>UI: Trả lỗi xác thực
+    API-->>UI: Redirect về /login
     UI-->>ND: Hiển thị lỗi đăng nhập
   end
 ```

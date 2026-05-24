@@ -13,6 +13,7 @@
 | Biến | Module | Bắt buộc | Mặc định | Mô tả |
 |---|---|---|---|---|
 | `PORT` | api | Y | `3000` | Cổng chạy Service API. |
+| `NODE_ENV` | api | N | `development` | Môi trường chạy backend; dùng để bật chính sách cookie callback Google (`production` => `SameSite=None; Secure`, còn lại => `SameSite=Lax; Secure=false`). |
 | `DB_HOST` | api | Y | - | Host PostgreSQL server (bắt buộc, không fallback trong code). |
 | `DB_USER` | api | Y | - | Username kết nối PostgreSQL (bắt buộc, không fallback trong code). |
 | `DB_PASSWORD` | api | Y | - | Password kết nối PostgreSQL (bắt buộc, không fallback trong code). |
@@ -20,12 +21,13 @@
 | `GOOGLE_CLIENT_ID` | api | Y | - | Client ID OAuth 2.0 cho đăng nhập Google. |
 | `GOOGLE_CLIENT_SECRET` | api | Y | - | Client secret OAuth 2.0 cho đăng nhập Google. |
 | `GOOGLE_CALLBACK_URL` | api | Y | `http://localhost:3000/auth/google/callback` | Callback URL nhận redirect từ Google OAuth. |
-| `FRONTEND_ORIGIN` | api | N | `http://localhost:3000` | Origin FE để BE validate/fallback khi callback Google không có redirectTo hợp lệ. |
-| `NEXT_PUBLIC_API_BASE_URL` | ui | N | `http://localhost:3000` | Base URL API để FE gọi endpoint `/auth/google`. |
-| `REDIS_HOST` | api | Y | `127.0.0.1` | Host Redis server. |
-| `REDIS_PORT` | api | Y | `6379` | Port Redis server. |
-| `REDIS_PASSWORD` | api | N | - | Mật khẩu Redis nếu môi trường bật auth. |
-| `REDIS_DB` | api | N | `0` | Chỉ số database trong Redis. |
+| `GOOGLE_CALLBACK_JWT_SECRET` | api | Y | - | Secret ký JWT `google_change_token` cho bước exchange callback Google (hết hạn 60 giây). |
+| `FRONTEND_ORIGIN` | api | N | `http://localhost:3000` | Origin FE để BE redirect cố định và cấu hình CORS `credentials: true` cho Google OAuth. |
+| `NEXT_PUBLIC_API_BASE_URL` | ui | N | `http://localhost:8000` | Base URL API để FE gọi endpoint `/auth/google` và `/auth/google/exchange`. |
+| `REDIS_HOST` | api | Y | - | Host Redis server (bắt buộc, không fallback trong code). |
+| `REDIS_PORT` | api | Y | - | Port Redis server (bắt buộc, không fallback trong code). |
+| `REDIS_PASSWORD` | api | Y | - | Mật khẩu Redis (bắt buộc, không fallback trong code). |
+| `REDIS_DB` | api | Y | - | Chỉ số database Redis (bắt buộc, không fallback trong code). |
 
 ## 4. Nhóm cấu hình theo chức năng
 ### 4.1 Ứng dụng
@@ -45,10 +47,12 @@
 
 ### 4.4 Bảo mật
 - `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_CALLBACK_JWT_SECRET`
 
 ### 4.5 Tích hợp FE-BE đăng nhập Google
 - `FRONTEND_ORIGIN`
 - `NEXT_PUBLIC_API_BASE_URL`
+- FE gọi `POST /auth/google/exchange` phải bật gửi credentials để kèm cookie `google_change_token`.
 
 ## 5. Quy trình cập nhật cấu hình
 1. <Bước 1>
@@ -58,3 +62,4 @@
 ## 6. Lưu ý an toàn
 - Không commit secret vào Git.
 - Dùng file `.env.example` để mô tả biến bắt buộc.
+- API sẽ dừng ngay ở lúc khởi động nếu thiếu các biến bắt buộc (`DB_*`, `REDIS_*`, `GOOGLE_*` theo bảng trên).

@@ -52,14 +52,7 @@ export class AppLogger extends ConsoleLogger {
    * Output: Xác định context hợp lệ, loại bỏ stack trace và log level.
    */
   private isLogLevelContext(value: string): boolean {
-    const nestLogLevels: LogLevel[] = [
-      'log',
-      'error',
-      'warn',
-      'debug',
-      'verbose',
-      'fatal',
-    ];
+    const nestLogLevels: LogLevel[] = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal'];
 
     if (!value.trim()) {
       return false;

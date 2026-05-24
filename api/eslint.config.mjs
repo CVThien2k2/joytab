@@ -1,8 +1,13 @@
 // @ts-check
+import { readFileSync } from 'node:fs';
 import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+
+const prettierConfig = JSON.parse(
+  readFileSync(new URL('./.prettierrc', import.meta.url), 'utf8'),
+);
 
 export default tseslint.config(
   {
@@ -28,7 +33,8 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn'
+      '@typescript-eslint/no-unsafe-argument': 'warn',
+      'prettier/prettier': ['error', prettierConfig],
     },
   },
 );

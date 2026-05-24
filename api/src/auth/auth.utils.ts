@@ -1,64 +1,57 @@
 const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:3000';
-
-type ResolveGoogleRedirectInput = {
-  redirectTo?: string;
-  frontendOrigin?: string;
-};
+export const GOOGLE_CHANGE_TOKEN_COOKIE_NAME = 'google_change_token';
+export const GOOGLE_CALLBACK_EXCHANGE_TTL_MS = 60_000;
 
 /**
- * Input: URL FE cấu hình và redirectTo nhận từ query/state trong luồng đăng nhập Google.
- * Output: Trả về URL redirect hợp lệ cùng origin FE; fallback về trang chủ FE nếu dữ liệu không hợp lệ.
+ * Input: FRONTEND_ORIGIN và callback code một lần do backend tạo.
+ * Output: Trả URL callback FE cố định `/login/callback` kèm mã code.
  */
-export function resolveGoogleLoginRedirectTarget({
-  redirectTo,
-  frontendOrigin,
-}: ResolveGoogleRedirectInput): string {
+export function buildGoogleLoginCallbackRedirectUrl(frontendOrigin: string | undefined, callbackCode: string): string {
+  const normalizedCode = callbackCode.trim();
   const baseUrl = normalizeFrontendOrigin(frontendOrigin);
-  if (!redirectTo) {
-    return baseUrl;
-  }
-
-  const normalizedCandidate = redirectTo.trim();
-  if (!normalizedCandidate) {
-    return baseUrl;
-  }
-
-  if (normalizedCandidate.startsWith('/')) {
-    const relativeUrl = new URL(normalizedCandidate, `${baseUrl}/`);
-    return relativeUrl.toString();
-  }
-
-  try {
-    const parsedCandidate = new URL(normalizedCandidate);
-    const parsedBase = new URL(`${baseUrl}/`);
-    if (parsedCandidate.origin !== parsedBase.origin) {
-      return baseUrl;
-    }
-
-    return parsedCandidate.toString();
-  } catch {
-    return baseUrl;
-  }
+  const redirectUrl = new URL('/login/callback', `${baseUrl}/`);
+  redirectUrl.searchParams.set('code', normalizedCode);
+  return redirectUrl.toString();
 }
 
 /**
- * Input: URL redirect đích sau callback Google đã được chuẩn hóa.
- * Output: Trả URL đích cuối cùng kèm cờ success để FE xử lý luồng đăng nhập thành công.
+ * Input: FRONTEND_ORIGIN từ env (có thể rỗng).
+ * Output: Trả URL login FE cố định để fallback khi callback Google không thành công.
  */
-export function buildGoogleLoginSuccessRedirectUrl(targetUrl: string): string {
-  const redirectUrl = new URL(targetUrl);
-  redirectUrl.searchParams.set('loginProvider', 'google');
-  redirectUrl.searchParams.set('loginStatus', 'success');
+export function buildGoogleLoginFailedRedirectUrl(frontendOrigin: string | undefined): string {
+  const baseUrl = normalizeFrontendOrigin(frontendOrigin);
+  return new URL('/login', `${baseUrl}/`).toString();
+}
 
-  const queryString = redirectUrl.searchParams.toString();
-  const normalizedOrigin = redirectUrl.origin.replace(/\/+$/, '');
-  const isRootPath =
-    redirectUrl.pathname === '/' || redirectUrl.pathname === '';
-  if (isRootPath) {
-    return `${normalizedOrigin}?${queryString}`;
+/**
+ * Input: Header cookie thô từ request và tên cookie cần đọc.
+ * Output: Trả giá trị cookie nếu tồn tại, ngược lại trả null.
+ */
+export function readCookieValue(cookieHeader: string | undefined, cookieName: string): string | null {
+  if (!cookieHeader) {
+    return null;
   }
 
-  return redirectUrl.toString();
+  const cookiePairs = cookieHeader.split(';');
+  for (const pair of cookiePairs) {
+    const [name, ...valueParts] = pair.trim().split('=');
+    if (name !== cookieName) {
+      continue;
+    }
+
+    const rawValue = valueParts.join('=');
+    if (!rawValue) {
+      return null;
+    }
+
+    try {
+      return decodeURIComponent(rawValue);
+    } catch {
+      return rawValue;
+    }
+  }
+
+  return null;
 }
 
 /**

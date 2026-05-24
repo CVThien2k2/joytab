@@ -15,21 +15,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
    */
   constructor(configService: ConfigService) {
     super({
-      clientID: getRequiredConfig(
-        configService,
-        'GOOGLE_CLIENT_ID',
-        ERROR_CODES.SYS_002,
-      ),
-      clientSecret: getRequiredConfig(
-        configService,
-        'GOOGLE_CLIENT_SECRET',
-        ERROR_CODES.SYS_003,
-      ),
-      callbackURL: getRequiredConfig(
-        configService,
-        'GOOGLE_CALLBACK_URL',
-        ERROR_CODES.SYS_004,
-      ),
+      clientID: getRequiredConfig(configService, 'GOOGLE_CLIENT_ID', ERROR_CODES.SYS_002),
+      clientSecret: getRequiredConfig(configService, 'GOOGLE_CLIENT_SECRET', ERROR_CODES.SYS_003),
+      callbackURL: getRequiredConfig(configService, 'GOOGLE_CALLBACK_URL', ERROR_CODES.SYS_004),
       scope: ['email', 'profile'],
     });
   }
@@ -38,11 +26,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
    * Input: Hồ sơ người dùng từ Google sau khi xác thực OAuth thành công.
    * Output: Chuẩn hóa profile Google thành dữ liệu user nội bộ để lưu vào DB.
    */
-  validate(
-    _accessToken: string,
-    _refreshToken: string,
-    profile: Profile,
-  ): GoogleUser {
+  validate(_accessToken: string, _refreshToken: string, profile: Profile): GoogleUser {
     const primaryEmail = profile.emails?.[0]?.value;
     if (!primaryEmail) throw new AppException(ERROR_CODES.AUTH_002);
 

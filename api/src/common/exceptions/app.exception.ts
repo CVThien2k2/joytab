@@ -21,6 +21,8 @@ export class AppException extends HttpException {
     switch (code) {
       case 'AUTH_001':
         return HttpStatus.UNAUTHORIZED;
+      case 'AUTH_003':
+        return HttpStatus.UNAUTHORIZED;
       case 'AUTH_002':
       case 'VALIDATION_001':
         return HttpStatus.BAD_REQUEST;
@@ -34,6 +36,10 @@ export class AppException extends HttpException {
       case 'SYS_006':
       case 'SYS_007':
       case 'SYS_008':
+      case 'SYS_009':
+      case 'SYS_010':
+      case 'SYS_011':
+      case 'SYS_012':
       case 'UNKNOWN_001':
       default:
         return HttpStatus.INTERNAL_SERVER_ERROR;

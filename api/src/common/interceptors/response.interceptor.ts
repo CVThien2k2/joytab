@@ -1,9 +1,4 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { ApiSuccessResponse } from '../utils/types';
@@ -14,10 +9,7 @@ export class ResponseInterceptor implements NestInterceptor {
    * Input: Execution context và luồng dữ liệu response từ handler hiện tại.
    * Output: Chuẩn hóa success response về format chung nếu handler chưa tự wrap.
    */
-  intercept(
-    _context: ExecutionContext,
-    next: CallHandler,
-  ): Observable<unknown> {
+  intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
       map((data: unknown) => {
         if (this.isWrappedApiResponse(data)) {

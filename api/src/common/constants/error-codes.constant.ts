@@ -7,6 +7,10 @@ export const ERROR_CODES = {
     code: 'AUTH_002',
     message: 'Google profile invalid',
   },
+  AUTH_003: {
+    code: 'AUTH_003',
+    message: 'Google login code invalid or expired',
+  },
   VALIDATION_001: {
     code: 'VALIDATION_001',
     message: 'Bad request',
@@ -46,6 +50,26 @@ export const ERROR_CODES = {
   SYS_008: {
     code: 'SYS_008',
     message: 'Missing DB_NAME',
+  },
+  SYS_009: {
+    code: 'SYS_009',
+    message: 'Missing REDIS_HOST',
+  },
+  SYS_010: {
+    code: 'SYS_010',
+    message: 'Missing REDIS_PORT',
+  },
+  SYS_011: {
+    code: 'SYS_011',
+    message: 'Missing REDIS_PASSWORD',
+  },
+  SYS_012: {
+    code: 'SYS_012',
+    message: 'Missing REDIS_DB',
+  },
+  SYS_013: {
+    code: 'SYS_013',
+    message: 'Missing GOOGLE_CALLBACK_JWT_SECRET',
   },
   UNKNOWN_001: {
     code: 'UNKNOWN_001',
