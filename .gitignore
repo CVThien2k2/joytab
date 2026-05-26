@@ -1,6 +1,7 @@
 # local tooling
 .agents/
 .codex/
+.claude/
 .venv/
 
 # dependencies
@@ -40,16 +41,13 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # env and temp
 .env*
+!.env.example
 .temp/
 .tmp/
 .vercel/
 
 # editor / os
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+.vscode/
 .idea/
 .project
 .classpath
