@@ -21,9 +21,7 @@
 | `GOOGLE_CLIENT_ID` | api | Y | - | Client ID OAuth 2.0 cho đăng nhập Google. |
 | `GOOGLE_CLIENT_SECRET` | api | Y | - | Client secret OAuth 2.0 cho đăng nhập Google. |
 | `GOOGLE_CALLBACK_URL` | api | Y | `http://localhost:3000/auth/google/callback` | Callback URL nhận redirect từ Google OAuth. |
-| `GOOGLE_CALLBACK_JWT_SECRET` | api | Y | - | Secret ký JWT `google_change_token` cho bước exchange callback Google (hết hạn 60 giây). |
-| `ACCESS_TOKEN_JWT_SECRET` | api | Y | - | Secret ký access token trả về ở `POST /auth/google/exchange`. |
-| `REFRESH_TOKEN_JWT_SECRET` | api | Y | - | Secret ký refresh token lưu trong cookie HttpOnly `refresh_token`. |
+| `JWT_SECRET` | api | Y | - | Secret HS256 ký access token trả về ở `POST /auth/google/exchange`. Google change token và refresh token sinh ngẫu nhiên + SHA-256 hash lưu Redis (không dùng JWT). |
 | `FRONTEND_ORIGIN` | api | N | `http://localhost:3000` | Origin FE để BE redirect cố định và cấu hình CORS `credentials: true` cho Google OAuth. |
 | `NEXT_PUBLIC_API_BASE_URL` | ui | N | `http://localhost:8000` | Base URL API để FE gọi endpoint `/auth/google` và `/auth/google/exchange`. |
 | `REDIS_HOST` | api | Y | - | Host Redis server (bắt buộc, không fallback trong code). |
@@ -49,9 +47,7 @@
 
 ### 4.4 Bảo mật
 - `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_CALLBACK_JWT_SECRET`
-- `ACCESS_TOKEN_JWT_SECRET`
-- `REFRESH_TOKEN_JWT_SECRET`
+- `JWT_SECRET`
 
 ### 4.5 Tích hợp FE-BE đăng nhập Google
 - `FRONTEND_ORIGIN`
@@ -67,4 +63,4 @@
 ## 6. Lưu ý an toàn
 - Không commit secret vào Git.
 - Dùng file `.env.example` để mô tả biến bắt buộc.
-- API sẽ dừng ngay ở lúc khởi động nếu thiếu các biến bắt buộc (`DB_*`, `REDIS_*`, `GOOGLE_*`, `ACCESS_TOKEN_JWT_SECRET`, `REFRESH_TOKEN_JWT_SECRET` theo bảng trên).
+- API sẽ dừng ngay ở lúc khởi động nếu thiếu các biến bắt buộc (`DB_*`, `REDIS_*`, `GOOGLE_*`, `JWT_SECRET` theo bảng trên).

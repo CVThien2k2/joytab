@@ -1,32 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes } from 'crypto';
-import { JwtPayload, sign, verify } from 'jsonwebtoken';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { sign } from 'jsonwebtoken';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
-import { AppException } from '../common/exceptions/app.exception';
 import { getRequiredConfig } from '../common/utils/functions';
-
-type GoogleChangeTokenPayload = JwtPayload & {
-  email?: unknown;
-  type?: unknown;
-};
 
 @Injectable()
 export class TokenService {
   private static readonly ACCESS_TOKEN_TTL_SECONDS = 3600;
   private static readonly REFRESH_TOKEN_TTL_SECONDS = 604800;
-  private static readonly GOOGLE_LOGIN_CODE_BYTES = 24;
   private static readonly GOOGLE_CHANGE_TOKEN_TTL_SECONDS = 60;
-  private static readonly GOOGLE_CHANGE_TOKEN_ISSUER = 'joytab-api';
-  private static readonly GOOGLE_CHANGE_TOKEN_AUDIENCE = 'joytab-google-exchange';
+  private static readonly GOOGLE_LOGIN_CODE_BYTES = 24;
+  private static readonly CHANGE_TOKEN_BYTES = 24;
+  private static readonly REFRESH_TOKEN_BYTES = 32;
   private static readonly ACCESS_TOKEN_ISSUER = 'joytab-api';
   private static readonly ACCESS_TOKEN_AUDIENCE = 'joytab-access';
-  private static readonly REFRESH_TOKEN_ISSUER = 'joytab-api';
-  private static readonly REFRESH_TOKEN_AUDIENCE = 'joytab-refresh';
 
   /**
-   * Input: ConfigService chứa secret dùng để ký/xác thực JWT callback Google.
-   * Output: Khởi tạo token service cho toàn bộ luồng auth.
+   * Input: ConfigService chứa JWT_SECRET để ký access token.
+   * Output: Khởi tạo token service phục vụ toàn bộ luồng auth.
    */
   constructor(private readonly configService: ConfigService) {}
 
@@ -39,28 +31,26 @@ export class TokenService {
   }
 
   /**
-   * Input: Email user đã xác thực Google ở bước callback.
-   * Output: JWT change token ngắn hạn 60 giây để FE gửi kèm ở bước exchange.
+   * Input: Không nhận tham số.
+   * Output: Trả cặp { raw, hash } cho google change token (raw cho cookie, hash lưu Redis).
    */
-  createGoogleChangeToken(email: string): string {
-    return sign(
-      {
-        email: email.trim().toLowerCase(),
-        type: 'google_callback_change',
-      },
-      this.getGoogleChangeTokenSecret(),
-      {
-        algorithm: 'HS256',
-        expiresIn: TokenService.GOOGLE_CHANGE_TOKEN_TTL_SECONDS,
-        issuer: TokenService.GOOGLE_CHANGE_TOKEN_ISSUER,
-        audience: TokenService.GOOGLE_CHANGE_TOKEN_AUDIENCE,
-      },
-    );
+  createGoogleChangeToken(): { raw: string; hash: string } {
+    const raw = randomBytes(TokenService.CHANGE_TOKEN_BYTES).toString('hex');
+    return { raw, hash: this.hashToken(raw) };
+  }
+
+  /**
+   * Input: Không nhận tham số.
+   * Output: Trả cặp { raw, hash } cho refresh token (raw set cookie, hash lưu Redis).
+   */
+  createRefreshToken(): { raw: string; hash: string } {
+    const raw = randomBytes(TokenService.REFRESH_TOKEN_BYTES).toString('hex');
+    return { raw, hash: this.hashToken(raw) };
   }
 
   /**
    * Input: User ID và email đã xác thực ở bước exchange code.
-   * Output: JWT access token phục vụ xác thực các API nghiệp vụ.
+   * Output: JWT access token HS256 phục vụ xác thực các API nghiệp vụ.
    */
   createAccessToken(userId: string, email: string): string {
     return sign(
@@ -69,7 +59,7 @@ export class TokenService {
         email: email.trim().toLowerCase(),
         type: 'access',
       },
-      this.getAccessTokenSecret(),
+      this.getJwtSecret(),
       {
         algorithm: 'HS256',
         expiresIn: TokenService.ACCESS_TOKEN_TTL_SECONDS,
@@ -80,55 +70,27 @@ export class TokenService {
   }
 
   /**
-   * Input: User ID và email đã xác thực ở bước exchange code.
-   * Output: JWT refresh token để backend cấp lại access token ở các lần sau.
+   * Input: Chuỗi token raw cần băm.
+   * Output: SHA-256 hex digest dùng để so sánh với hash đã lưu Redis.
    */
-  createRefreshToken(userId: string, email: string): string {
-    return sign(
-      {
-        sub: userId.trim(),
-        email: email.trim().toLowerCase(),
-        type: 'refresh',
-      },
-      this.getRefreshTokenSecret(),
-      {
-        algorithm: 'HS256',
-        expiresIn: TokenService.REFRESH_TOKEN_TTL_SECONDS,
-        issuer: TokenService.REFRESH_TOKEN_ISSUER,
-        audience: TokenService.REFRESH_TOKEN_AUDIENCE,
-      },
-    );
+  hashToken(raw: string): string {
+    return createHash('sha256').update(raw).digest('hex');
   }
 
   /**
-   * Input: JWT change token từ cookie HttpOnly ở callback Google.
-   * Output: Trả email hợp lệ trong token; token sai/hết hạn sẽ ném AUTH_003.
+   * Input: Hai chuỗi hash hex (cùng độ dài) cần so sánh.
+   * Output: true nếu giống nhau, false nếu khác — so sánh hằng thời gian chống timing attack.
    */
-  parseGoogleChangeToken(changeToken: string): string {
-    try {
-      const verifiedPayload = verify(changeToken, this.getGoogleChangeTokenSecret(), {
-        algorithms: ['HS256'],
-        issuer: TokenService.GOOGLE_CHANGE_TOKEN_ISSUER,
-        audience: TokenService.GOOGLE_CHANGE_TOKEN_AUDIENCE,
-      }) as GoogleChangeTokenPayload;
-
-      if (verifiedPayload.type !== 'google_callback_change' || typeof verifiedPayload.email !== 'string') {
-        throw new AppException(ERROR_CODES.AUTH_003);
-      }
-
-      const normalizedEmail = verifiedPayload.email.trim().toLowerCase();
-      if (!normalizedEmail) {
-        throw new AppException(ERROR_CODES.AUTH_003);
-      }
-
-      return normalizedEmail;
-    } catch (error) {
-      if (error instanceof AppException) {
-        throw error;
-      }
-
-      throw new AppException(ERROR_CODES.AUTH_003);
+  safeCompareHash(a: string, b: string): boolean {
+    if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) {
+      return false;
     }
+    const bufA = Buffer.from(a, 'hex');
+    const bufB = Buffer.from(b, 'hex');
+    if (bufA.length !== bufB.length) {
+      return false;
+    }
+    return timingSafeEqual(bufA, bufB);
   }
 
   /**
@@ -147,15 +109,19 @@ export class TokenService {
     return TokenService.REFRESH_TOKEN_TTL_SECONDS;
   }
 
-  private getGoogleChangeTokenSecret(): string {
-    return getRequiredConfig(this.configService, 'GOOGLE_CALLBACK_JWT_SECRET', ERROR_CODES.SYS_013);
+  /**
+   * Input: Không nhận tham số.
+   * Output: Trả TTL google change token (giây) phục vụ cấu hình cookie/Redis.
+   */
+  getGoogleChangeTokenTtlSeconds(): number {
+    return TokenService.GOOGLE_CHANGE_TOKEN_TTL_SECONDS;
   }
 
-  private getAccessTokenSecret(): string {
-    return getRequiredConfig(this.configService, 'ACCESS_TOKEN_JWT_SECRET', ERROR_CODES.SYS_014);
-  }
-
-  private getRefreshTokenSecret(): string {
-    return getRequiredConfig(this.configService, 'REFRESH_TOKEN_JWT_SECRET', ERROR_CODES.SYS_015);
+  /**
+   * Input: Không nhận tham số.
+   * Output: Trả JWT_SECRET từ cấu hình, ném AppException SYS_014 nếu thiếu biến.
+   */
+  private getJwtSecret(): string {
+    return getRequiredConfig(this.configService, 'JWT_SECRET', ERROR_CODES.SYS_014);
   }
 }

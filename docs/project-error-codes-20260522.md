@@ -27,9 +27,7 @@
 | `SYS_010` | `500` | Missing REDIS_PORT | Thiếu biến môi trường `REDIS_PORT` khi khởi tạo Redis cache module. | Bổ sung `REDIS_PORT` trong env runtime của API. |
 | `SYS_011` | `500` | Missing REDIS_PASSWORD | Thiếu biến môi trường `REDIS_PASSWORD` khi khởi tạo Redis cache module. | Bổ sung `REDIS_PASSWORD` trong env runtime của API. |
 | `SYS_012` | `500` | Missing REDIS_DB | Thiếu biến môi trường `REDIS_DB` khi khởi tạo Redis cache module. | Bổ sung `REDIS_DB` trong env runtime của API. |
-| `SYS_013` | `500` | Missing GOOGLE_CALLBACK_JWT_SECRET | Thiếu biến môi trường `GOOGLE_CALLBACK_JWT_SECRET` khi ký/xác thực cookie JWT của Google callback flow. | Bổ sung `GOOGLE_CALLBACK_JWT_SECRET` trong env runtime của API. |
-| `SYS_014` | `500` | Missing ACCESS_TOKEN_JWT_SECRET | Thiếu biến môi trường `ACCESS_TOKEN_JWT_SECRET` khi ký access token ở bước exchange. | Bổ sung `ACCESS_TOKEN_JWT_SECRET` trong env runtime của API. |
-| `SYS_015` | `500` | Missing REFRESH_TOKEN_JWT_SECRET | Thiếu biến môi trường `REFRESH_TOKEN_JWT_SECRET` khi ký refresh token cookie ở bước exchange. | Bổ sung `REFRESH_TOKEN_JWT_SECRET` trong env runtime của API. |
+| `SYS_014` | `500` | Missing JWT_SECRET | Thiếu biến môi trường `JWT_SECRET` khi ký access token. | Bổ sung `JWT_SECRET` trong env runtime của API. |
 | `UNKNOWN_001` | `>=400` hoặc `500` | Unknown error | Exception không phải `AppException`, code chuẩn fallback cho hệ thống. | Kiểm tra message lỗi gốc và stack trace trong log để truy vết nguồn throw. |
 
 ## 4. Mapping exception -> mã lỗi
