@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
@@ -17,8 +18,11 @@ import {
   REFRESH_TOKEN_TTL_MS,
 } from './auth.utils';
 
+@Throttle({ global: { ttl: 60000, limit: 10 } })
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   /**
    * Input: AuthService xử lý đăng nhập Google và ConfigService đọc FRONTEND_ORIGIN từ env.
    * Output: Khởi tạo controller cho các route xác thực và điều hướng callback về FE.
@@ -48,14 +52,22 @@ export class AuthController {
     try {
       const googleUser = request.user;
       if (!googleUser) {
+        this.logger.warn('Google callback received without user profile, redirecting to login');
         response.redirect(302, loginPageUrl);
         return;
       }
 
+      this.logger.log(`Google callback received for user: email=${googleUser.email} provider=${googleUser.provider}`);
       const { code, changeToken } = await this.authService.loginWithGoogle(googleUser);
-      response.cookie(GOOGLE_CHANGE_TOKEN_COOKIE_NAME, changeToken, this.buildGoogleChangeTokenCookieOptions());
+      response.cookie(
+        GOOGLE_CHANGE_TOKEN_COOKIE_NAME,
+        changeToken,
+        this.buildCookieOptions('/auth/google/exchange', GOOGLE_CALLBACK_EXCHANGE_TTL_MS),
+      );
+      this.logger.log(`Login code issued for ${googleUser.email}, redirecting to FE callback`);
       response.redirect(302, buildGoogleLoginCallbackRedirectUrl(frontendOrigin, code));
-    } catch {
+    } catch (err) {
+      this.logger.error(`Google callback failed: ${err instanceof Error ? err.message : String(err)}`);
       response.redirect(302, loginPageUrl);
     }
   }
@@ -77,44 +89,31 @@ export class AuthController {
 
     try {
       const exchangeArtifacts = await this.authService.exchangeGoogleLoginCode(body.code, changeToken);
-      response.cookie(REFRESH_TOKEN_COOKIE_NAME, exchangeArtifacts.refreshToken, this.buildRefreshTokenCookieOptions());
+      response.cookie(
+        REFRESH_TOKEN_COOKIE_NAME,
+        exchangeArtifacts.refreshToken,
+        this.buildCookieOptions('/', REFRESH_TOKEN_TTL_MS),
+      );
       return {
         accessToken: exchangeArtifacts.accessToken,
         accessTokenExpiresAt: exchangeArtifacts.accessTokenExpiresAt,
         user: exchangeArtifacts.user,
       };
     } finally {
-      response.clearCookie(GOOGLE_CHANGE_TOKEN_COOKIE_NAME, this.buildGoogleChangeTokenCookieOptions());
+      response.clearCookie(
+        GOOGLE_CHANGE_TOKEN_COOKIE_NAME,
+        this.buildCookieOptions('/auth/google/exchange', GOOGLE_CALLBACK_EXCHANGE_TTL_MS),
+      );
     }
   }
 
-  /**
-   * Input: NODE_ENV từ env để xác định chính sách secure/sameSite cho cookie tạm.
-   * Output: Trả cookie options dùng chung cho set/clear change token ở luồng Google callback.
-   */
-  private buildGoogleChangeTokenCookieOptions() {
-    const isProduction = isProductionEnvironment(this.configService);
+  private buildCookieOptions(path: string, maxAge: number) {
     return {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? ('none' as const) : ('lax' as const),
-      path: '/auth/google/exchange',
-      maxAge: GOOGLE_CALLBACK_EXCHANGE_TTL_MS,
-    };
-  }
-
-  /**
-   * Input: NODE_ENV từ env để xác định chính sách secure/sameSite cho refresh token.
-   * Output: Trả cookie options dùng chung cho refresh token ở flow exchange Google.
-   */
-  private buildRefreshTokenCookieOptions() {
-    const isProduction = isProductionEnvironment(this.configService);
-    return {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? ('none' as const) : ('lax' as const),
-      path: '/',
-      maxAge: REFRESH_TOKEN_TTL_MS,
+      secure: isProductionEnvironment(this.configService),
+      sameSite: 'lax' as const,
+      path,
+      maxAge,
     };
   }
 }

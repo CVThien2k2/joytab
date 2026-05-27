@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { AppLogger } from './common/loggers/app.logger';
@@ -14,6 +15,7 @@ async function bootstrap() {
     logger: new AppLogger(),
   });
   const frontendOrigin = process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000';
+  app.use(helmet({ contentSecurityPolicy: false }));
   app.enableCors({
     origin: frontendOrigin,
     credentials: true,

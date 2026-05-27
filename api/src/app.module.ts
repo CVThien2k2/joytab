@@ -1,7 +1,10 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { RedisCacheModule } from './cache/redis-cache.module';
+import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
 
 const REQUIRED_ENV_KEYS = [
@@ -11,11 +14,10 @@ const REQUIRED_ENV_KEYS = [
   'DB_NAME',
   'REDIS_HOST',
   'REDIS_PORT',
-  'REDIS_PASSWORD',
   'REDIS_DB',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
-  'GOOGLE_CALLBACK_URL',
+  'API_URL',
   'JWT_SECRET',
 ] as const;
 
@@ -42,11 +44,18 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
       isGlobal: true,
       validate: validateEnvironmentVariables,
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'global', ttl: 60000, limit: 60 }],
+    }),
     RedisCacheModule,
     DatabaseModule,
     AuthModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
+  }
+}

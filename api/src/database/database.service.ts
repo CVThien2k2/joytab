@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
@@ -7,6 +7,8 @@ import { PrismaClient } from '../generated/prisma/client';
 
 @Injectable()
 export class DatabaseService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DatabaseService.name);
+
   /**
    * Input: ConfigService chứa các biến DB_HOST, DB_USER, DB_PASSWORD, DB_NAME.
    * Output: Khởi tạo PrismaClient với URL kết nối được dựng từ cấu hình môi trường.
@@ -36,7 +38,38 @@ export class DatabaseService extends PrismaClient implements OnModuleInit, OnMod
    * Output: Thiết lập kết nối Prisma đến database khi module khởi tạo.
    */
   async onModuleInit(): Promise<void> {
-    await this.$connect();
+    await this.connectWithRetry();
+  }
+
+  private async connectWithRetry(delayMs = 3000): Promise<void> {
+    let attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        this.logger.log(`Connecting to database (attempt ${attempt})...`);
+        await this.$connect();
+        await this.$queryRaw`SELECT 1`;
+        this.logger.log('Database connected');
+        return;
+      } catch (err) {
+        this.logger.error(
+          `Connection failed: ${DatabaseService.extractErrorMessage(err)}. Retrying in ${delayMs / 1000}s...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  private static extractErrorMessage(err: unknown): string {
+    if (!(err instanceof Error)) return String(err);
+    const match = err.message.match(/Message: `([^`]+)`/);
+    if (match) return match[1];
+    const lastLine = err.message
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .pop();
+    return lastLine ?? err.message;
   }
 
   /**

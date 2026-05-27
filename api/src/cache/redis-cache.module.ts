@@ -1,7 +1,7 @@
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import KeyvRedis from '@keyv/redis';
+import KeyvRedis, { createClient } from '@keyv/redis';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { getRequiredConfig } from '../common/utils/functions';
 
@@ -10,21 +10,33 @@ import { getRequiredConfig } from '../common/utils/functions';
     CacheModule.registerAsync({
       isGlobal: true,
       inject: [ConfigService],
-      /**
-       * Input: ConfigService chứa các biến REDIS_HOST/REDIS_PORT/REDIS_PASSWORD/REDIS_DB.
-       * Output: Trả cấu hình CacheModule dùng Redis store cho toàn hệ thống.
-       */
-      useFactory: (configService: ConfigService) => {
+      useFactory: async (configService: ConfigService) => {
+        const logger = new Logger('RedisCache');
         const redisHost = getRequiredConfig(configService, 'REDIS_HOST', ERROR_CODES.SYS_009);
         const redisPort = getRequiredConfig(configService, 'REDIS_PORT', ERROR_CODES.SYS_010);
-        const redisPassword = getRequiredConfig(configService, 'REDIS_PASSWORD', ERROR_CODES.SYS_011).trim();
+        const redisPassword = (configService.get<string>('REDIS_PASSWORD') ?? '').trim();
         const redisDb = getRequiredConfig(configService, 'REDIS_DB', ERROR_CODES.SYS_012);
         const redisAuthPart = redisPassword ? `:${redisPassword}@` : '';
         const redisUrl = `redis://${redisAuthPart}${redisHost}:${redisPort}/${redisDb}`;
 
-        return {
-          stores: [new KeyvRedis(redisUrl)],
-        };
+        const client = createClient({
+          url: redisUrl,
+          socket: {
+            reconnectStrategy: (retries) => {
+              const delay = Math.min(retries * 1000, 10000);
+              logger.warn(`Redis reconnecting (attempt ${retries + 1}) in ${delay / 1000}s...`);
+              return delay;
+            },
+          },
+        });
+
+        client.on('connect', () => logger.log('Redis connecting...'));
+        client.on('ready', () => logger.log('Redis connected'));
+        client.on('error', (err: Error) => logger.error(`Redis error: ${err.message}`));
+
+        await client.connect();
+
+        return { stores: [new KeyvRedis(client)] };
       },
     }),
   ],

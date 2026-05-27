@@ -33,7 +33,7 @@ export const ERROR_CODES = {
   },
   SYS_004: {
     code: 'SYS_004',
-    message: 'Missing GOOGLE_CALLBACK_URL',
+    message: 'Missing API_URL',
   },
   SYS_005: {
     code: 'SYS_005',
