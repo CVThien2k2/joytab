@@ -28,7 +28,6 @@ type GoogleLoginCodeCacheValue = {
 
 @Injectable()
 export class AuthService {
-  private static readonly GOOGLE_LOGIN_CODE_TTL_MS = 60_000;
   private static readonly CACHE_AUTH_CODE_PREFIX = 'auth:google:code:';
   private static readonly CACHE_REFRESH_HASH_PREFIX = 'auth:refresh:hash:';
 
@@ -55,7 +54,7 @@ export class AuthService {
     await this.cacheManager.set(
       this.getAuthCodeCacheKey(code),
       JSON.stringify(cacheValue),
-      AuthService.GOOGLE_LOGIN_CODE_TTL_MS,
+      this.tokenService.getGoogleChangeTokenTtlSeconds() * 1000,
     );
     return { code, changeToken: changeTokenRaw };
   }

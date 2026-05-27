@@ -117,6 +117,10 @@ export class TokenService {
     return TokenService.GOOGLE_CHANGE_TOKEN_TTL_SECONDS;
   }
 
+  /**
+   * Input: Không nhận tham số.
+   * Output: Trả JWT_SECRET từ cấu hình, ném AppException SYS_014 nếu thiếu biến.
+   */
   private getJwtSecret(): string {
     return getRequiredConfig(this.configService, 'JWT_SECRET', ERROR_CODES.SYS_014);
   }
