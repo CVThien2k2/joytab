@@ -67,17 +67,9 @@ export const ERROR_CODES = {
     code: 'SYS_012',
     message: 'Missing REDIS_DB',
   },
-  SYS_013: {
-    code: 'SYS_013',
-    message: 'Missing GOOGLE_CALLBACK_JWT_SECRET',
-  },
   SYS_014: {
     code: 'SYS_014',
-    message: 'Missing ACCESS_TOKEN_JWT_SECRET',
-  },
-  SYS_015: {
-    code: 'SYS_015',
-    message: 'Missing REFRESH_TOKEN_JWT_SECRET',
+    message: 'Missing JWT_SECRET',
   },
   UNKNOWN_001: {
     code: 'UNKNOWN_001',
