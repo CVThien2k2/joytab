@@ -107,6 +107,20 @@ export class AuthController {
     }
   }
 
+  /**
+   * Input: Cookie refresh_token kèm request (nếu có); session FE muốn kết thúc.
+   * Output: Xoá hash refresh trong Redis và clear cookie ở browser; trả 204 cho mọi trường hợp idempotent.
+   */
+  @Post('logout')
+  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
+    const rawRefreshToken = readCookieValue(request.headers.cookie, REFRESH_TOKEN_COOKIE_NAME);
+    if (rawRefreshToken) {
+      await this.authService.revokeRefreshToken(rawRefreshToken);
+    }
+    response.clearCookie(REFRESH_TOKEN_COOKIE_NAME, this.buildCookieOptions('/', REFRESH_TOKEN_TTL_MS));
+    response.status(204);
+  }
+
   private buildCookieOptions(path: string, maxAge: number) {
     return {
       httpOnly: true,

@@ -1,12 +1,11 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
-import type { AuthSession } from "@/lib/auth-callback"
+import type { AuthUser } from "@/lib/auth-callback"
 
 type AuthState = {
-  isAuthenticated: boolean
-  session: AuthSession | null
-  loginWithSession: (session: AuthSession) => void
-  logout: () => void
+  user: AuthUser | null
+  setUser: (user: AuthUser) => void
+  clearUser: () => void
 }
 
 export const AUTH_STORAGE_KEY = "joytab-auth-store"
@@ -14,36 +13,24 @@ export const AUTH_STORAGE_KEY = "joytab-auth-store"
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      isAuthenticated: false,
-      session: null,
+      user: null,
 
       /**
-       * Input: Session token + user trả về sau khi BE exchange code thành công.
-       * Output: Đánh dấu người dùng đã đăng nhập và lưu session vào store.
+       * Input: User profile vừa nhận sau khi BE exchange code thành công.
+       * Output: Lưu thông tin hiển thị vào store (không lưu access token).
        */
-      loginWithSession: (session) =>
-        set({
-          isAuthenticated: true,
-          session,
-        }),
+      setUser: (user) => set({ user }),
 
       /**
        * Input: Không nhận tham số.
-       * Output: Xóa trạng thái đăng nhập cục bộ khỏi store.
+       * Output: Xoá user info trong store khi logout hoặc session kết thúc.
        */
-      logout: () =>
-        set({
-          isAuthenticated: false,
-          session: null,
-        }),
+      clearUser: () => set({ user: null }),
     }),
     {
       name: AUTH_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        isAuthenticated: state.isAuthenticated,
-        session: state.session,
-      }),
+      partialize: (state) => ({ user: state.user }),
     },
   ),
 )

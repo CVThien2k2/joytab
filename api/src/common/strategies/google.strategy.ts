@@ -10,14 +10,14 @@ import { GoogleUser } from '../utils/types';
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   /**
-   * Input: ConfigService chứa GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, API_URL.
-   * Output: Khởi tạo Google OAuth strategy cho Passport trong NestJS.
+   * Input: ConfigService chứa GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, FRONTEND_ORIGIN.
+   * Output: Khởi tạo Google OAuth strategy cho Passport, callback chạy qua FE để cookie thuộc FE host.
    */
   constructor(configService: ConfigService) {
     super({
       clientID: getRequiredConfig(configService, 'GOOGLE_CLIENT_ID', ERROR_CODES.SYS_002),
       clientSecret: getRequiredConfig(configService, 'GOOGLE_CLIENT_SECRET', ERROR_CODES.SYS_003),
-      callbackURL: `${getRequiredConfig(configService, 'API_URL', ERROR_CODES.SYS_004)}/auth/google/callback`,
+      callbackURL: `${getRequiredConfig(configService, 'FRONTEND_ORIGIN', ERROR_CODES.SYS_004)}/auth/google/callback`,
       scope: ['email', 'profile'],
     });
   }

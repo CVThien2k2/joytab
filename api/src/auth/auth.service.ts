@@ -119,6 +119,19 @@ export class AuthService {
   }
 
   /**
+   * Input: Refresh token raw (lấy từ cookie httpOnly khi user logout).
+   * Output: Xoá hash trong Redis để token không thể dùng refresh nữa; không ném lỗi nếu hash đã hết.
+   */
+  async revokeRefreshToken(rawRefreshToken: string): Promise<void> {
+    const trimmed = rawRefreshToken.trim();
+    if (!trimmed) {
+      return;
+    }
+    const hash = this.tokenService.hashToken(trimmed);
+    await this.cacheManager.del(this.getRefreshHashCacheKey(hash));
+  }
+
+  /**
    * Input: Dữ liệu Google user đã validate từ provider.
    * Output: Đồng bộ bản ghi users theo provider_user_id và trả user mới nhất.
    */

@@ -1,17 +1,15 @@
 import axios from "axios"
 import type { AxiosInstance, InternalAxiosRequestConfig } from "axios"
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
-
 /**
- * Input: Không nhận input runtime; sử dụng biến môi trường NEXT_PUBLIC_API_BASE_URL.
- * Output: Tạo axios instance dùng chung cho toàn bộ request từ UI sang BE.
+ * Input: Không nhận input runtime; mọi call dùng đường dẫn tương đối qua Next rewrite.
+ * Output: Tạo axios instance same-origin để cookie httpOnly thuộc FE host được gửi tự động.
  */
 function createApiClient(): AxiosInstance {
   const instance = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: "",
     timeout: 10000,
+    withCredentials: true,
   })
 
   instance.interceptors.request.use(

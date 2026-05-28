@@ -4,23 +4,26 @@ const googleCallbackQuerySchema = z.object({
   code: z.string().min(1).optional(),
 })
 
+const authUserSchema = z.object({
+  provider: z.literal("google"),
+  providerUserId: z.string().min(1),
+  email: z.string().min(1),
+  emailVerified: z.boolean(),
+  fullName: z.string().nullable(),
+  avatarUrl: z.string().nullable(),
+})
+
 const exchangeResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
   data: z.object({
     accessToken: z.string().min(1),
     accessTokenExpiresAt: z.string().min(1),
-    user: z.object({
-      provider: z.literal("google"),
-      providerUserId: z.string().min(1),
-      email: z.string().min(1),
-      emailVerified: z.boolean(),
-      fullName: z.string().nullable(),
-      avatarUrl: z.string().nullable(),
-    }),
+    user: authUserSchema,
   }),
 })
 
+export type AuthUser = z.infer<typeof authUserSchema>
 export type AuthSession = z.infer<typeof exchangeResponseSchema>["data"]
 
 /**
