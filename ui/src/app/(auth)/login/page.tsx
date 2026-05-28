@@ -1,10 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api-client"
-import { useAuthStore } from "@/stores/auth-store"
 
 /**
  * Input: Không nhận input trực tiếp; đọc baseURL đã cấu hình trong axios client.
@@ -21,20 +18,6 @@ function handleGoogleLogin() {
  * Output: Render màn hình login Google hoặc điều hướng về `/` khi đã login.
  */
 export default function LoginPage() {
-  const router = useRouter()
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  const session = useAuthStore((state) => state.session)
-
-  useEffect(() => {
-    if (isAuthenticated && session) {
-      router.replace("/")
-    }
-  }, [isAuthenticated, router, session])
-
-  if (isAuthenticated && session) {
-    return null
-  }
-
   return (
     <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
       <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">

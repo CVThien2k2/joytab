@@ -1,27 +1,19 @@
 "use client"
 
-import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useAuthStore } from "@/stores/auth-store"
 
 /**
  * Input: Không nhận tham số; đọc session đăng nhập từ Zustand store.
- * Output: Render trang chủ khi đã login, hoặc điều hướng sang `/login` nếu chưa login.
+ * Output: Render trang chủ khi đã login, hoặc trả null nếu session chưa sẵn sàng.
  */
 export function HomePageClient() {
   const router = useRouter()
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const session = useAuthStore((state) => state.session)
   const logout = useAuthStore((state) => state.logout)
 
-  useEffect(() => {
-    if (!isAuthenticated || !session) {
-      router.replace("/login")
-    }
-  }, [isAuthenticated, router, session])
-
-  if (!isAuthenticated || !session) {
+  if (!session) {
     return null
   }
 

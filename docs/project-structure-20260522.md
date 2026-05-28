@@ -129,14 +129,23 @@ ui/
 │  └─ app/
 │     ├─ favicon.ico
 │     ├─ globals.css
-│     ├─ home-page-client.tsx
-│     ├─ login/
-│     │  └─ callback/
-│     │     ├─ callback-client.tsx
-│     │     └─ page.tsx
+│     ├─ (private)/
+│     │  ├─ home-page-client.tsx
+│     │  ├─ layout.tsx
 │     │  └─ page.tsx
-│     ├─ layout.tsx
-│     └─ page.tsx
+│     ├─ (auth)/
+│     │  ├─ layout.tsx
+│     │  └─ login/
+│     │     ├─ callback/
+│     │     │  ├─ callback-client.tsx
+│     │     │  └─ page.tsx
+│     │     └─ page.tsx
+│     └─ layout.tsx
+├─ src/components/
+│  └─ ui/
+│     └─ button.tsx
+├─ src/hooks/
+│  └─ use-auth-hydration.ts
 ├─ src/lib/
 │  ├─ api-client.ts
 │  ├─ auth-callback.ts
@@ -165,13 +174,17 @@ Bảng mô tả chi tiết Frontend:
 | `ui/public/vercel.svg` | Asset tĩnh | Biểu tượng tĩnh cho giao diện. |
 | `ui/public/window.svg` | Asset tĩnh | Biểu tượng tĩnh cho giao diện. |
 | `ui/src/app/layout.tsx` | Mã nguồn | Root layout của App Router. |
-| `ui/src/app/login/callback/page.tsx` | Mã nguồn | Route callback Google của FE, bọc client logic dưới Suspense. |
-| `ui/src/app/login/callback/callback-client.tsx` | Mã nguồn | Client component gọi BE đổi `code` với `withCredentials: true` để gửi cookie đổi mã, lưu token+user vào store và redirect về `/`. |
-| `ui/src/app/home-page-client.tsx` | Mã nguồn | Client component guard auth cho route `/` và hiển thị thông tin session đã lưu. |
-| `ui/src/app/login/page.tsx` | Mã nguồn | Trang login Google, chuyển hướng sang BE `/auth/google` bằng axios baseURL. |
-| `ui/src/app/page.tsx` | Mã nguồn | Trang chính sau login, render home client component dưới Suspense. |
+| `ui/src/app/(private)/layout.tsx` | Mã nguồn | Route group layout cho vùng private cần đăng nhập, giữ URL thật không đổi và bảo vệ route bằng trạng thái auth trong Zustand sau khi persist hydrate. |
+| `ui/src/app/(private)/page.tsx` | Mã nguồn | Trang chính tại `/`, render home client component dưới Suspense. |
+| `ui/src/app/(private)/home-page-client.tsx` | Mã nguồn | Client component hiển thị thông tin session đã lưu và nút đăng xuất, giữ nguyên giao diện dashboard hiện tại. |
+| `ui/src/app/(auth)/layout.tsx` | Mã nguồn | Route group layout cho vùng auth chỉ dành cho người chưa đăng nhập, giữ URL thật không đổi và redirect về `/` nếu đã có session. |
+| `ui/src/app/(auth)/login/callback/page.tsx` | Mã nguồn | Route callback Google của FE, bọc client logic dưới Suspense. |
+| `ui/src/app/(auth)/login/callback/callback-client.tsx` | Mã nguồn | Client component gọi BE đổi `code` với `withCredentials: true` để gửi cookie đổi mã, lưu token+user vào store và redirect về `/`. |
+| `ui/src/app/(auth)/login/page.tsx` | Mã nguồn | Trang login Google trong auth route group, chuyển hướng sang BE `/auth/google` bằng axios baseURL. |
 | `ui/src/app/globals.css` | Mã nguồn CSS | Khai báo style global của UI. |
 | `ui/src/app/favicon.ico` | Asset giao diện | Favicon của ứng dụng. |
+| `ui/src/components/ui/button.tsx` | Mã nguồn | Button UI dùng chung theo cấu hình shadcn hiện tại. |
+| `ui/src/hooks/use-auth-hydration.ts` | Mã nguồn | Hook client kiểm tra Zustand persist đã hydrate xong trước khi redirect theo trạng thái auth. |
 | `ui/src/lib/api-client.ts` | Mã nguồn | Axios instance dùng chung cho request UI -> BE. |
 | `ui/src/lib/auth-callback.ts` | Mã nguồn | Parse callback query `code` và validate response exchange token+user bằng Zod. |
 | `ui/src/providers/query-provider.tsx` | Mã nguồn | QueryClientProvider toàn app cho React Query. |

@@ -1,5 +1,5 @@
-import { Suspense } from "react"
-import { GoogleAuthCallbackClient } from "./callback-client"
+import { Suspense } from "react";
+import { GoogleAuthCallbackClient } from "./callback-client";
 
 /**
  * Input: Không nhận tham số.
@@ -10,5 +10,5 @@ export default function GoogleAuthCallbackPage() {
     <Suspense fallback={null}>
       <GoogleAuthCallbackClient />
     </Suspense>
-  )
+  );
 }
