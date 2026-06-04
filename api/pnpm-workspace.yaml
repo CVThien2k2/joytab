@@ -3,3 +3,4 @@ allowBuilds:
   '@prisma/engines': false
   '@swc/core': false
   prisma: false
+  unrs-resolver: false

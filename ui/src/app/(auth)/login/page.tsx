@@ -1,17 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { apiClient } from "@/lib/api-client"
-
-/**
- * Input: Không nhận input trực tiếp; đọc baseURL đã cấu hình trong axios client.
- * Output: Chuyển hướng browser sang BE `/auth/google` để bắt đầu OAuth.
- */
-function handleGoogleLogin() {
-  const apiBaseUrl = apiClient.defaults.baseURL ?? "http://localhost:8000"
-  const authUrl = new URL("/auth/google", apiBaseUrl)
-  window.location.href = authUrl.toString()
-}
+import { redirectToGoogleLogin } from "@/lib/google-login"
 
 /**
  * Input: Không nhận tham số; đọc trạng thái đăng nhập từ Zustand store.
@@ -27,7 +17,7 @@ export default function LoginPage() {
         </p>
         <Button
           type="button"
-          onClick={handleGoogleLogin}
+          onClick={() => redirectToGoogleLogin()}
           className="mt-6 w-full"
         >
           Đăng nhập với Google

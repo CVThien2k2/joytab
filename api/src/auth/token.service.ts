@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
-import { sign } from 'jsonwebtoken';
+import { JwtPayload, sign, verify } from 'jsonwebtoken';
+import { AppException } from '../common/exceptions/app.exception';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { getRequiredConfig } from '../common/utils/functions';
 
@@ -115,6 +116,37 @@ export class TokenService {
    */
   getGoogleChangeTokenTtlSeconds(): number {
     return TokenService.GOOGLE_CHANGE_TOKEN_TTL_SECONDS;
+  }
+
+  /**
+   * Input: JWT access token cần xác thực.
+   * Output: Trả { sub, email } nếu hợp lệ; ném AppException AUTH_001 nếu sai/hết hạn.
+   */
+  verifyAccessToken(token: string): { sub: string; email: string } {
+    try {
+      const payload = verify(token, this.getJwtSecret(), {
+        algorithms: ['HS256'],
+        issuer: TokenService.ACCESS_TOKEN_ISSUER,
+        audience: TokenService.ACCESS_TOKEN_AUDIENCE,
+      }) as JwtPayload;
+      const sub = typeof payload.sub === 'string' ? payload.sub : '';
+      const email = typeof payload.email === 'string' ? payload.email : '';
+      if (!sub || !email) {
+        throw new AppException(ERROR_CODES.AUTH_001);
+      }
+      return { sub, email };
+    } catch (err) {
+      if (err instanceof AppException) throw err;
+      throw new AppException(ERROR_CODES.AUTH_001);
+    }
+  }
+
+  /**
+   * Input: Không nhận tham số.
+   * Output: Trả TTL refresh token theo mili-giây để dựng expires_at.
+   */
+  getRefreshTokenTtlMs(): number {
+    return TokenService.REFRESH_TOKEN_TTL_SECONDS * 1000;
   }
 
   /**

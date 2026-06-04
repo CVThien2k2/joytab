@@ -8,6 +8,7 @@ import {
   parseGoogleLoginCallbackCode,
   parseGoogleLoginExchangeResponse,
 } from "@/lib/auth-callback"
+import { getDeviceFingerprint } from "@/lib/device"
 import { useAuthStore } from "@/stores/auth-store"
 
 /**
@@ -17,15 +18,16 @@ import { useAuthStore } from "@/stores/auth-store"
 export function GoogleAuthCallbackClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const loginWithSession = useAuthStore((state) => state.loginWithSession)
+  const addAccount = useAuthStore((state) => state.addAccount)
   const hasRequestedRef = useRef(false)
   const callbackCode = parseGoogleLoginCallbackCode(searchParams.toString())
 
   const exchangeGoogleCodeMutation = useMutation({
     mutationFn: async (code: string) => {
+      const deviceFingerprint = await getDeviceFingerprint()
       const response = await apiClient.post(
         "/auth/google/exchange",
-        { code },
+        { code, deviceFingerprint },
         { withCredentials: true },
       )
       const parsedSession = parseGoogleLoginExchangeResponse(response.data)
@@ -36,7 +38,7 @@ export function GoogleAuthCallbackClient() {
       return parsedSession
     },
     onSuccess: (session) => {
-      loginWithSession(session)
+      addAccount(session)
       router.replace("/")
     },
     onError: () => {

@@ -16,18 +16,12 @@ export default function PrivateLayout({
 }>) {
   const router = useRouter()
   const hasHydrated = useAuthHydration()
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  const session = useAuthStore((state) => state.session)
+  const hasAccounts = useAuthStore((s) => Object.keys(s.accounts).length > 0)
 
   useEffect(() => {
-    if (hasHydrated && (!isAuthenticated || !session)) {
-      router.replace("/login")
-    }
-  }, [hasHydrated, isAuthenticated, router, session])
+    if (hasHydrated && !hasAccounts) router.replace("/login")
+  }, [hasHydrated, hasAccounts, router])
 
-  if (!hasHydrated || !isAuthenticated || !session) {
-    return null
-  }
-
+  if (!hasHydrated || !hasAccounts) return null
   return children
 }

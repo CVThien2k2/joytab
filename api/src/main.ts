@@ -12,8 +12,9 @@ import { AppModule } from './app.module';
  */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    logger: new AppLogger(),
+    bufferLogs: true,
   });
+  app.useLogger(app.get(AppLogger));
   const frontendOrigin = process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000';
   app.use(helmet({ contentSecurityPolicy: false }));
   app.enableCors({

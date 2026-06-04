@@ -53,7 +53,7 @@
 - `FRONTEND_ORIGIN`
 - `NEXT_PUBLIC_API_BASE_URL`
 - FE gọi `POST /auth/google/exchange` phải bật gửi credentials để kèm cookie `google_change_token`.
-- BE trả access token trong JSON response và set refresh token vào cookie HttpOnly `refresh_token`.
+- BE trả access token trong JSON response để FE persist theo account; refresh token được set vào cookie HttpOnly riêng `rt_<userId>`.
 
 ## 5. Quy trình cập nhật cấu hình
 1. <Bước 1>

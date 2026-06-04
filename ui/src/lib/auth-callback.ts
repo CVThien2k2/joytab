@@ -4,24 +4,33 @@ const googleCallbackQuerySchema = z.object({
   code: z.string().min(1).optional(),
 })
 
-const exchangeResponseSchema = z.object({
-  success: z.literal(true),
-  message: z.string(),
-  data: z.object({
-    accessToken: z.string().min(1),
-    accessTokenExpiresAt: z.string().min(1),
-    user: z.object({
-      provider: z.literal("google"),
-      providerUserId: z.string().min(1),
-      email: z.string().min(1),
-      emailVerified: z.boolean(),
-      fullName: z.string().nullable(),
-      avatarUrl: z.string().nullable(),
-    }),
+export const refreshDataSchema = z.object({
+  userId: z.string().min(1),
+  accessToken: z.string().min(1),
+  accessTokenExpiresAt: z.string().min(1),
+})
+
+export const authSessionSchema = z.object({
+  userId: z.string().min(1),
+  accessToken: z.string().min(1),
+  accessTokenExpiresAt: z.string().min(1),
+  user: z.object({
+    provider: z.literal("google"),
+    providerUserId: z.string().min(1),
+    email: z.string().min(1),
+    emailVerified: z.boolean(),
+    fullName: z.string().nullable(),
+    avatarUrl: z.string().nullable(),
   }),
 })
 
-export type AuthSession = z.infer<typeof exchangeResponseSchema>["data"]
+const exchangeResponseSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: authSessionSchema,
+})
+
+export type AuthSession = z.infer<typeof authSessionSchema>
 
 /**
  * Input: Chuỗi query string lấy từ URL hiện tại sau khi BE callback về FE.

@@ -88,7 +88,7 @@ Bảng mô tả chi tiết Backend:
 | `api/src/app.module.ts` | Mã nguồn | Module gốc, đăng ký Config global với validate env bắt buộc (fail-fast khi thiếu biến) và import các module nghiệp vụ. |
 | `api/src/cache/redis-cache.module.ts` | Mã nguồn | Module tách riêng cấu hình Redis cache, đọc env bắt buộc qua ConfigService và đăng ký CacheModule global. |
 | `api/src/auth/auth.module.ts` | Mã nguồn | Module xác thực, gom controller/service/strategy cho OAuth Google và code-exchange flow qua cache manager. |
-| `api/src/auth/auth.controller.ts` | Mã nguồn | Endpoint khởi tạo Google OAuth, callback set cookie HttpOnly `google_change_token` theo `NODE_ENV` (`production` => `None+Secure`, dev => `Lax`) + redirect `/login/callback?code=...`, và endpoint exchange trả access token + Google user, đồng thời set cookie HttpOnly `refresh_token`. |
+| `api/src/auth/auth.controller.ts` | Mã nguồn | Endpoint khởi tạo Google OAuth, callback set cookie HttpOnly `google_change_token` theo `NODE_ENV` (`production` => `None+Secure`, dev => `Lax`) + redirect `/login/callback?code=...`, endpoint exchange trả access token + Google user và set cookie HttpOnly riêng `rt_<userId>`, đồng thời có `GET /auth/me` để FE lấy thông tin user hiện tại sau khi đổi account. |
 | `api/src/auth/dto/exchange-google-code.dto.ts` | Mã nguồn | DTO validate request body cho endpoint `POST /auth/google/exchange`. |
 | `api/src/auth/auth.utils.ts` | Mã nguồn | Utility nội bộ module `auth` để build URL redirect Google, khai báo hằng số cookie/tTL callback, và đọc giá trị cookie từ header. |
 | `api/src/auth/token.service.ts` | Mã nguồn | Service tách riêng trách nhiệm sinh one-time code, ký access/refresh token, và parse JWT change token của flow exchange. |
@@ -99,7 +99,7 @@ Bảng mô tả chi tiết Backend:
 | `api/src/common/guards/google-auth.guard.ts` | Mã nguồn | Guard bọc `AuthGuard('google')` để kích hoạt luồng OAuth Google. |
 | `api/src/common/interfaces/express-user.d.ts` | Khai báo kiểu | Mở rộng type `Express.User` dùng chung cho `req.user`. |
 | `api/src/common/interceptors/response.interceptor.ts` | Mã nguồn | Global interceptor chuẩn hóa success response. |
-| `api/src/common/loggers/app.logger.ts` | Mã nguồn | Custom logger rút gọn log lỗi bootstrap/runtime, tránh in stack trace quá dài. |
+| `api/src/common/loggers/app.logger.ts` | Mã nguồn | Custom logger dùng queue bất đồng bộ cho log output, vẫn in terminal và ghi thêm vào `api/logs/YYYY-MM-DD.log`, đồng thời rút gọn log lỗi bootstrap/runtime. |
 | `api/src/common/pipes/parse-uuid.pipe.ts` | Mã nguồn | Pipe UUID dùng chung với format lỗi thống nhất. |
 | `api/src/common/strategies/google.strategy.ts` | Mã nguồn | Passport strategy xác thực Google OAuth 2.0 dùng chung. |
 | `api/src/common/utils/functions.ts` | Mã nguồn | File tập trung các hàm dùng chung backend, gồm hàm đọc cấu hình bắt buộc và helper xác định runtime production theo `NODE_ENV`. |
@@ -176,7 +176,7 @@ Bảng mô tả chi tiết Frontend:
 | `ui/src/app/layout.tsx` | Mã nguồn | Root layout của App Router. |
 | `ui/src/app/(private)/layout.tsx` | Mã nguồn | Route group layout cho vùng private cần đăng nhập, giữ URL thật không đổi và bảo vệ route bằng trạng thái auth trong Zustand sau khi persist hydrate. |
 | `ui/src/app/(private)/page.tsx` | Mã nguồn | Trang chính tại `/`, render home client component dưới Suspense. |
-| `ui/src/app/(private)/home-page-client.tsx` | Mã nguồn | Client component hiển thị thông tin session đã lưu và nút đăng xuất, giữ nguyên giao diện dashboard hiện tại. |
+| `ui/src/app/(private)/home-page-client.tsx` | Mã nguồn | Client component chuyển account, gọi `GET /auth/me` theo account active và hiển thị thông tin user hiện tại. |
 | `ui/src/app/(auth)/layout.tsx` | Mã nguồn | Route group layout cho vùng auth chỉ dành cho người chưa đăng nhập, giữ URL thật không đổi và redirect về `/` nếu đã có session. |
 | `ui/src/app/(auth)/login/callback/page.tsx` | Mã nguồn | Route callback Google của FE, bọc client logic dưới Suspense. |
 | `ui/src/app/(auth)/login/callback/callback-client.tsx` | Mã nguồn | Client component gọi BE đổi `code` với `withCredentials: true` để gửi cookie đổi mã, lưu token+user vào store và redirect về `/`. |
@@ -185,10 +185,10 @@ Bảng mô tả chi tiết Frontend:
 | `ui/src/app/favicon.ico` | Asset giao diện | Favicon của ứng dụng. |
 | `ui/src/components/ui/button.tsx` | Mã nguồn | Button UI dùng chung theo cấu hình shadcn hiện tại. |
 | `ui/src/hooks/use-auth-hydration.ts` | Mã nguồn | Hook client kiểm tra Zustand persist đã hydrate xong trước khi redirect theo trạng thái auth. |
-| `ui/src/lib/api-client.ts` | Mã nguồn | Axios instance dùng chung cho request UI -> BE. |
+| `ui/src/lib/api-client.ts` | Mã nguồn | Axios instance dùng chung cho request UI -> BE; gắn access token của account active và chỉ refresh khi token hết hạn hoặc BE trả 401. |
 | `ui/src/lib/auth-callback.ts` | Mã nguồn | Parse callback query `code` và validate response exchange token+user bằng Zod. |
 | `ui/src/providers/query-provider.tsx` | Mã nguồn | QueryClientProvider toàn app cho React Query. |
-| `ui/src/stores/auth-store.ts` | Mã nguồn | Zustand store persist session token+user cục bộ và hỗ trợ logout. |
+| `ui/src/stores/auth-store.ts` | Mã nguồn | Zustand store persist user info + access token theo từng account trong localStorage, lưu `activeAccountId`, hỗ trợ switch account và logout. |
 | `ui/tsconfig.json` | Cấu hình | Cấu hình TypeScript chính của frontend. |
 
 ### 3.3 Tài liệu `docs/`

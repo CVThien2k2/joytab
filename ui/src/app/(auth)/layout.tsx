@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { useAuthHydration } from "@/hooks/use-auth-hydration"
 import { useAuthStore } from "@/stores/auth-store"
@@ -8,6 +8,7 @@ import { useAuthStore } from "@/stores/auth-store"
 /**
  * Input: Nội dung các route auth chỉ dành cho người chưa đăng nhập.
  * Output: Render nội dung khi chưa đăng nhập, ngược lại điều hướng về `/`.
+ *         Riêng route callback luôn render để xử lý exchange (kể cả khi thêm tài khoản lúc đang đăng nhập).
  */
 export default function AuthLayout({
   children,
@@ -15,19 +16,18 @@ export default function AuthLayout({
   children: React.ReactNode
 }>) {
   const router = useRouter()
+  const pathname = usePathname()
   const hasHydrated = useAuthHydration()
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  const session = useAuthStore((state) => state.session)
+  const hasAccounts = useAuthStore((s) => Object.keys(s.accounts).length > 0)
+  const isCallbackRoute = pathname?.startsWith("/login/callback") ?? false
 
   useEffect(() => {
-    if (hasHydrated && isAuthenticated && session) {
+    if (!isCallbackRoute && hasHydrated && hasAccounts) {
       router.replace("/")
     }
-  }, [hasHydrated, isAuthenticated, router, session])
+  }, [isCallbackRoute, hasHydrated, hasAccounts, router])
 
-  if (!hasHydrated || (isAuthenticated && session)) {
-    return null
-  }
-
+  if (isCallbackRoute) return children
+  if (!hasHydrated || hasAccounts) return null
   return children
 }
