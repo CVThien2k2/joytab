@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import { useAuthHydration } from "@/hooks/use-auth-hydration"
+import { AuthHeader } from "./_components/auth-header"
 
 /**
  * Input: Nội dung các route auth.
@@ -20,5 +21,10 @@ export default function AuthLayout({
 
   if (isCallbackRoute) return children
   if (!hasHydrated) return null
-  return children
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <AuthHeader />
+      {children}
+    </div>
+  )
 }
