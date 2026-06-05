@@ -1,9 +1,9 @@
 "use client"
 
 import { useTheme } from "next-themes"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useMemo, useSyncExternalStore } from "react"
+import { JoytabLogo } from "@/components/common/joytab-logo"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -67,7 +67,7 @@ function ThemeSwitcher() {
         <SelectTrigger size="sm" className="w-[140px]">
           <SelectValue placeholder="Chọn màu" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper">
           {themes.map((name) => (
             <SelectItem key={name} value={name} className="capitalize">
               <span
@@ -133,15 +133,7 @@ export default function LoginPage() {
       <main className="flex flex-1 items-center justify-center p-6">
         <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <Image
-            src="/joytab-logo-horizontal.svg"
-            alt="Joytab"
-            width={120}
-            height={42}
-            priority
-            unoptimized
-            className="mx-auto h-10 w-auto"
-          />
+          <JoytabLogo className="mx-auto h-10 w-auto" />
           <CardTitle className="mt-4">Đăng nhập</CardTitle>
           <CardDescription>
             {hasAccounts
