@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
 import { Controller, useForm } from "react-hook-form";
 import * as z from "zod";
-import { JoytabLogo } from "@/components/common/joytab-logo";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -53,13 +52,10 @@ export default function LoginPage() {
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <Card className="w-full max-w-md border-muted/70 shadow-lg shadow-muted/20">
+      <Card className="w-full max-w-md">
         <CardHeader className="items-center pb-2 text-center">
-          <JoytabLogo className="mx-auto h-10 w-auto" />
           <CardTitle className="mt-4">Đăng nhập</CardTitle>
-          <CardDescription>
-            Nhập tài khoản Joytab để tiếp tục.
-          </CardDescription>
+          <CardDescription>Nhập tài khoản Joytab để tiếp tục.</CardDescription>
         </CardHeader>
 
         <CardContent className="flex flex-col gap-6 pt-2">
@@ -79,7 +75,9 @@ export default function LoginPage() {
                       placeholder="Nhập tên đăng nhập"
                       aria-invalid={fieldState.invalid}
                     />
-                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                    {fieldState.invalid ? (
+                      <FieldError errors={[fieldState.error]} />
+                    ) : null}
                   </Field>
                 )}
               />
@@ -98,7 +96,9 @@ export default function LoginPage() {
                       placeholder="Nhập mật khẩu"
                       aria-invalid={fieldState.invalid}
                     />
-                    {fieldState.invalid ? <FieldError errors={[fieldState.error]} /> : null}
+                    {fieldState.invalid ? (
+                      <FieldError errors={[fieldState.error]} />
+                    ) : null}
                   </Field>
                 )}
               />
