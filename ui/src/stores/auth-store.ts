@@ -5,10 +5,13 @@ import type { AuthSession } from "@/lib/auth-callback"
 type AuthState = {
   accounts: Record<string, AuthSession>
   activeAccountId: string | null
+  /** accountId -> cần đăng nhập lại (runtime, không persist). Suy từ check status theo cookie rt_*. */
+  accountStatus: Record<string, boolean>
   addAccount: (session: AuthSession) => void
   setActiveAccount: (accountId: string) => void
   updateAccessToken: (accountId: string, accessToken: string, accessTokenExpiresAt: string) => void
   removeAccount: (accountId: string) => void
+  setAccountsStatus: (status: Record<string, boolean>) => void
 }
 
 export const AUTH_STORAGE_KEY = "joytab-auth-store"
@@ -30,6 +33,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       accounts: {},
       activeAccountId: null,
+      accountStatus: {},
 
       addAccount: (session) =>
         set((state) => {
@@ -39,6 +43,8 @@ export const useAuthStore = create<AuthState>()(
               [session.userId]: session,
             },
             activeAccountId: session.userId,
+            // Vừa đăng nhập xong nên chắc chắn còn hạn.
+            accountStatus: { ...state.accountStatus, [session.userId]: false },
           }
         }),
 
@@ -65,15 +71,21 @@ export const useAuthStore = create<AuthState>()(
         set((state) => {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { [accountId]: _removed, ...accounts } = state.accounts
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [accountId]: _removedStatus, ...accountStatus } = state.accountStatus
           const accountIds = Object.keys(accounts)
           const activeAccountId =
             state.activeAccountId === accountId ? (accountIds[0] ?? null) : state.activeAccountId
-          return { accounts, activeAccountId }
+          return { accounts, activeAccountId, accountStatus }
         }),
+
+      setAccountsStatus: (status) => set({ accountStatus: status }),
     }),
     {
       name: AUTH_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
+      // accountStatus là trạng thái runtime — không persist để tránh hiện badge cũ trước khi check lại.
+      partialize: (state) => ({ accounts: state.accounts, activeAccountId: state.activeAccountId }),
     },
   ),
 )

@@ -48,6 +48,15 @@ const devicesResponseSchema = envelope(
   z.object({ devices: z.array(deviceSchema) }),
 )
 
+const accountStatusSchema = z.object({
+  accountId: z.string(),
+  needsRelogin: z.boolean(),
+})
+
+const accountsStatusResponseSchema = envelope(
+  z.object({ accounts: z.array(accountStatusSchema) }),
+)
+
 const refreshResponseSchema = envelope(refreshDataSchema)
 const meResponseSchema = envelope(
   z.object({
@@ -58,6 +67,7 @@ const meResponseSchema = envelope(
 
 export type DeviceAccount = z.infer<typeof accountSchema>
 export type DeviceSession = z.infer<typeof deviceSchema>
+export type AccountStatus = z.infer<typeof accountStatusSchema>
 export type CurrentUser = z.infer<typeof meResponseSchema>["data"]
 
 /**
@@ -87,6 +97,16 @@ export async function fetchAccounts(accountId: string): Promise<DeviceAccount[]>
     withCredentials: true,
   })
   return accountsResponseSchema.parse(response.data).data.accounts
+}
+
+/**
+ * Input: Không nhận tham số; browser tự đính kèm mọi cookie rt_<accountId>.
+ * Output: Trạng thái relogin cho từng account browser đang giữ — read-only, không rotate/revoke ở BE.
+ *         Chỉ trả account có cookie hợp lệ nên không lộ account người khác.
+ */
+export async function fetchAccountsStatus(): Promise<AccountStatus[]> {
+  const response = await apiClient.post("/auth/accounts/status", undefined, { withCredentials: true })
+  return accountsStatusResponseSchema.parse(response.data).data.accounts
 }
 
 /**

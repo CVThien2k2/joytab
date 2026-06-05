@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <title>Joytab icon</title>
+  
+<defs>
+  <linearGradient id="violetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#8B5CF6"/>
+    <stop offset="45%" stop-color="#6D28D9"/>
+    <stop offset="100%" stop-color="#2E1065"/>
+  </linearGradient>
+  <linearGradient id="violetGradSoft" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#A78BFA"/>
+    <stop offset="100%" stop-color="#4C1D95"/>
+  </linearGradient>
+</defs>
+
+
+  <g transform="translate(118 63) scale(1.15)">
+    <path d="M238 32 L290 92 H258 V188 C258 260 205 310 132 310 C75 310 29 278 12 229"
+          stroke="url(#violetGrad)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M178 82 H214 V178 C214 229 180 262 132 262 C93 262 62 244 46 213"
+          stroke="url(#violetGradSoft)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <path d="M27 245 C78 303 171 313 232 254" stroke="#5B21B6" stroke-width="12" stroke-linecap="round"/>
+    <path d="M48 224 C91 266 161 271 205 229" stroke="#7C3AED" stroke-width="10" stroke-linecap="round"/>
+
+    <circle cx="92" cy="173" r="55" stroke="#7C3AED" stroke-width="12"/>
+    <text x="92" y="194" text-anchor="middle"
+          font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700"
+          fill="#6D28D9">$</text>
+
+    <path d="M-16 122 H32 L56 150" stroke="#6D28D9" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="-16" cy="122" r="12" fill="white" stroke="#6D28D9" stroke-width="8"/>
+    <path d="M-42 173 H37" stroke="#6D28D9" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="-42" cy="173" r="12" fill="white" stroke="#6D28D9" stroke-width="8"/>
+    <path d="M-6 70 H50 L88 112" stroke="#6D28D9" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="-6" cy="70" r="12" fill="white" stroke="#6D28D9" stroke-width="8"/>
+  </g>
+</svg>

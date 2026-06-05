@@ -1,7 +1,4 @@
-const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:3000';
-export const GOOGLE_CHANGE_TOKEN_COOKIE_NAME = 'google_change_token';
-export const GOOGLE_CALLBACK_EXCHANGE_TTL_MS = 60_000;
-export const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+import { DEFAULT_FRONTEND_ORIGIN, REFRESH_COOKIE_PREFIX } from './auth.constants';
 
 /**
  * Input: FRONTEND_ORIGIN và callback code một lần do backend tạo.
@@ -64,8 +61,6 @@ function normalizeFrontendOrigin(frontendOrigin?: string): string {
   return rawBaseUrl.replace(/\/+$/, '');
 }
 
-export const REFRESH_TOKEN_COOKIE_PATH = '/auth';
-
 /**
  * Input: Chuỗi User-Agent từ request (có thể undefined).
  * Output: Tên platform để hiển thị (Windows/macOS/iOS/Android/Linux) hoặc null nếu không nhận diện được.
@@ -106,5 +101,36 @@ export function parseDeviceNameFromUserAgent(userAgent: string | undefined): str
  * Output: Tên cookie refresh token riêng cho account đó, vd 'rt_<uuid>'.
  */
 export function buildRefreshCookieName(accountId: string): string {
-  return `rt_${accountId}`;
+  return `${REFRESH_COOKIE_PREFIX}${accountId}`;
+}
+
+/**
+ * Input: Header cookie thô từ request.
+ * Output: Mọi cặp { accountId, rawToken } suy từ các cookie rt_<accountId> browser gửi kèm.
+ *         Dùng cho endpoint check status: chỉ xét các account mà browser thật sự đang giữ cookie.
+ */
+export function readRefreshCookies(cookieHeader: string | undefined): { accountId: string; rawToken: string }[] {
+  if (!cookieHeader) {
+    return [];
+  }
+  const result: { accountId: string; rawToken: string }[] = [];
+  for (const pair of cookieHeader.split(';')) {
+    const [name, ...valueParts] = pair.trim().split('=');
+    if (!name.startsWith(REFRESH_COOKIE_PREFIX)) {
+      continue;
+    }
+    const accountId = name.slice(REFRESH_COOKIE_PREFIX.length);
+    const rawValue = valueParts.join('=');
+    if (!accountId || !rawValue) {
+      continue;
+    }
+    let rawToken: string;
+    try {
+      rawToken = decodeURIComponent(rawValue);
+    } catch {
+      rawToken = rawValue;
+    }
+    result.push({ accountId, rawToken });
+  }
+  return result;
 }

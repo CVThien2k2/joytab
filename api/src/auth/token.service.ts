@@ -5,18 +5,20 @@ import { JwtPayload, sign, verify } from 'jsonwebtoken';
 import { AppException } from '../common/exceptions/app.exception';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { getRequiredConfig } from '../common/utils/functions';
+import {
+  ACCESS_TOKEN_AUDIENCE,
+  ACCESS_TOKEN_ISSUER,
+  ACCESS_TOKEN_TTL_SECONDS,
+  CHANGE_TOKEN_BYTES,
+  GOOGLE_CHANGE_TOKEN_TTL_SECONDS,
+  GOOGLE_LOGIN_CODE_BYTES,
+  REFRESH_TOKEN_BYTES,
+  REFRESH_TOKEN_TTL_MS,
+  REFRESH_TOKEN_TTL_SECONDS,
+} from './auth.constants';
 
 @Injectable()
 export class TokenService {
-  private static readonly ACCESS_TOKEN_TTL_SECONDS = 3600;
-  private static readonly REFRESH_TOKEN_TTL_SECONDS = 604800;
-  private static readonly GOOGLE_CHANGE_TOKEN_TTL_SECONDS = 60;
-  private static readonly GOOGLE_LOGIN_CODE_BYTES = 24;
-  private static readonly CHANGE_TOKEN_BYTES = 24;
-  private static readonly REFRESH_TOKEN_BYTES = 32;
-  private static readonly ACCESS_TOKEN_ISSUER = 'joytab-api';
-  private static readonly ACCESS_TOKEN_AUDIENCE = 'joytab-access';
-
   /**
    * Input: ConfigService chứa JWT_SECRET để ký access token.
    * Output: Khởi tạo token service phục vụ toàn bộ luồng auth.
@@ -28,7 +30,7 @@ export class TokenService {
    * Output: Sinh mã code một lần dùng cho bước exchange sau callback OAuth.
    */
   createGoogleLoginCode(): string {
-    return randomBytes(TokenService.GOOGLE_LOGIN_CODE_BYTES).toString('hex');
+    return randomBytes(GOOGLE_LOGIN_CODE_BYTES).toString('hex');
   }
 
   /**
@@ -36,7 +38,7 @@ export class TokenService {
    * Output: Trả cặp { raw, hash } cho google change token (raw cho cookie, hash lưu Redis).
    */
   createGoogleChangeToken(): { raw: string; hash: string } {
-    const raw = randomBytes(TokenService.CHANGE_TOKEN_BYTES).toString('hex');
+    const raw = randomBytes(CHANGE_TOKEN_BYTES).toString('hex');
     return { raw, hash: this.hashToken(raw) };
   }
 
@@ -45,7 +47,7 @@ export class TokenService {
    * Output: Trả cặp { raw, hash } cho refresh token (raw set cookie, hash lưu Redis).
    */
   createRefreshToken(): { raw: string; hash: string } {
-    const raw = randomBytes(TokenService.REFRESH_TOKEN_BYTES).toString('hex');
+    const raw = randomBytes(REFRESH_TOKEN_BYTES).toString('hex');
     return { raw, hash: this.hashToken(raw) };
   }
 
@@ -63,9 +65,9 @@ export class TokenService {
       this.getJwtSecret(),
       {
         algorithm: 'HS256',
-        expiresIn: TokenService.ACCESS_TOKEN_TTL_SECONDS,
-        issuer: TokenService.ACCESS_TOKEN_ISSUER,
-        audience: TokenService.ACCESS_TOKEN_AUDIENCE,
+        expiresIn: ACCESS_TOKEN_TTL_SECONDS,
+        issuer: ACCESS_TOKEN_ISSUER,
+        audience: ACCESS_TOKEN_AUDIENCE,
       },
     );
   }
@@ -99,7 +101,7 @@ export class TokenService {
    * Output: Trả TTL access token (giây) để service/controller tính thời điểm hết hạn.
    */
   getAccessTokenTtlSeconds(): number {
-    return TokenService.ACCESS_TOKEN_TTL_SECONDS;
+    return ACCESS_TOKEN_TTL_SECONDS;
   }
 
   /**
@@ -107,7 +109,7 @@ export class TokenService {
    * Output: Trả TTL refresh token (giây) để service/controller tính thời điểm hết hạn.
    */
   getRefreshTokenTtlSeconds(): number {
-    return TokenService.REFRESH_TOKEN_TTL_SECONDS;
+    return REFRESH_TOKEN_TTL_SECONDS;
   }
 
   /**
@@ -115,7 +117,7 @@ export class TokenService {
    * Output: Trả TTL google change token (giây) phục vụ cấu hình cookie/Redis.
    */
   getGoogleChangeTokenTtlSeconds(): number {
-    return TokenService.GOOGLE_CHANGE_TOKEN_TTL_SECONDS;
+    return GOOGLE_CHANGE_TOKEN_TTL_SECONDS;
   }
 
   /**
@@ -126,8 +128,8 @@ export class TokenService {
     try {
       const payload = verify(token, this.getJwtSecret(), {
         algorithms: ['HS256'],
-        issuer: TokenService.ACCESS_TOKEN_ISSUER,
-        audience: TokenService.ACCESS_TOKEN_AUDIENCE,
+        issuer: ACCESS_TOKEN_ISSUER,
+        audience: ACCESS_TOKEN_AUDIENCE,
       }) as JwtPayload;
       const sub = typeof payload.sub === 'string' ? payload.sub : '';
       const email = typeof payload.email === 'string' ? payload.email : '';
@@ -146,7 +148,7 @@ export class TokenService {
    * Output: Trả TTL refresh token theo mili-giây để dựng expires_at.
    */
   getRefreshTokenTtlMs(): number {
-    return TokenService.REFRESH_TOKEN_TTL_SECONDS * 1000;
+    return REFRESH_TOKEN_TTL_MS;
   }
 
   /**

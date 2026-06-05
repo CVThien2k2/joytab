@@ -16,14 +16,20 @@ import {
   buildGoogleLoginCallbackRedirectUrl,
   buildGoogleLoginFailedRedirectUrl,
   buildRefreshCookieName,
+  readCookieValue,
+  readRefreshCookies,
+} from './auth.utils';
+import {
+  AUTH_THROTTLE_LIMIT,
+  AUTH_THROTTLE_TTL_MS,
   GOOGLE_CALLBACK_EXCHANGE_TTL_MS,
   GOOGLE_CHANGE_TOKEN_COOKIE_NAME,
-  readCookieValue,
+  GOOGLE_EXCHANGE_COOKIE_PATH,
   REFRESH_TOKEN_COOKIE_PATH,
   REFRESH_TOKEN_TTL_MS,
-} from './auth.utils';
+} from './auth.constants';
 
-@Throttle({ global: { ttl: 60000, limit: 10 } })
+@Throttle({ global: { ttl: AUTH_THROTTLE_TTL_MS, limit: AUTH_THROTTLE_LIMIT } })
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -67,7 +73,7 @@ export class AuthController {
       response.cookie(
         GOOGLE_CHANGE_TOKEN_COOKIE_NAME,
         changeToken,
-        this.buildCookieOptions('/auth/google/exchange', GOOGLE_CALLBACK_EXCHANGE_TTL_MS),
+        this.buildCookieOptions(GOOGLE_EXCHANGE_COOKIE_PATH, GOOGLE_CALLBACK_EXCHANGE_TTL_MS),
       );
       this.logger.log(`Login code issued for ${googleUser.email}, redirecting to FE callback`);
       response.redirect(302, buildGoogleLoginCallbackRedirectUrl(frontendOrigin, code));
@@ -112,7 +118,7 @@ export class AuthController {
     } finally {
       response.clearCookie(
         GOOGLE_CHANGE_TOKEN_COOKIE_NAME,
-        this.buildCookieOptions('/auth/google/exchange', GOOGLE_CALLBACK_EXCHANGE_TTL_MS),
+        this.buildCookieOptions(GOOGLE_EXCHANGE_COOKIE_PATH, GOOGLE_CALLBACK_EXCHANGE_TTL_MS),
       );
     }
   }
@@ -160,6 +166,16 @@ export class AuthController {
     const rawToken = readCookieValue(request.headers.cookie, buildRefreshCookieName(accountId));
     if (!rawToken) throw new AppException(ERROR_CODES.AUTH_001);
     return this.authService.listAccounts(rawToken);
+  }
+
+  /**
+   * Input: Các cookie rt_<accountId> browser gửi kèm (không cần body).
+   * Output: [{ accountId, needsRelogin }] cho từng account browser đang giữ — read-only, không rotate/revoke.
+   */
+  @Post('accounts/status')
+  async accountsStatus(@Req() request: Request) {
+    const candidates = readRefreshCookies(request.headers.cookie);
+    return this.authService.checkAccountsStatus(candidates);
   }
 
   /**

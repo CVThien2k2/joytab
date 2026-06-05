@@ -24,6 +24,8 @@ export function HomePageClient() {
 
   const meQuery = useMe()
   const logout = useLogout()
+  // Check status được trigger ở PrivateLayout và đồng bộ vào store; ở đây chỉ đọc ra.
+  const statusMap = useAuthStore((s) => s.accountStatus)
 
   if (accountList.length === 0) {
     return null
@@ -64,6 +66,7 @@ export function HomePageClient() {
           <ul className="mt-3 space-y-2">
             {accountList.map((account) => {
               const isActive = account.userId === activeAccountId
+              const needsRelogin = statusMap[account.userId] ?? false
               return (
                 <li
                   key={account.userId}
@@ -72,17 +75,33 @@ export function HomePageClient() {
                   <span>
                     {account.user.email}
                     {isActive ? " (đang dùng)" : ""}
+                    {needsRelogin ? (
+                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                        Cần đăng nhập lại
+                      </span>
+                    ) : null}
                   </span>
                   <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={isActive}
-                      onClick={() => setActiveAccount(account.userId)}
-                    >
-                      Dùng
-                    </Button>
+                    {needsRelogin ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => redirectToGoogleLogin({ selectAccount: true })}
+                      >
+                        Đăng nhập lại
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={isActive}
+                        onClick={() => setActiveAccount(account.userId)}
+                      >
+                        Dùng
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       size="sm"

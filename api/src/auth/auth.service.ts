@@ -5,6 +5,7 @@ import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import { GoogleUser } from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
+import { CACHE_AUTH_CODE_PREFIX } from './auth.constants';
 import { DeviceService } from './device.service';
 import { SessionService } from './session.service';
 import { TokenService } from './token.service';
@@ -26,8 +27,6 @@ type AuthTokens = {
 
 @Injectable()
 export class AuthService {
-  private static readonly CACHE_AUTH_CODE_PREFIX = 'auth:google:code:';
-
   /**
    * Input: DatabaseService, Cache (login code), TokenService, SessionService, DeviceService.
    * Output: Service orchestrate toàn bộ nghiệp vụ đăng nhập/refresh/logout.
@@ -154,6 +153,16 @@ export class AuthService {
   }
 
   /**
+   * Input: Danh sách { accountId, rawToken } suy từ các cookie rt_* browser gửi kèm.
+   * Output: Trạng thái relogin từng account (read-only). FE diff với danh sách local để hiện badge "Đăng nhập lại".
+   *         Chỉ báo cáo cho cookie thực sự nhận được → không lộ account người khác.
+   */
+  async checkAccountsStatus(candidates: { accountId: string; rawToken: string }[]) {
+    const accounts = await this.sessionService.checkRawTokensStatus(candidates);
+    return { accounts };
+  }
+
+  /**
    * Input: userId từ access token guard.
    * Output: Thông tin user hiện tại để FE hiển thị sau khi switch account.
    */
@@ -258,7 +267,7 @@ export class AuthService {
   }
 
   private getAuthCodeCacheKey(code: string): string {
-    return `${AuthService.CACHE_AUTH_CODE_PREFIX}${code}`;
+    return `${CACHE_AUTH_CODE_PREFIX}${code}`;
   }
 
   private parseGoogleLoginCodeCacheValue(rawCache: string): GoogleLoginCodeCacheValue | null {
