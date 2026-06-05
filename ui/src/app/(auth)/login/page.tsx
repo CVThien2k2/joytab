@@ -1,8 +1,9 @@
 "use client"
 
+import { useTheme } from "next-themes"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { useMemo } from "react"
+import { useMemo, useSyncExternalStore } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,10 +22,76 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { useAccountsStatus } from "@/hooks/use-auth-api"
 import { redirectToGoogleLogin } from "@/lib/google-login"
+import { useActiveTheme } from "@/providers/active-theme"
 import { useAuthStore } from "@/stores/auth-store"
+
+/**
+ * Input: không.
+ * Output: Thanh điều khiển theme tạm để test — toggle light/dark + chọn color theme.
+ *         (next-themes cần check `mounted` để tránh lệch hydration.)
+ */
+function ThemeSwitcher() {
+  const { resolvedTheme, setTheme } = useTheme()
+  const { theme: colorTheme, setTheme: setColorTheme, themes } = useActiveTheme()
+  // false trên server + lần render đầu, true sau khi hydrate — tránh lệch hydration
+  // mà không cần setState-trong-effect.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  )
+
+  if (!mounted) {
+    // Giữ chỗ để layout không nhảy trước khi biết theme thực tế.
+    return <div className="h-8" />
+  }
+
+  const isDark = resolvedTheme === "dark"
+
+  return (
+    <div className="flex items-center gap-2">
+      <Select
+        value={colorTheme}
+        onValueChange={(value) => setColorTheme(value as typeof colorTheme)}
+      >
+        <SelectTrigger size="sm" className="w-[140px]">
+          <SelectValue placeholder="Chọn màu" />
+        </SelectTrigger>
+        <SelectContent>
+          {themes.map((name) => (
+            <SelectItem key={name} value={name} className="capitalize">
+              <span
+                className="size-3 rounded-full border"
+                data-theme={name}
+                style={{ backgroundColor: "var(--primary)" }}
+              />
+              {name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => setTheme(isDark ? "light" : "dark")}
+        aria-label={isDark ? "Chuyển sang light" : "Chuyển sang dark"}
+      >
+        {isDark ? "☀️ Light" : "🌙 Dark"}
+      </Button>
+    </div>
+  )
+}
 
 /**
  * Input: Tên hoặc email account.
@@ -59,8 +126,12 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="flex items-center justify-end border-b px-6 py-3">
+        <ThemeSwitcher />
+      </header>
+      <main className="flex flex-1 items-center justify-center p-6">
+        <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <Image
             src="/joytab-logo-horizontal.svg"
@@ -126,7 +197,7 @@ export default function LoginPage() {
           {hasAccounts ? (
             <div className="flex items-center gap-3">
               <Separator className="flex-1" />
-              <span className="text-xs text-zinc-400">hoặc</span>
+              <span className="text-xs text-muted-foreground">hoặc</span>
               <Separator className="flex-1" />
             </div>
           ) : null}
@@ -140,7 +211,8 @@ export default function LoginPage() {
             Đăng nhập với Google
           </Button>
         </CardContent>
-      </Card>
-    </main>
+        </Card>
+      </main>
+    </div>
   )
 }

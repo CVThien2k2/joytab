@@ -3,6 +3,11 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { QueryProvider } from "@/providers/query-provider";
+import { ThemeProvider } from "@/providers/theme-provider";
+import {
+  ActiveThemeProvider,
+  ActiveThemeScript,
+} from "@/providers/active-theme";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -29,10 +34,19 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-theme="base"
+      suppressHydrationWarning
       className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", inter.variable)}
     >
+      <head>
+        <ActiveThemeScript />
+      </head>
       <body className="min-h-full flex flex-col">
-        <QueryProvider>{children}</QueryProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <ActiveThemeProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </ActiveThemeProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
