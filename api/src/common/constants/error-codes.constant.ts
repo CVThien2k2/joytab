@@ -11,14 +11,6 @@ export const ERROR_CODES = {
     code: 'AUTH_003',
     message: 'Google login code invalid or expired',
   },
-  AUTH_004: {
-    code: 'AUTH_004',
-    message: 'Refresh token invalid',
-  },
-  AUTH_005: {
-    code: 'AUTH_005',
-    message: 'Session revoked due to suspicious activity',
-  },
   VALIDATION_001: {
     code: 'VALIDATION_001',
     message: 'Bad request',

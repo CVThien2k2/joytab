@@ -9,7 +9,12 @@ import { SessionGuard } from '../common/guards/session.guard';
 import { isProductionEnvironment } from '../common/utils/functions';
 import { AuthService } from './auth.service';
 import { SwitchAccountDto } from './dto/switch-account.dto';
-import { buildGoogleLoginCallbackRedirectUrl, buildGoogleLoginFailedRedirectUrl, readCookieValue } from './auth.utils';
+import {
+  buildGoogleLoginCallbackRedirectUrl,
+  buildGoogleLoginFailedRedirectUrl,
+  isUuid,
+  readCookieValue,
+} from './auth.utils';
 import {
   AUTH_THROTTLE_LIMIT,
   AUTH_THROTTLE_TTL_MS,
@@ -84,7 +89,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const deviceId = readCookieValue(request.headers.cookie, DEVICE_COOKIE_NAME);
-    if (!deviceId) throw new AppException(ERROR_CODES.AUTH_001);
+    if (!isUuid(deviceId)) throw new AppException(ERROR_CODES.AUTH_001);
     const result = await this.authService.switchAccount(deviceId, body.userId);
     response.cookie(SESSION_COOKIE_NAME, result.sessionTokenRaw, this.buildCookieOptions(SESSION_TTL_MS));
     return { success: true, userId: result.userId };
@@ -109,7 +114,7 @@ export class AuthController {
   @Get('accounts')
   async accounts(@Req() request: Request) {
     const deviceId = readCookieValue(request.headers.cookie, DEVICE_COOKIE_NAME);
-    if (!deviceId) return { accounts: [] };
+    if (!isUuid(deviceId)) return { accounts: [] };
     return this.authService.listAccounts(deviceId);
   }
 
