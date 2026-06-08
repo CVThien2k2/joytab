@@ -32,15 +32,14 @@ model User {
 }
 
 model Device {
-  id                 String        @id @default(uuid()) @db.Uuid
-  device_fingerprint String        @unique @db.VarChar(255)
-  device_name        String?       @db.VarChar(255)
-  platform           String?       @db.VarChar(50)
-  last_seen_at       DateTime?     @db.Timestamptz(6)
-  created_at         DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime      @updatedAt @db.Timestamptz(6)
-  device_users       DeviceUser[]
-  user_sessions      UserSession[]
+  id            String        @id @default(uuid()) @db.Uuid
+  device_name   String?       @db.VarChar(255)
+  platform      String?       @db.VarChar(50)
+  last_seen_at  DateTime?     @db.Timestamptz(6)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime      @updatedAt @db.Timestamptz(6)
+  device_users  DeviceUser[]
+  user_sessions UserSession[]
 
   @@map("devices")
 }
@@ -61,36 +60,22 @@ model DeviceUser {
 }
 
 model UserSession {
-  id             String         @id @default(uuid()) @db.Uuid
-  user_id        String         @db.Uuid
-  device_id      String         @db.Uuid
-  is_revoked     Boolean        @default(false)
-  revoked_at     DateTime?      @db.Timestamptz(6)
-  revoke_reason  String?        @db.VarChar(100)
-  last_used_at   DateTime?      @db.Timestamptz(6)
-  expires_at     DateTime       @db.Timestamptz(6)
-  created_at     DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime       @updatedAt @db.Timestamptz(6)
-  user           User           @relation(fields: [user_id], references: [id])
-  device         Device         @relation(fields: [device_id], references: [id])
-  refresh_tokens RefreshToken[]
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String    @db.Uuid
+  device_id     String    @db.Uuid
+  token_hash    String    @unique
+  is_revoked    Boolean   @default(false)
+  revoked_at    DateTime? @db.Timestamptz(6)
+  revoke_reason String?   @db.VarChar(100)
+  last_used_at  DateTime? @db.Timestamptz(6)
+  expires_at    DateTime  @db.Timestamptz(6)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @updatedAt @db.Timestamptz(6)
+  user          User      @relation(fields: [user_id], references: [id])
+  device        Device    @relation(fields: [device_id], references: [id])
 
   @@index([user_id, is_revoked])
   @@index([device_id, is_revoked])
   @@map("user_sessions")
 }
 
-model RefreshToken {
-  id             String      @id @default(uuid()) @db.Uuid
-  session_id     String      @db.Uuid
-  token_hash     String      @unique
-  expires_at     DateTime    @db.Timestamptz(6)
-  used_at        DateTime?   @db.Timestamptz(6)
-  is_revoked     Boolean     @default(false)
-  replaced_by_id String?     @db.Uuid
-  created_at     DateTime    @default(now()) @db.Timestamptz(6)
-  session        UserSession @relation(fields: [session_id], references: [id])
-
-  @@index([session_id])
-  @@map("refresh_tokens")
-}
