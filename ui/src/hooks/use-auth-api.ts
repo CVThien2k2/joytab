@@ -98,7 +98,9 @@ export function useLogout() {
     onSuccess: async (fallback) => {
       if (fallback) {
         await switchAccount(fallback.userId)
+        // Home là Server Component → refresh để render lại theo session mới (invalidate cho client query nếu có).
         await queryClient.invalidateQueries()
+        router.refresh()
         return
       }
       queryClient.clear()
