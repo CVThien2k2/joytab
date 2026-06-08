@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import { SessionExpiredDialog } from "@/components/auth/session-expired-dialog"
+import { SessionErrorScreen } from "@/components/auth/session-error-screen"
+import { SessionExpiredScreen } from "@/components/auth/session-expired-screen"
 import { useAuthStore } from "@/stores/auth-store"
 import type { CurrentUser } from "@/types/auth"
 
@@ -17,8 +18,11 @@ type AuthProviderProps = {
 
 /**
  * Input: user + isExpired + isError từ server (root layout) + children — bọc TOÀN app.
- * Output: Hydrate store cho cả app dùng; render popup hết phiên (client, tự quyết theo store) cho mọi route.
- *         Set đồng bộ lần đầu qua initializer của useState (tránh flash), sync lại khi prop đổi.
+ * Output: Hydrate store cho cả app dùng. Theo trạng thái auth, render FULL-PAGE thay nội dung:
+ *  - isExpired → màn hết phiên.
+ *  - isError → màn lỗi.
+ *  - còn lại → children.
+ * Set store đồng bộ lần đầu qua initializer của useState (tránh flash), sync lại khi prop đổi.
  */
 export function AuthProvider({ user, isExpired, isError, children }: AuthProviderProps) {
   useState(() => {
@@ -29,10 +33,11 @@ export function AuthProvider({ user, isExpired, isError, children }: AuthProvide
     useAuthStore.setState({ user, isExpired, isError })
   }, [user, isExpired, isError])
 
-  return (
-    <>
-      {children}
-      <SessionExpiredDialog />
-    </>
-  )
+  if (isExpired) {
+    return <SessionExpiredScreen />
+  }
+  if (isError) {
+    return <SessionErrorScreen />
+  }
+  return children
 }
