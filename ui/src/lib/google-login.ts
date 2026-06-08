@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client"
+import { apiClient } from "@/api/client"
 
 /**
  * Input: selectAccount=true khi muốn ép Google hiện màn chọn tài khoản (luồng thêm tài khoản).

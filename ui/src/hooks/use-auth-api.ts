@@ -9,7 +9,7 @@ import {
   logout,
   revokeSession,
   switchAccount,
-} from "@/lib/auth-api"
+} from "@/api/auth"
 
 const AUTH_ME_KEY = ["auth", "me"]
 const AUTH_ACCOUNTS_KEY = ["auth", "accounts"]

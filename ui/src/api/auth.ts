@@ -1,52 +1,11 @@
-import { z } from "zod"
-import { apiClient } from "@/lib/api-client"
-
-/**
- * Input: Schema cho phần `data` của response.
- * Output: Schema bọc theo envelope chuẩn { success, message, data } của BE.
- */
-function envelope<T extends z.ZodTypeAny>(dataSchema: T) {
-  return z.object({
-    success: z.literal(true),
-    message: z.string(),
-    data: dataSchema,
-  })
-}
-
-const userSchema = z.object({
-  provider: z.literal("google"),
-  providerUserId: z.string(),
-  email: z.string(),
-  emailVerified: z.boolean(),
-  fullName: z.string().nullable(),
-  avatarUrl: z.string().nullable(),
-})
-
-const accountSchema = z.object({
-  userId: z.string(),
-  email: z.string(),
-  fullName: z.string().nullable(),
-  avatarUrl: z.string().nullable(),
-  needsRelogin: z.boolean(),
-})
-
-const deviceSchema = z.object({
-  sessionId: z.string(),
-  deviceId: z.string(),
-  deviceName: z.string().nullable(),
-  platform: z.string().nullable(),
-  lastSeenAt: z.string().nullable(),
-  createdAt: z.string(),
-})
-
-const accountsResponseSchema = envelope(z.object({ accounts: z.array(accountSchema) }))
-const devicesResponseSchema = envelope(z.object({ devices: z.array(deviceSchema) }))
-const meResponseSchema = envelope(z.object({ userId: z.string(), user: userSchema }))
-const switchResponseSchema = envelope(z.object({ success: z.boolean(), userId: z.string() }))
-
-export type DeviceAccount = z.infer<typeof accountSchema>
-export type DeviceSession = z.infer<typeof deviceSchema>
-export type CurrentUser = z.infer<typeof meResponseSchema>["data"]
+import { apiClient } from "@/api/client"
+import {
+  accountsResponseSchema,
+  devicesResponseSchema,
+  meResponseSchema,
+  switchResponseSchema,
+} from "@/schema/auth"
+import type { CurrentUser, DeviceAccount, DeviceSession } from "@/types/auth"
 
 /**
  * Input: Không nhận tham số; dùng cookie session_id hiện tại.
