@@ -11,6 +11,9 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/providers/auth-provider";
 import { getCurrentUser } from "@/api/auth-server";
+import { cookies } from "next/headers";
+
+const SESSION_COOKIE_NAME = "session_id";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -35,6 +38,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = await getCurrentUser();
+  const hasSessionCookie = (await cookies()).has(SESSION_COOKIE_NAME);
   return (
     <html
       lang="en"
@@ -49,7 +53,9 @@ export default async function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <ActiveThemeProvider>
             <QueryProvider>
-              <AuthProvider user={user}>{children}</AuthProvider>
+              <AuthProvider user={user} hasSessionCookie={hasSessionCookie}>
+                {children}
+              </AuthProvider>
             </QueryProvider>
             <Toaster />
           </ActiveThemeProvider>

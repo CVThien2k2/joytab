@@ -1,28 +1,36 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
+import { SessionExpiredDialog } from "@/components/auth/session-expired-dialog"
 import { useAuthStore } from "@/stores/auth-store"
 import type { CurrentUser } from "@/types/auth"
 
 type AuthProviderProps = {
-  /** User lấy từ server ở root layout (null nếu chưa đăng nhập). */
+  /** User lấy từ server ở root layout (null nếu không lấy được). */
   user: CurrentUser | null
+  /** Có cookie session hay không (server truyền xuống). */
+  hasSessionCookie: boolean
   children: ReactNode
 }
 
 /**
- * Input: user từ server + children (bọc toàn bộ app ở root layout).
- * Output: Hydrate user vào store cho cả app dùng. Set đồng bộ lần đầu qua initializer của useState
- *         (tránh flash), sync lại khi prop đổi (vd sau router.refresh đổi account/đăng xuất).
+ * Input: user + hasSessionCookie từ server (root layout) + children — bọc TOÀN app.
+ * Output: Hydrate store cho cả app dùng; render popup hết phiên (client, tự quyết theo store) cho mọi route.
+ *         Set đồng bộ lần đầu qua initializer của useState (tránh flash), sync lại khi prop đổi.
  */
-export function AuthProvider({ user, children }: AuthProviderProps) {
+export function AuthProvider({ user, hasSessionCookie, children }: AuthProviderProps) {
   useState(() => {
-    useAuthStore.setState({ user })
+    useAuthStore.setState({ user, hasSessionCookie })
     return null
   })
   useEffect(() => {
-    useAuthStore.setState({ user })
-  }, [user])
+    useAuthStore.setState({ user, hasSessionCookie })
+  }, [user, hasSessionCookie])
 
-  return children
+  return (
+    <>
+      {children}
+      <SessionExpiredDialog />
+    </>
+  )
 }

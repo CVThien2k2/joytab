@@ -1,7 +1,7 @@
 "use client"
 
 import { useAuthStore } from "@/stores/auth-store"
-import { LogoutButton } from "./logout-button"
+import { LogoutButton } from "@/components/auth/logout-button"
 
 /**
  * Input: Không nhận props; đọc user từ store (đã hydrate từ server qua AuthProvider).

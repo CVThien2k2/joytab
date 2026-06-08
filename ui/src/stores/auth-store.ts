@@ -2,12 +2,17 @@ import { create } from "zustand"
 import type { CurrentUser } from "@/types/auth"
 
 type AuthState = {
-  /** User hiện tại lấy từ server (hydrate ở (private)/layout). FE đọc ra để hiển thị. */
+  /** User hiện tại lấy từ server (null nếu không lấy được / chưa đăng nhập). */
   user: CurrentUser | null
-  setUser: (user: CurrentUser | null) => void
+  /** Có cookie session hay không (server truyền xuống). */
+  hasSessionCookie: boolean
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+/**
+ * Store auth cho toàn app — hydrate từ server ở AuthProvider (root layout).
+ * `!user && hasSessionCookie` ⇒ session hỏng ⇒ hiện popup hết phiên.
+ */
+export const useAuthStore = create<AuthState>(() => ({
   user: null,
-  setUser: (user) => set({ user }),
+  hasSessionCookie: false,
 }))
