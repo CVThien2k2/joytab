@@ -1,8 +1,8 @@
 import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 
-export class LogoutDto {
+export class SwitchAccountDto {
   @IsString()
   @IsNotEmpty()
   @IsUUID()
-  accountId!: string;
+  userId!: string;
 }
