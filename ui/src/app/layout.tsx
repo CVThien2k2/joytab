@@ -9,6 +9,8 @@ import {
   ActiveThemeScript,
 } from "@/providers/active-theme";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider } from "@/providers/auth-provider";
+import { getCurrentUser } from "@/api/auth-server";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -27,11 +29,12 @@ export const metadata: Metadata = {
   description: "Joytab authentication UI",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await getCurrentUser();
   return (
     <html
       lang="en"
@@ -45,7 +48,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <ActiveThemeProvider>
-            <QueryProvider>{children}</QueryProvider>
+            <QueryProvider>
+              <AuthProvider user={user}>{children}</AuthProvider>
+            </QueryProvider>
             <Toaster />
           </ActiveThemeProvider>
         </ThemeProvider>
