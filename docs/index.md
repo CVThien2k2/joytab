@@ -4,7 +4,12 @@ icon: lucide/book-open-text
 
 # Tài liệu dự án Comitor
 
-Trang này là mục lục tổng hợp các tài liệu nền tảng của dự án.
+Hiện chỉ công bố tài liệu **Thiết kế dự án Super App / Mini App**:
+
+- [Thiết kế dự án Super App](superapp-miniapp-auth-architecture-20260605.md)
+
+<!--
+--- Mục lục cũ: tạm ẩn để dễ rollback ---
 
 ## Mục lục chính
 
@@ -24,3 +29,4 @@ Trang này là mục lục tổng hợp các tài liệu nền tảng của dự
 ## Ghi chú sử dụng
 - Các file trên hiện là khung tài liệu để điền chi tiết dần.
 - Khi bổ sung file docs mới, cần cập nhật đồng thời `docs/index.md` và `nav` trong `zensical.toml`.
+-->
