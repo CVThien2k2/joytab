@@ -1,32 +1,27 @@
-import { Body, Controller, Delete, Get, Logger, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { CommonParseUuidPipe } from '../common/pipes/parse-uuid.pipe';
+import { Body, Controller, Delete, Get, Logger, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import { GoogleAuthGuard } from '../common/guards/google-auth.guard';
+import { SessionGuard } from '../common/guards/session.guard';
 import { isProductionEnvironment } from '../common/utils/functions';
-import { AccessTokenGuard } from '../common/guards/access-token.guard';
 import { AuthService } from './auth.service';
-import { ExchangeGoogleCodeDto } from './dto/exchange-google-code.dto';
-import { RefreshDto } from './dto/refresh.dto';
-import { LogoutDto } from './dto/logout.dto';
+import { SwitchAccountDto } from './dto/switch-account.dto';
 import {
   buildGoogleLoginCallbackRedirectUrl,
   buildGoogleLoginFailedRedirectUrl,
-  buildRefreshCookieName,
   readCookieValue,
-  readRefreshCookies,
 } from './auth.utils';
 import {
   AUTH_THROTTLE_LIMIT,
   AUTH_THROTTLE_TTL_MS,
-  GOOGLE_CALLBACK_EXCHANGE_TTL_MS,
-  GOOGLE_CHANGE_TOKEN_COOKIE_NAME,
-  GOOGLE_EXCHANGE_COOKIE_PATH,
-  REFRESH_TOKEN_COOKIE_PATH,
-  REFRESH_TOKEN_TTL_MS,
+  COOKIE_PATH,
+  DEVICE_COOKIE_MAX_AGE_MS,
+  DEVICE_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+  SESSION_TTL_MS,
 } from './auth.constants';
 
 @Throttle({ global: { ttl: AUTH_THROTTLE_TTL_MS, limit: AUTH_THROTTLE_LIMIT } })
@@ -35,8 +30,8 @@ export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
   /**
-   * Input: AuthService xử lý đăng nhập Google và ConfigService đọc FRONTEND_ORIGIN từ env.
-   * Output: Khởi tạo controller cho các route xác thực và điều hướng callback về FE.
+   * Input: AuthService (nghiệp vụ) + ConfigService (FRONTEND_ORIGIN, môi trường).
+   * Output: Controller cho các route xác thực.
    */
   constructor(
     private readonly authService: AuthService,
@@ -44,16 +39,16 @@ export class AuthController {
   ) {}
 
   /**
-   * Input: Request gọi từ UI vào endpoint khởi tạo OAuth.
-   * Output: Chuyển hướng người dùng sang trang đăng nhập Google.
+   * Input: Request khởi tạo OAuth.
+   * Output: Chuyển hướng sang trang đăng nhập Google.
    */
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   loginWithGoogle(): void {}
 
   /**
-   * Input: Request callback từ Google chứa user profile đã được strategy validate.
-   * Output: Đồng bộ user rồi redirect cố định về FE `/login/callback?code=...`.
+   * Input: Callback Google (profile đã validate) + cookie device_id (nếu có).
+   * Output: Tạo session, set cookie session_id + device_id, redirect thẳng về FE `/login/callback`.
    */
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
@@ -67,16 +62,15 @@ export class AuthController {
         response.redirect(302, loginPageUrl);
         return;
       }
-
-      this.logger.log(`Google callback received for user: email=${googleUser.email} provider=${googleUser.provider}`);
-      const { code, changeToken } = await this.authService.loginWithGoogle(googleUser);
-      response.cookie(
-        GOOGLE_CHANGE_TOKEN_COOKIE_NAME,
-        changeToken,
-        this.buildCookieOptions(GOOGLE_EXCHANGE_COOKIE_PATH, GOOGLE_CALLBACK_EXCHANGE_TTL_MS),
-      );
-      this.logger.log(`Login code issued for ${googleUser.email}, redirecting to FE callback`);
-      response.redirect(302, buildGoogleLoginCallbackRedirectUrl(frontendOrigin, code));
+      const deviceId = readCookieValue(request.headers.cookie, DEVICE_COOKIE_NAME);
+      const result = await this.authService.loginWithGoogle(googleUser, {
+        deviceId,
+        userAgent: request.headers['user-agent'],
+      });
+      response.cookie(SESSION_COOKIE_NAME, result.sessionTokenRaw, this.buildCookieOptions(SESSION_TTL_MS));
+      response.cookie(DEVICE_COOKIE_NAME, result.deviceId, this.buildCookieOptions(DEVICE_COOKIE_MAX_AGE_MS));
+      this.logger.log(`Session issued for ${googleUser.email}, redirecting to FE callback`);
+      response.redirect(302, buildGoogleLoginCallbackRedirectUrl(frontendOrigin));
     } catch (err) {
       this.logger.error(`Google callback failed: ${err instanceof Error ? err.message : String(err)}`);
       response.redirect(302, loginPageUrl);
@@ -84,137 +78,82 @@ export class AuthController {
   }
 
   /**
-   * Input: Mã code một lần được FE gửi sau redirect callback Google.
-   * Output: Trả access token + user và set refresh token vào cookie per-account nếu code còn hiệu lực.
+   * Input: body.userId + cookie device_id.
+   * Output: Đổi account active — set lại cookie session_id. AUTH_001 nếu account cần login lại.
    */
-  @Post('google/exchange')
-  async exchangeGoogleCode(
-    @Body() body: ExchangeGoogleCodeDto,
+  @Post('switch')
+  async switchAccount(
+    @Body() body: SwitchAccountDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const changeToken = readCookieValue(request.headers.cookie, GOOGLE_CHANGE_TOKEN_COOKIE_NAME);
-    if (!changeToken) {
-      throw new AppException(ERROR_CODES.AUTH_003);
-    }
-
-    try {
-      const result = await this.authService.exchangeGoogleLoginCode(body.code, changeToken, {
-        deviceFingerprint: body.deviceFingerprint,
-        deviceName: body.deviceName,
-        userAgent: request.headers['user-agent'],
-      });
-      response.cookie(
-        buildRefreshCookieName(result.userId),
-        result.refreshToken,
-        this.buildCookieOptions(REFRESH_TOKEN_COOKIE_PATH, REFRESH_TOKEN_TTL_MS),
-      );
-      return {
-        userId: result.userId,
-        accessToken: result.accessToken,
-        accessTokenExpiresAt: result.accessTokenExpiresAt,
-        user: result.user,
-      };
-    } finally {
-      response.clearCookie(
-        GOOGLE_CHANGE_TOKEN_COOKIE_NAME,
-        this.buildCookieOptions(GOOGLE_EXCHANGE_COOKIE_PATH, GOOGLE_CALLBACK_EXCHANGE_TTL_MS),
-      );
-    }
+    const deviceId = readCookieValue(request.headers.cookie, DEVICE_COOKIE_NAME);
+    if (!deviceId) throw new AppException(ERROR_CODES.AUTH_001);
+    const result = await this.authService.switchAccount(deviceId, body.userId);
+    response.cookie(SESSION_COOKIE_NAME, result.sessionTokenRaw, this.buildCookieOptions(SESSION_TTL_MS));
+    return { success: true, userId: result.userId };
   }
 
   /**
-   * Input: accountId (body) + cookie rt_<accountId>.
-   * Output: Access token mới + rotate refresh cookie per-account.
-   */
-  @Post('refresh')
-  async refresh(@Body() body: RefreshDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    const rawToken = readCookieValue(request.headers.cookie, buildRefreshCookieName(body.accountId));
-    if (!rawToken) throw new AppException(ERROR_CODES.AUTH_001);
-    const result = await this.authService.refresh(body.accountId, rawToken);
-    response.cookie(
-      buildRefreshCookieName(result.userId),
-      result.refreshToken,
-      this.buildCookieOptions(REFRESH_TOKEN_COOKIE_PATH, REFRESH_TOKEN_TTL_MS),
-    );
-    return {
-      userId: result.userId,
-      accessToken: result.accessToken,
-      accessTokenExpiresAt: result.accessTokenExpiresAt,
-    };
-  }
-
-  /**
-   * Input: accountId (body) + cookie rt_<accountId>.
-   * Output: Revoke session + xóa cookie per-account.
+   * Input: cookie session_id.
+   * Output: Revoke session hiện tại + xoá cookie session_id (giữ device_id).
    */
   @Post('logout')
-  async logout(@Body() body: LogoutDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    const cookieName = buildRefreshCookieName(body.accountId);
-    const rawToken = readCookieValue(request.headers.cookie, cookieName);
+  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    const rawToken = readCookieValue(request.headers.cookie, SESSION_COOKIE_NAME);
     if (rawToken) await this.authService.logout(rawToken);
-    response.clearCookie(cookieName, this.buildCookieOptions(REFRESH_TOKEN_COOKIE_PATH, REFRESH_TOKEN_TTL_MS));
+    response.clearCookie(SESSION_COOKIE_NAME, this.buildCookieOptions(SESSION_TTL_MS));
     return { success: true };
   }
 
   /**
-   * Input: accountId query param + cookie rt_<accountId>.
-   * Output: Danh sách account đã link với device hiện tại.
+   * Input: cookie device_id.
+   * Output: Danh sách account trên device + cờ needsRelogin (rỗng nếu chưa có device_id).
    */
   @Get('accounts')
-  async accounts(@Query('accountId', CommonParseUuidPipe) accountId: string, @Req() request: Request) {
-    const rawToken = readCookieValue(request.headers.cookie, buildRefreshCookieName(accountId));
-    if (!rawToken) throw new AppException(ERROR_CODES.AUTH_001);
-    return this.authService.listAccounts(rawToken);
+  async accounts(@Req() request: Request) {
+    const deviceId = readCookieValue(request.headers.cookie, DEVICE_COOKIE_NAME);
+    if (!deviceId) return { accounts: [] };
+    return this.authService.listAccounts(deviceId);
   }
 
   /**
-   * Input: Các cookie rt_<accountId> browser gửi kèm (không cần body).
-   * Output: [{ accountId, needsRelogin }] cho từng account browser đang giữ — read-only, không rotate/revoke.
-   */
-  @Post('accounts/status')
-  async accountsStatus(@Req() request: Request) {
-    const candidates = readRefreshCookies(request.headers.cookie);
-    return this.authService.checkAccountsStatus(candidates);
-  }
-
-  /**
-   * Input: access token (Bearer).
-   * Output: Thông tin user hiện tại theo account đang active trên FE.
+   * Input: session cookie (qua SessionGuard).
+   * Output: Thông tin user hiện tại.
    */
   @Get('me')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(SessionGuard)
   async me(@Req() request: Request & { userId: string }) {
     return this.authService.getMe(request.userId);
   }
 
   /**
-   * Input: access token (Bearer).
+   * Input: session cookie (qua SessionGuard).
    * Output: Danh sách thiết bị/phiên của user.
    */
   @Get('devices')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(SessionGuard)
   async devices(@Req() request: Request & { userId: string }) {
     return this.authService.listDevices(request.userId);
   }
 
   /**
-   * Input: access token (Bearer) + sessionId.
+   * Input: session cookie (qua SessionGuard) + sessionId.
    * Output: Revoke session từ xa nếu thuộc về user.
    */
   @Delete('sessions/:id')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(SessionGuard)
   async revokeSession(@Param('id') id: string, @Req() request: Request & { userId: string }) {
     await this.authService.revokeSession(id, request.userId);
     return { success: true };
   }
 
-  private buildCookieOptions(path: string, maxAge: number) {
+  private buildCookieOptions(maxAge: number) {
     return {
       httpOnly: true,
       secure: isProductionEnvironment(this.configService),
       sameSite: 'lax' as const,
-      path,
+      path: COOKIE_PATH,
       maxAge,
     };
   }
