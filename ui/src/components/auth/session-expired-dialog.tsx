@@ -15,20 +15,26 @@ import { useAuthStore } from "@/stores/auth-store"
 
 /**
  * Input: Không nhận props; đọc store (đã hydrate từ server).
- * Output: Popup "đã hết phiên đăng nhập" (không đóng được) + nút đăng xuất.
- *         Tự render khi `!user && hasSessionCookie` (còn cookie nhưng session hỏng); ngược lại null.
- *         Đặt global ở AuthProvider nên áp dụng cho toàn app.
+ * Output: Popup "đã hết phiên đăng nhập" (không đóng được) + nút đăng xuất khi `isExpired`.
+ *         `isError` → toast lỗi (không chặn). Đặt global ở AuthProvider nên áp dụng cho toàn app.
  */
 export function SessionExpiredDialog() {
-  const expired = useAuthStore((state) => !state.user && state.hasSessionCookie)
+  const isExpired = useAuthStore((state) => state.isExpired)
+  const isError = useAuthStore((state) => state.isError)
 
   useEffect(() => {
-    if (expired) {
+    if (isExpired) {
       toast.error("Phiên đăng nhập đã hết hạn")
     }
-  }, [expired])
+  }, [isExpired])
 
-  if (!expired) {
+  useEffect(() => {
+    if (isError) {
+      toast.error("Không tải được phiên đăng nhập. Vui lòng thử lại.")
+    }
+  }, [isError])
+
+  if (!isExpired) {
     return null
   }
 
