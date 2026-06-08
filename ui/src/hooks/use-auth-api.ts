@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import {
   fetchAccounts,
   fetchDevices,
@@ -104,6 +105,7 @@ export function useLogout() {
         return
       }
       queryClient.clear()
+      toast.success("Đã đăng xuất")
       router.replace("/login")
     },
   })
