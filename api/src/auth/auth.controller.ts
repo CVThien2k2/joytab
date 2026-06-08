@@ -145,12 +145,16 @@ export class AuthController {
   }
 
   private buildCookieOptions(maxAge: number) {
+    // COOKIE_DOMAIN (vd .example.com) để cookie first-party dùng chung FE + API subdomain.
+    // Không set ở dev → cookie host-only cho localhost.
+    const domain = this.configService.get<string>('COOKIE_DOMAIN')?.trim();
     return {
       httpOnly: true,
       secure: isProductionEnvironment(this.configService),
       sameSite: 'lax' as const,
       path: COOKIE_PATH,
       maxAge,
+      ...(domain ? { domain } : {}),
     };
   }
 }

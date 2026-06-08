@@ -1,25 +1,19 @@
-"use client"
-
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
-import { useMe } from "@/hooks/use-auth-api"
+import { redirect } from "next/navigation"
+import { getCurrentUser } from "@/api/auth-server"
 
 /**
  * Input: Nội dung các route private cần đăng nhập trong App Router.
- * Output: Gate bằng /auth/me (cookie session). Đang tải → null; 401 → điều hướng /login; có user → render.
+ * Output: Server Component — validate session ở server (DAL getCurrentUser → API /auth/me).
+ *         Không hợp lệ → redirect /login trước khi render; hợp lệ → render children.
  */
-export default function PrivateLayout({
+export default async function PrivateLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const router = useRouter()
-  const meQuery = useMe()
-
-  useEffect(() => {
-    if (meQuery.isError) router.replace("/login")
-  }, [meQuery.isError, router])
-
-  if (meQuery.isPending || meQuery.isError) return null
+  const user = await getCurrentUser()
+  if (!user) {
+    redirect("/login")
+  }
   return children
 }
