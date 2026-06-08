@@ -2,13 +2,11 @@
 
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
-import { useEnforceActiveAccountStatus } from "@/hooks/use-auth-api"
-import { useAuthHydration } from "@/hooks/use-auth-hydration"
-import { useAuthStore } from "@/stores/auth-store"
+import { useMe } from "@/hooks/use-auth-api"
 
 /**
  * Input: Nội dung các route private cần đăng nhập trong App Router.
- * Output: Chỉ render nội dung khi đã đăng nhập, ngược lại điều hướng về `/login`.
+ * Output: Gate bằng /auth/me (cookie session). Đang tải → null; 401 → điều hướng /login; có user → render.
  */
 export default function PrivateLayout({
   children,
@@ -16,15 +14,12 @@ export default function PrivateLayout({
   children: React.ReactNode
 }>) {
   const router = useRouter()
-  const hasHydrated = useAuthHydration()
-  const hasAccounts = useAuthStore((s) => Object.keys(s.accounts).length > 0)
-  // Vào website: check session active còn sống không (revoke từ xa) và đá account chết ra.
-  useEnforceActiveAccountStatus()
+  const meQuery = useMe()
 
   useEffect(() => {
-    if (hasHydrated && !hasAccounts) router.replace("/login")
-  }, [hasHydrated, hasAccounts, router])
+    if (meQuery.isError) router.replace("/login")
+  }, [meQuery.isError, router])
 
-  if (!hasHydrated || !hasAccounts) return null
+  if (meQuery.isPending || meQuery.isError) return null
   return children
 }

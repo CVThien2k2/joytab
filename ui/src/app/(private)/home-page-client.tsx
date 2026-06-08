@@ -1,44 +1,29 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { useMemo } from "react"
-import {
-  useLogout,
-  useMe,
-} from "@/hooks/use-auth-api"
-import { useRestoreAccounts } from "@/hooks/use-restore-accounts"
+import { useAccounts, useLogout, useMe, useSwitchAccount } from "@/hooks/use-auth-api"
 import { redirectToGoogleLogin } from "@/lib/google-login"
-import { useAuthStore } from "@/stores/auth-store"
 
 /**
- * Input: Không nhận tham số; đọc danh sách account từ Zustand store.
- * Output: Render một component chuyển account và thông tin user hiện tại lấy từ BE.
+ * Input: Không nhận tham số; đọc trạng thái auth trực tiếp từ BE qua cookie session.
+ * Output: Hiển thị account đang dùng (/auth/me) + danh sách account trên thiết bị (/auth/accounts),
+ *         cho switch / thêm tài khoản / đăng nhập lại / đăng xuất.
  */
 export function HomePageClient() {
-  useRestoreAccounts()
-
-  const accounts = useAuthStore((s) => s.accounts)
-  const accountList = useMemo(() => Object.values(accounts), [accounts])
-  const activeAccountId = useAuthStore((s) => s.activeAccountId)
-  const setActiveAccount = useAuthStore((s) => s.setActiveAccount)
-
   const meQuery = useMe()
+  const accountsQuery = useAccounts()
+  const switchAccount = useSwitchAccount()
   const logout = useLogout()
-  // Check status được trigger ở PrivateLayout và đồng bộ vào store; ở đây chỉ đọc ra.
-  const statusMap = useAuthStore((s) => s.accountStatus)
 
-  if (accountList.length === 0) {
-    return null
-  }
+  const activeUserId = meQuery.data?.userId
+  const accounts = accountsQuery.data ?? []
 
   return (
     <main className="min-h-screen bg-zinc-50 p-6">
       <div className="mx-auto w-full max-w-xl">
         <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-sm font-semibold text-zinc-900">
-              Chuyển tài khoản
-            </h2>
+            <h2 className="text-sm font-semibold text-zinc-900">Chuyển tài khoản</h2>
             <Button
               type="button"
               size="sm"
@@ -50,7 +35,7 @@ export function HomePageClient() {
 
           <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
             <p className="text-xs font-medium text-zinc-500">Đang sử dụng</p>
-            {meQuery.isLoading ? (
+            {meQuery.isPending ? (
               <p className="mt-2 text-sm text-zinc-600">Đang tải thông tin...</p>
             ) : meQuery.isError ? (
               <p className="mt-2 text-sm text-red-600">Không tải được thông tin tài khoản.</p>
@@ -64,58 +49,57 @@ export function HomePageClient() {
           </div>
 
           <ul className="mt-3 space-y-2">
-            {accountList.map((account) => {
-              const isActive = account.userId === activeAccountId
-              const needsRelogin = statusMap[account.userId] ?? false
+            {accounts.map((account) => {
+              const isActive = account.userId === activeUserId
               return (
                 <li
                   key={account.userId}
                   className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-700"
                 >
                   <span>
-                    {account.user.email}
+                    {account.email}
                     {isActive ? " (đang dùng)" : ""}
-                    {needsRelogin ? (
+                    {account.needsRelogin ? (
                       <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
                         Cần đăng nhập lại
                       </span>
                     ) : null}
                   </span>
-                  <div className="flex items-center gap-2">
-                    {needsRelogin ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => redirectToGoogleLogin({ selectAccount: true })}
-                      >
-                        Đăng nhập lại
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        disabled={isActive}
-                        onClick={() => setActiveAccount(account.userId)}
-                      >
-                        Dùng
-                      </Button>
-                    )}
+                  {account.needsRelogin ? (
                     <Button
                       type="button"
                       size="sm"
-                      variant="destructive"
-                      disabled={logout.isPending}
-                      onClick={() => logout.mutate(account.userId)}
+                      variant="secondary"
+                      onClick={() => redirectToGoogleLogin({ selectAccount: true })}
                     >
-                      Đăng xuất
+                      Đăng nhập lại
                     </Button>
-                  </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={isActive || switchAccount.isPending}
+                      onClick={() => switchAccount.mutate(account.userId)}
+                    >
+                      Dùng
+                    </Button>
+                  )}
                 </li>
               )
             })}
           </ul>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            className="mt-4"
+            disabled={logout.isPending}
+            onClick={() => logout.mutate()}
+          >
+            Đăng xuất
+          </Button>
         </section>
       </div>
     </main>
