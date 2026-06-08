@@ -1,131 +1,65 @@
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable } from '@nestjs/common';
-import { Cache } from 'cache-manager';
+import { Injectable } from '@nestjs/common';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import { GoogleUser } from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
-import { CACHE_AUTH_CODE_PREFIX } from './auth.constants';
 import { DeviceService } from './device.service';
 import { SessionService } from './session.service';
-import { TokenService } from './token.service';
 
-type GoogleLoginCallbackArtifacts = { code: string; changeToken: string };
-type GoogleLoginCodeCacheValue = { email: string; changeTokenHash: string };
-type ExchangeContext = {
-  deviceFingerprint: string;
-  deviceName?: string;
-  userAgent?: string;
-};
-type AuthTokens = {
-  userId: string;
-  accessToken: string;
-  accessTokenExpiresAt: string;
-  refreshToken: string;
-  user: GoogleUser;
-};
+type LoginContext = { deviceId?: string | null; deviceName?: string; userAgent?: string };
+type LoginResult = { userId: string; sessionTokenRaw: string; deviceId: string; user: GoogleUser };
 
 @Injectable()
 export class AuthService {
   /**
-   * Input: DatabaseService, Cache (login code), TokenService, SessionService, DeviceService.
-   * Output: Service orchestrate toàn bộ nghiệp vụ đăng nhập/refresh/logout.
+   * Input: DatabaseService, SessionService, DeviceService.
+   * Output: Service orchestrate nghiệp vụ login/switch/logout/quản lý phiên.
    */
   constructor(
     private readonly databaseService: DatabaseService,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-    private readonly tokenService: TokenService,
     private readonly sessionService: SessionService,
     private readonly deviceService: DeviceService,
   ) {}
 
   /**
-   * Input: Profile Google đã chuẩn hóa.
-   * Output: Upsert user + trả { code, changeToken } cho callback FE (giữ nguyên hành vi cũ).
+   * Input: Google profile đã validate + ngữ cảnh (deviceId cookie, userAgent).
+   * Output: Upsert user, đảm bảo Device, link DeviceUser, tạo/refresh session. Trả raw token + deviceId để set cookie.
    */
-  async loginWithGoogle(googleUser: GoogleUser): Promise<GoogleLoginCallbackArtifacts> {
+  async loginWithGoogle(googleUser: GoogleUser, ctx: LoginContext): Promise<LoginResult> {
     const user = await this.upsertGoogleUser(googleUser);
-    const normalizedEmail = user.email.trim().toLowerCase();
-    const code = this.tokenService.createGoogleLoginCode();
-    const { raw: changeTokenRaw, hash: changeTokenHash } = this.tokenService.createGoogleChangeToken();
-    const cacheValue: GoogleLoginCodeCacheValue = { email: normalizedEmail, changeTokenHash };
-    await this.cacheManager.set(
-      this.getAuthCodeCacheKey(code),
-      JSON.stringify(cacheValue),
-      this.tokenService.getGoogleChangeTokenTtlSeconds() * 1000,
-    );
-    return { code, changeToken: changeTokenRaw };
-  }
-
-  /**
-   * Input: code callback, change token raw từ cookie, ngữ cảnh thiết bị.
-   * Output: Persist Device/DeviceUser/UserSession/RefreshToken trong transaction; trả access + refresh + user.
-   */
-  async exchangeGoogleLoginCode(code: string, changeToken: string, ctx: ExchangeContext): Promise<AuthTokens> {
-    const normalizedCode = code.trim();
-    if (!normalizedCode) throw new AppException(ERROR_CODES.AUTH_003);
-
-    const cacheKey = this.getAuthCodeCacheKey(normalizedCode);
-    const rawCache = await this.cacheManager.get<string>(cacheKey);
-    if (!rawCache) throw new AppException(ERROR_CODES.AUTH_003);
-
-    const cachedValue = this.parseGoogleLoginCodeCacheValue(rawCache);
-    if (!cachedValue) throw new AppException(ERROR_CODES.AUTH_003);
-
-    const incomingHash = this.tokenService.hashToken(changeToken);
-    if (!this.tokenService.safeCompareHash(incomingHash, cachedValue.changeTokenHash)) {
-      throw new AppException(ERROR_CODES.AUTH_003);
-    }
-    await this.cacheManager.del(cacheKey);
-
-    const user = await this.databaseService.user.findUnique({ where: { email: cachedValue.email } });
-    if (!user) throw new AppException(ERROR_CODES.AUTH_003);
-
-    const refreshTokenRaw = await this.databaseService.$transaction(async (tx) => {
-      const device = await this.deviceService.upsertDevice(
-        { fingerprint: ctx.deviceFingerprint, deviceName: ctx.deviceName, userAgent: ctx.userAgent },
+    const result = await this.databaseService.$transaction(async (tx) => {
+      const device = await this.deviceService.ensureDevice(
+        { deviceId: ctx.deviceId, deviceName: ctx.deviceName, userAgent: ctx.userAgent },
         tx,
       );
       await this.deviceService.linkDeviceUser({ deviceId: device.id, userId: user.id }, tx);
-      // Multi-account: account đã có phiên sống thì cấp token mới cho phiên đó, chưa có thì tạo mới.
-      // KHÔNG đụng account khác (mỗi account 1 cookie riêng).
-      const existingSession = await this.sessionService.findActiveSession(user.id, device.id, tx);
-      if (existingSession) {
-        return this.sessionService.issueFreshTokenForSession(existingSession, tx);
-      }
-      const session = await this.sessionService.createSession({ userId: user.id, deviceId: device.id }, tx);
-      return session.refreshTokenRaw;
+      const sessionTokenRaw = await this.sessionService.createOrRefreshSession(
+        { userId: user.id, deviceId: device.id },
+        tx,
+      );
+      return { deviceId: device.id, sessionTokenRaw };
     });
-
-    return this.buildAuthTokens(user.id, cachedValue.email, refreshTokenRaw, this.toGoogleUser(user));
-  }
-
-  /**
-   * Input: accountId (chủ cookie) + refresh token raw từ cookie rt_<accountId>.
-   * Output: Rotate token + access token mới. Ném AUTH_001 nếu token không thuộc accountId.
-   */
-  async refresh(
-    accountId: string,
-    rawToken: string,
-  ): Promise<{ userId: string; accessToken: string; accessTokenExpiresAt: string; refreshToken: string }> {
-    const rotated = await this.databaseService.$transaction(async (tx) => {
-      const active = await this.sessionService.validateActiveRawToken(rawToken, tx);
-      if (active.userId !== accountId) {
-        throw new AppException(ERROR_CODES.AUTH_001);
-      }
-      return this.sessionService.rotateByRawToken(rawToken, tx);
-    });
-    const accessToken = this.tokenService.createAccessToken(rotated.userId, rotated.email);
     return {
-      userId: rotated.userId,
-      accessToken,
-      accessTokenExpiresAt: this.accessExpiry(),
-      refreshToken: rotated.refreshTokenRaw,
+      userId: user.id,
+      sessionTokenRaw: result.sessionTokenRaw,
+      deviceId: result.deviceId,
+      user: this.toGoogleUser(user),
     };
   }
 
   /**
-   * Input: refresh token raw.
+   * Input: deviceId (từ cookie) + userId đích.
+   * Output: raw token mới cho account đích nếu còn phiên sống; AUTH_001 nếu cần login lại.
+   */
+  async switchAccount(deviceId: string, userId: string): Promise<{ userId: string; sessionTokenRaw: string }> {
+    const sessionTokenRaw = await this.databaseService.$transaction((tx) =>
+      this.sessionService.switchActiveSession({ deviceId, userId }, tx),
+    );
+    return { userId, sessionTokenRaw };
+  }
+
+  /**
+   * Input: raw session token.
    * Output: Revoke session hiện tại (logout). Không ném lỗi nếu token đã không hợp lệ.
    */
   async logout(rawToken: string): Promise<void> {
@@ -133,51 +67,39 @@ export class AuthService {
   }
 
   /**
-   * Input: refresh token raw active.
-   * Output: Danh sách account đã link với device hiện tại (cho UI account switcher).
+   * Input: deviceId từ cookie.
+   * Output: Danh sách account trên device + cờ needsRelogin (account hết phiên sống).
    */
-  async listAccounts(rawToken: string) {
-    const active = await this.databaseService.$transaction((tx) =>
-      this.sessionService.validateActiveRawToken(rawToken, tx),
-    );
-    const links = await this.deviceService.listAccountsByDevice(active.deviceId);
+  async listAccounts(deviceId: string) {
+    const [links, liveUserIds] = await Promise.all([
+      this.deviceService.listAccountsByDevice(deviceId),
+      this.sessionService.listLiveUserIdsForDevice(deviceId),
+    ]);
+    const live = new Set(liveUserIds);
     return {
       accounts: links.map((l) => ({
         userId: l.user.id,
         email: l.user.email,
         fullName: l.user.full_name,
         avatarUrl: l.user.avatar_url,
-        isActive: l.is_active,
+        needsRelogin: !live.has(l.user.id),
       })),
     };
   }
 
   /**
-   * Input: Danh sách { accountId, rawToken } suy từ các cookie rt_* browser gửi kèm.
-   * Output: Trạng thái relogin từng account (read-only). FE diff với danh sách local để hiện badge "Đăng nhập lại".
-   *         Chỉ báo cáo cho cookie thực sự nhận được → không lộ account người khác.
-   */
-  async checkAccountsStatus(candidates: { accountId: string; rawToken: string }[]) {
-    const accounts = await this.sessionService.checkRawTokensStatus(candidates);
-    return { accounts };
-  }
-
-  /**
-   * Input: userId từ access token guard.
-   * Output: Thông tin user hiện tại để FE hiển thị sau khi switch account.
+   * Input: userId từ SessionGuard.
+   * Output: Thông tin user hiện tại.
    */
   async getMe(userId: string) {
     const user = await this.databaseService.user.findUnique({ where: { id: userId } });
     if (!user) throw new AppException(ERROR_CODES.AUTH_001);
-    return {
-      userId: user.id,
-      user: this.toGoogleUser(user),
-    };
+    return { userId: user.id, user: this.toGoogleUser(user) };
   }
 
   /**
-   * Input: userId từ access token guard.
-   * Output: Danh sách thiết bị + session của user.
+   * Input: userId từ SessionGuard.
+   * Output: Danh sách thiết bị/phiên của user.
    */
   async listDevices(userId: string) {
     const sessions = await this.sessionService.listByUser(userId);
@@ -203,19 +125,6 @@ export class AuthService {
     );
   }
 
-  /**
-   * Input: userId, email, refresh raw, googleUser.
-   * Output: Đóng gói access token + expiry + refresh + user.
-   */
-  private buildAuthTokens(userId: string, email: string, refreshToken: string, user: GoogleUser): AuthTokens {
-    const accessToken = this.tokenService.createAccessToken(userId, email);
-    return { userId, accessToken, accessTokenExpiresAt: this.accessExpiry(), refreshToken, user };
-  }
-
-  private accessExpiry(): string {
-    return new Date(Date.now() + this.tokenService.getAccessTokenTtlSeconds() * 1000).toISOString();
-  }
-
   private toGoogleUser(user: {
     provider_user_id: string;
     email: string;
@@ -234,8 +143,8 @@ export class AuthService {
   }
 
   /**
-   * Input: Dữ liệu Google user đã validate.
-   * Output: Upsert bản ghi users theo provider_user_id và trả user mới nhất.
+   * Input: Google user đã validate.
+   * Output: Upsert bản ghi users theo provider_user_id; trả user mới nhất.
    */
   private async upsertGoogleUser(googleUser: GoogleUser) {
     const now = new Date();
@@ -264,22 +173,5 @@ export class AuthService {
         last_login_at: now,
       },
     });
-  }
-
-  private getAuthCodeCacheKey(code: string): string {
-    return `${CACHE_AUTH_CODE_PREFIX}${code}`;
-  }
-
-  private parseGoogleLoginCodeCacheValue(rawCache: string): GoogleLoginCodeCacheValue | null {
-    try {
-      const parsed = JSON.parse(rawCache) as Partial<GoogleLoginCodeCacheValue>;
-      if (typeof parsed.email !== 'string' || typeof parsed.changeTokenHash !== 'string') return null;
-      const email = parsed.email.trim().toLowerCase();
-      const changeTokenHash = parsed.changeTokenHash.trim().toLowerCase();
-      if (!email || !changeTokenHash) return null;
-      return { email, changeTokenHash };
-    } catch {
-      return null;
-    }
   }
 }
