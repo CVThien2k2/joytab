@@ -9,11 +9,7 @@ import { SessionGuard } from '../common/guards/session.guard';
 import { isProductionEnvironment } from '../common/utils/functions';
 import { AuthService } from './auth.service';
 import { SwitchAccountDto } from './dto/switch-account.dto';
-import {
-  buildGoogleLoginCallbackRedirectUrl,
-  buildGoogleLoginFailedRedirectUrl,
-  readCookieValue,
-} from './auth.utils';
+import { buildGoogleLoginCallbackRedirectUrl, buildGoogleLoginFailedRedirectUrl, readCookieValue } from './auth.utils';
 import {
   AUTH_THROTTLE_LIMIT,
   AUTH_THROTTLE_TTL_MS,

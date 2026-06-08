@@ -75,10 +75,6 @@ export const ERROR_CODES = {
     code: 'SYS_012',
     message: 'Missing REDIS_DB',
   },
-  SYS_014: {
-    code: 'SYS_014',
-    message: 'Missing JWT_SECRET',
-  },
   UNKNOWN_001: {
     code: 'UNKNOWN_001',
     message: 'Unknown error',

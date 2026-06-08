@@ -19,7 +19,6 @@ const REQUIRED_ENV_KEYS = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'API_URL',
-  'JWT_SECRET',
 ] as const;
 
 /**

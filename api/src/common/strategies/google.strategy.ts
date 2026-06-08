@@ -26,7 +26,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
    * Input: Hồ sơ người dùng từ Google sau khi xác thực OAuth thành công.
    * Output: Chuẩn hóa profile Google thành dữ liệu user nội bộ để lưu vào DB.
    */
-  validate(_accessToken: string, _refreshToken: string, profile: Profile): GoogleUser {
+  validate(_accessToken: string, _oauthToken: string, profile: Profile): GoogleUser {
     const primaryEmail = profile.emails?.[0]?.value;
     if (!primaryEmail) throw new AppException(ERROR_CODES.AUTH_002);
 

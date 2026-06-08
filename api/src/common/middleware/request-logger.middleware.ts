@@ -1,18 +1,7 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
 
-const SENSITIVE_KEYS = new Set([
-  'password',
-  'pwd',
-  'token',
-  'accessToken',
-  'refreshToken',
-  'changeToken',
-  'code',
-  'secret',
-  'apiKey',
-  'authorization',
-]);
+const SENSITIVE_KEYS = new Set(['password', 'pwd', 'token', 'code', 'secret', 'apiKey', 'authorization']);
 
 const MAX_BODY_LENGTH = 500;
 

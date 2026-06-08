@@ -13,7 +13,7 @@ type RevokeReason = 'logout' | 'revoked_remote';
 export class SessionService {
   /**
    * Input: DatabaseService (query ngoài transaction), TokenService (sinh/băm token).
-   * Output: Service quản lý vòng đời UserSession (không còn RefreshToken).
+   * Output: Service quản lý vòng đời UserSession theo session-cookie.
    */
   constructor(
     private readonly databaseService: DatabaseService,
