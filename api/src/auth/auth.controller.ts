@@ -9,12 +9,7 @@ import { SessionGuard } from '../common/guards/session.guard';
 import { isProductionEnvironment } from '../common/utils/functions';
 import { AuthService } from './auth.service';
 import { SwitchAccountDto } from './dto/switch-account.dto';
-import {
-  buildGoogleLoginCallbackRedirectUrl,
-  buildGoogleLoginFailedRedirectUrl,
-  isUuid,
-  readCookieValue,
-} from './auth.utils';
+import { buildGoogleLoginFailedRedirectUrl, buildPostLoginRedirectUrl, isUuid, readCookieValue } from './auth.utils';
 import {
   AUTH_THROTTLE_LIMIT,
   AUTH_THROTTLE_TTL_MS,
@@ -49,7 +44,7 @@ export class AuthController {
 
   /**
    * Input: Callback Google (profile đã validate) + cookie device_id (nếu có).
-   * Output: Tạo session, set cookie session_id + device_id, redirect thẳng về FE `/login/callback`.
+   * Output: Tạo session, set cookie session_id + device_id, redirect thẳng về FE `/` (home).
    */
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
@@ -70,8 +65,8 @@ export class AuthController {
       });
       response.cookie(SESSION_COOKIE_NAME, result.sessionTokenRaw, this.buildCookieOptions(SESSION_TTL_MS));
       response.cookie(DEVICE_COOKIE_NAME, result.deviceId, this.buildCookieOptions(DEVICE_COOKIE_MAX_AGE_MS));
-      this.logger.log(`Session issued for ${googleUser.email}, redirecting to FE callback`);
-      response.redirect(302, buildGoogleLoginCallbackRedirectUrl(frontendOrigin));
+      this.logger.log(`Session issued for ${googleUser.email}, redirecting to FE home`);
+      response.redirect(302, buildPostLoginRedirectUrl(frontendOrigin));
     } catch (err) {
       this.logger.error(`Google callback failed: ${err instanceof Error ? err.message : String(err)}`);
       response.redirect(302, loginPageUrl);

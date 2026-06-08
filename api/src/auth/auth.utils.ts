@@ -12,11 +12,11 @@ export function isUuid(value: string | null | undefined): value is string {
 
 /**
  * Input: FRONTEND_ORIGIN từ env (có thể rỗng).
- * Output: URL callback FE cố định `/login/callback` (không còn kèm code).
+ * Output: URL trang chủ FE `/` — đã set cookie session xong thì redirect thẳng về home.
  */
-export function buildGoogleLoginCallbackRedirectUrl(frontendOrigin: string | undefined): string {
+export function buildPostLoginRedirectUrl(frontendOrigin: string | undefined): string {
   const baseUrl = normalizeFrontendOrigin(frontendOrigin);
-  return new URL('/login/callback', `${baseUrl}/`).toString();
+  return new URL('/', `${baseUrl}/`).toString();
 }
 
 /**
