@@ -7,15 +7,13 @@ import { TokenService } from './token.service';
 
 export type PrismaTx = Prisma.TransactionClient;
 
-type ActiveSessionInfo = { sessionId: string; userId: string; deviceId: string };
-
-type RevokeReason = 'logout' | 'reuse_detected' | 'revoked_remote';
+type RevokeReason = 'logout' | 'revoked_remote';
 
 @Injectable()
 export class SessionService {
   /**
-   * Input: DatabaseService cho query ngoài transaction, TokenService để tạo/băm refresh token.
-   * Output: Service quản lý vòng đời UserSession + RefreshToken.
+   * Input: DatabaseService (query ngoài transaction), TokenService (sinh/băm token).
+   * Output: Service quản lý vòng đời UserSession (không còn RefreshToken).
    */
   constructor(
     private readonly databaseService: DatabaseService,
@@ -23,109 +21,118 @@ export class SessionService {
   ) {}
 
   /**
-   * Input: userId, deviceId và transaction client.
-   * Output: Tạo session mới + refresh token đầu tiên; trả { sessionId, refreshTokenRaw }.
+   * Input: userId, deviceId, transaction client.
+   * Output: Tạo session mới với token_hash + expires_at = now + TTL; trả { sessionId, sessionTokenRaw }.
    */
-  async createSession(params: { userId: string; deviceId: string }, tx: PrismaTx) {
-    const expiresAt = new Date(Date.now() + this.tokenService.getRefreshTokenTtlMs());
-    const session = await tx.userSession.create({
-      data: { user_id: params.userId, device_id: params.deviceId, expires_at: expiresAt },
-    });
-    const { raw, hash } = this.tokenService.createRefreshToken();
-    await tx.refreshToken.create({
-      data: { session_id: session.id, token_hash: hash, expires_at: expiresAt },
-    });
-    return { sessionId: session.id, refreshTokenRaw: raw };
-  }
-
-  /**
-   * Input: refresh token raw từ cookie và transaction client.
-   * Output: Rotate token (cấp mới, retire token cũ); trả { refreshTokenRaw, userId, email }.
-   *         Phát hiện reuse/expired → revoke cả session và ném AUTH_005; không tìm thấy → AUTH_004.
-   */
-  async rotateByRawToken(
-    rawToken: string,
+  async createSession(
+    params: { userId: string; deviceId: string },
     tx: PrismaTx,
-  ): Promise<{ refreshTokenRaw: string; userId: string; email: string }> {
-    const existing = await this.loadLiveTokenOrFail(rawToken, tx);
-    const session = existing.session;
-
-    // Atomic claim: chỉ request đầu tiên lật được used_at từ null sang now mới "giành" được token.
-    // Postgres serialize các UPDATE trên cùng dòng (READ COMMITTED + EvalPlanQual): request đến sau
-    // sẽ thấy used_at đã khác null nên khớp 0 dòng. Đây là điểm đóng cửa sổ TOCTOU của bản đọc-rồi-ghi cũ.
-    const claim = await tx.refreshToken.updateMany({
-      where: { id: existing.id, used_at: null, is_revoked: false },
-      data: { used_at: new Date() },
+  ): Promise<{ sessionId: string; sessionTokenRaw: string }> {
+    const { raw, hash } = this.tokenService.createSessionToken();
+    const session = await tx.userSession.create({
+      data: {
+        user_id: params.userId,
+        device_id: params.deviceId,
+        token_hash: hash,
+        expires_at: new Date(Date.now() + this.tokenService.getSessionTtlMs()),
+        last_used_at: new Date(),
+      },
     });
-    if (claim.count === 0) {
-      // Không giành được claim ⇒ token đã bị consume/revoke (reuse hoặc double-refresh): revoke cả family.
-      await this.revokeSession(session.id, 'reuse_detected', tx);
-      throw new AppException(ERROR_CODES.AUTH_005);
+    return { sessionId: session.id, sessionTokenRaw: raw };
+  }
+
+  /**
+   * Input: userId, deviceId, transaction client.
+   * Output: Login/add-account — có phiên sống thì cấp token mới cho phiên đó, chưa có thì tạo mới. Trả raw token.
+   */
+  async createOrRefreshSession(params: { userId: string; deviceId: string }, tx: PrismaTx): Promise<string> {
+    const existing = await tx.userSession.findFirst({
+      where: { user_id: params.userId, device_id: params.deviceId, is_revoked: false, expires_at: { gt: new Date() } },
+      orderBy: { created_at: 'desc' },
+    });
+    if (existing) {
+      const { raw, hash } = this.tokenService.createSessionToken();
+      await tx.userSession.update({
+        where: { id: existing.id },
+        data: {
+          token_hash: hash,
+          last_used_at: new Date(),
+          expires_at: new Date(Date.now() + this.tokenService.getSessionTtlMs()),
+        },
+      });
+      return raw;
     }
-
-    const { raw, hash } = this.tokenService.createRefreshToken();
-    const created = await tx.refreshToken.create({
-      data: { session_id: session.id, token_hash: hash, expires_at: session.expires_at },
-    });
-    await tx.refreshToken.update({
-      where: { id: existing.id },
-      data: { replaced_by_id: created.id },
-    });
-    await tx.userSession.update({ where: { id: session.id }, data: { last_used_at: new Date() } });
-    return { refreshTokenRaw: raw, userId: session.user_id, email: session.user.email };
+    const created = await this.createSession(params, tx);
+    return created.sessionTokenRaw;
   }
 
   /**
-   * Input: refresh token raw active và transaction client.
-   * Output: Xác thực token còn hiệu lực (reuse detection như rotate, KHÔNG mutate); trả ids của session.
+   * Input: raw session token từ cookie + deviceId từ cookie.
+   * Output: { userId, email, sessionId } nếu hợp lệ. Sai/khác device/revoked/hết hạn → AUTH_001.
+   *         Sliding renew: chỉ ghi DB khi thời gian còn lại dưới ngưỡng (mặc định <1 ngày).
    */
-  async validateActiveRawToken(rawToken: string, tx: PrismaTx): Promise<ActiveSessionInfo> {
-    const existing = await this.findValidTokenOrFail(rawToken, tx);
-    return { sessionId: existing.session.id, userId: existing.session.user_id, deviceId: existing.session.device_id };
+  async validateSession(
+    rawToken: string,
+    deviceId: string,
+  ): Promise<{ userId: string; email: string; sessionId: string }> {
+    const hash = this.tokenService.hashToken(rawToken);
+    const session = await this.databaseService.userSession.findUnique({
+      where: { token_hash: hash },
+      include: { user: true },
+    });
+    const now = Date.now();
+    if (!session || session.device_id !== deviceId || session.is_revoked || session.expires_at.getTime() <= now) {
+      throw new AppException(ERROR_CODES.AUTH_001);
+    }
+    if (session.expires_at.getTime() - now < this.tokenService.getSessionRenewThresholdMs()) {
+      await this.databaseService.userSession.update({
+        where: { id: session.id },
+        data: { last_used_at: new Date(), expires_at: new Date(now + this.tokenService.getSessionTtlMs()) },
+      });
+    }
+    return { userId: session.user_id, email: session.user.email, sessionId: session.id };
   }
 
   /**
-   * Input: session (id + expires_at) và transaction client.
-   * Output: Retire mọi refresh token active của session rồi cấp 1 token mới; trả raw. Dùng khi exchange cấp lại token cho phiên đang tồn tại.
+   * Input: deviceId (từ cookie), userId đích, transaction client.
+   * Output: Account đã link + còn phiên sống → cấp token mới cho phiên đó, trả raw. Ngược lại AUTH_001 (cần login lại).
    */
-  async issueFreshTokenForSession(session: { id: string; expires_at: Date }, tx: PrismaTx): Promise<string> {
-    await tx.refreshToken.updateMany({
-      where: { session_id: session.id, used_at: null, is_revoked: false },
-      data: { used_at: new Date() },
+  async switchActiveSession(params: { deviceId: string; userId: string }, tx: PrismaTx): Promise<string> {
+    const link = await tx.deviceUser.findUnique({
+      where: { device_id_user_id: { device_id: params.deviceId, user_id: params.userId } },
     });
-    const { raw, hash } = this.tokenService.createRefreshToken();
-    await tx.refreshToken.create({
-      data: { session_id: session.id, token_hash: hash, expires_at: session.expires_at },
+    if (!link) throw new AppException(ERROR_CODES.AUTH_001);
+    const session = await tx.userSession.findFirst({
+      where: { user_id: params.userId, device_id: params.deviceId, is_revoked: false, expires_at: { gt: new Date() } },
+      orderBy: { created_at: 'desc' },
     });
-    await tx.userSession.update({ where: { id: session.id }, data: { last_used_at: new Date() } });
+    if (!session) throw new AppException(ERROR_CODES.AUTH_001);
+    const { raw, hash } = this.tokenService.createSessionToken();
+    await tx.userSession.update({
+      where: { id: session.id },
+      data: {
+        token_hash: hash,
+        last_used_at: new Date(),
+        expires_at: new Date(Date.now() + this.tokenService.getSessionTtlMs()),
+      },
+    });
     return raw;
   }
 
   /**
-   * Input: userId, deviceId và transaction client.
-   * Output: Session còn sống (chưa revoke, chưa hết hạn) mới nhất cho cặp user+device, hoặc null.
-   */
-  async findActiveSession(userId: string, deviceId: string, tx: PrismaTx) {
-    return tx.userSession.findFirst({
-      where: { user_id: userId, device_id: deviceId, is_revoked: false, expires_at: { gt: new Date() } },
-      orderBy: { created_at: 'desc' },
-    });
-  }
-
-  /**
-   * Input: refresh token raw và transaction client.
-   * Output: Revoke session sở hữu token (reason 'logout') + mọi refresh token của nó. Bỏ qua nếu token không khớp.
+   * Input: raw session token, transaction client.
+   * Output: Revoke session sở hữu token (reason 'logout'). Bỏ qua nếu không khớp.
    */
   async revokeByRawToken(rawToken: string, tx: PrismaTx): Promise<void> {
     const hash = this.tokenService.hashToken(rawToken);
-    const token = await tx.refreshToken.findUnique({ where: { token_hash: hash }, include: { session: true } });
-    if (!token?.session) return;
-    await this.revokeSession(token.session.id, 'logout', tx);
+    const session = await tx.userSession.findUnique({ where: { token_hash: hash } });
+    if (!session) return;
+    await this.revokeSession(session.id, 'logout', tx);
   }
 
   /**
-   * Input: sessionId, userId chủ sở hữu và transaction client.
-   * Output: Revoke session (reason 'revoked_remote') nếu thuộc về user; ném AUTH_001 nếu không sở hữu.
+   * Input: sessionId, userId chủ sở hữu, transaction client.
+   * Output: Revoke session (reason 'revoked_remote') nếu thuộc user; AUTH_001 nếu không sở hữu.
    */
   async revokeSessionOwnedByUser(sessionId: string, userId: string, tx: PrismaTx): Promise<void> {
     const session = await tx.userSession.findFirst({ where: { id: sessionId, user_id: userId } });
@@ -134,40 +141,8 @@ export class SessionService {
   }
 
   /**
-   * Input: Danh sách { accountId, rawToken } suy từ các cookie rt_* browser gửi kèm.
-   * Output: Trạng thái relogin cho từng account — READ-ONLY tuyệt đối (không rotate, không set used_at, KHÔNG revoke).
-   *         needsRelogin=false chỉ khi: rf tồn tại + chưa dùng (used_at null) + chưa revoke + đúng chủ + session còn sống.
-   *         Cố ý KHÔNG dùng findValidTokenOrFail vì hàm đó revoke session khi gặp token reuse — không phù hợp cho thao tác check.
-   */
-  async checkRawTokensStatus(
-    candidates: { accountId: string; rawToken: string }[],
-  ): Promise<{ accountId: string; needsRelogin: boolean }[]> {
-    if (candidates.length === 0) {
-      return [];
-    }
-    const now = Date.now();
-    const withHash = candidates.map((c) => ({ ...c, hash: this.tokenService.hashToken(c.rawToken) }));
-    const tokens = await this.databaseService.refreshToken.findMany({
-      where: { token_hash: { in: withHash.map((c) => c.hash) } },
-      include: { session: true },
-    });
-    const tokenByHash = new Map(tokens.map((t) => [t.token_hash, t]));
-    return withHash.map((c) => {
-      const tok = tokenByHash.get(c.hash);
-      const ok =
-        !!tok &&
-        tok.used_at === null &&
-        tok.is_revoked === false &&
-        tok.session.user_id === c.accountId &&
-        tok.session.is_revoked === false &&
-        tok.session.expires_at.getTime() > now;
-      return { accountId: c.accountId, needsRelogin: !ok };
-    });
-  }
-
-  /**
    * Input: userId.
-   * Output: Danh sách session chưa revoke kèm device để hiển thị "thiết bị đang đăng nhập".
+   * Output: Danh sách session sống kèm device cho màn "thiết bị đang đăng nhập".
    */
   async listByUser(userId: string) {
     return this.databaseService.userSession.findMany({
@@ -178,55 +153,25 @@ export class SessionService {
   }
 
   /**
-   * Input: rawToken, tx.
-   * Output: RefreshToken (kèm session+user) thuộc session còn sống. Không thấy → AUTH_004;
-   *         session đã revoke/hết hạn → AUTH_005 (không revoke lại để giữ revoke_reason gốc cho audit).
-   *         KHÔNG kiểm tra used_at — việc consume token để cho atomic claim ở rotateByRawToken xử lý.
+   * Input: deviceId.
+   * Output: user_id (distinct) của các account còn phiên sống trên device — để đánh dấu account cần login lại.
    */
-  private async loadLiveTokenOrFail(rawToken: string, tx: PrismaTx) {
-    const hash = this.tokenService.hashToken(rawToken);
-    const existing = await tx.refreshToken.findUnique({
-      where: { token_hash: hash },
-      include: { session: { include: { user: true } } },
+  async listLiveUserIdsForDevice(deviceId: string): Promise<string[]> {
+    const sessions = await this.databaseService.userSession.findMany({
+      where: { device_id: deviceId, is_revoked: false, expires_at: { gt: new Date() } },
+      select: { user_id: true },
     });
-    if (!existing) {
-      throw new AppException(ERROR_CODES.AUTH_004);
-    }
-    const session = existing.session;
-    const expired = session.expires_at.getTime() <= Date.now();
-    if (session.is_revoked || expired) {
-      throw new AppException(ERROR_CODES.AUTH_005);
-    }
-    return existing;
+    return [...new Set(sessions.map((s) => s.user_id))];
   }
 
   /**
-   * Input: rawToken, tx.
-   * Output: RefreshToken active (kèm session+user). Reuse/expired → revoke session + AUTH_005; không thấy → AUTH_004.
-   *         Chỉ đọc (không consume) — phục vụ validateActiveRawToken; rotate dùng atomic claim riêng.
-   */
-  private async findValidTokenOrFail(rawToken: string, tx: PrismaTx) {
-    const existing = await this.loadLiveTokenOrFail(rawToken, tx);
-    // Token đã rotate/revoke nhưng bị dùng lại: revoke toàn bộ session/token family.
-    if (existing.used_at || existing.is_revoked) {
-      await this.revokeSession(existing.session.id, 'reuse_detected', tx);
-      throw new AppException(ERROR_CODES.AUTH_005);
-    }
-    return existing;
-  }
-
-  /**
-   * Input: sessionId, lý do revoke, tx.
-   * Output: Đánh dấu session revoked + revoke mọi refresh token chưa revoke của session.
+   * Input: sessionId, lý do revoke, transaction client.
+   * Output: Đánh dấu session revoked.
    */
   private async revokeSession(sessionId: string, reason: RevokeReason, tx: PrismaTx): Promise<void> {
     await tx.userSession.update({
       where: { id: sessionId },
       data: { is_revoked: true, revoked_at: new Date(), revoke_reason: reason },
-    });
-    await tx.refreshToken.updateMany({
-      where: { session_id: sessionId, is_revoked: false },
-      data: { is_revoked: true },
     });
   }
 }
