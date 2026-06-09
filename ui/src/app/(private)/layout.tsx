@@ -1,24 +1,39 @@
-import { redirect } from "next/navigation"
-import { getCurrentUser } from "@/api/auth-server"
+"use client"
+
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useMe } from "@/hooks/use-auth-api"
 
 /**
  * Input: Nội dung các route private.
- * Output: Server Component gate (user đã hydrate vào store ở root layout):
+ * Output: Client gate (CSR) qua useMe:
+ *  - đang tải → loading.
+ *  - lỗi (401 hết phiên / không đăng nhập) → redirect /switch-account.
  *  - hợp lệ → render children.
- *  - hết hạn / lỗi (còn cookie) → null; popup hết phiên do AuthProvider (global) lo.
- *  - không cookie → redirect /login.
  */
-export default async function PrivateLayout({
+export default function PrivateLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const { user, isExpired, isError } = await getCurrentUser()
-  if (user) {
-    return children
+  const router = useRouter()
+  const { data: user, isPending, isError } = useMe()
+
+  useEffect(() => {
+    if (isError) {
+      router.replace("/switch-account?reason=expired")
+    }
+  }, [isError, router])
+
+  if (isPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">
+        Đang tải…
+      </div>
+    )
   }
-  if (isExpired || isError) {
+  if (!user) {
     return null
   }
-  redirect("/login")
+  return children
 }

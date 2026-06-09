@@ -2,7 +2,7 @@ import { CurrentUserCard } from "./_components/current-user-card"
 
 /**
  * Input: Không nhận tham số.
- * Output: Trang chủ — hiển thị user hiện tại (đọc từ store đã hydrate ở layout).
+ * Output: Trang chủ (CSR) — CurrentUserCard tự lấy user qua useMe.
  */
 export default function HomePage() {
   return <CurrentUserCard />

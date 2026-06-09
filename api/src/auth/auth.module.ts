@@ -12,5 +12,6 @@ import { TokenService } from './token.service';
   imports: [PassportModule.register({ session: false }), DatabaseModule],
   controllers: [AuthController],
   providers: [AuthService, GoogleStrategy, TokenService, SessionService, DeviceService],
+  exports: [SessionService],
 })
 export class AuthModule {}

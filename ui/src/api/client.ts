@@ -15,7 +15,7 @@ function isAuthControlUrl(url: string | undefined): boolean {
 /**
  * Input: Không nhận input runtime; dùng NEXT_PUBLIC_API_BASE_URL.
  * Output: axios instance dùng chung — luôn gửi kèm cookie session (withCredentials);
- *         401 ở API nghiệp vụ thì đưa về /login, 401 ở /auth/* để caller tự quyết.
+ *         401 ở API nghiệp vụ thì redirect /switch-account (đồng bộ với SSR), 401 ở /auth/* để caller tự quyết.
  */
 function createApiClient(): AxiosInstance {
   const instance = axios.create({
@@ -33,7 +33,8 @@ function createApiClient(): AxiosInstance {
         !isAuthControlUrl(error.config?.url) &&
         typeof window !== "undefined"
       ) {
-        window.location.href = "/login"
+        // Hết phiên ở bất kỳ page nào → cùng một cửa như SSR: trang /switch-account.
+        window.location.href = "/switch-account?reason=revoked"
       }
       return Promise.reject(error)
     },

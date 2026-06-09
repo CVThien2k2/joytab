@@ -7,6 +7,7 @@ import { RedisCacheModule } from './cache/redis-cache.module';
 import { AppLogger } from './common/loggers/app.logger';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
+import { UsersModule } from './users/users.module';
 
 const REQUIRED_ENV_KEYS = [
   'DB_HOST',
@@ -50,6 +51,7 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
     RedisCacheModule,
     DatabaseModule,
     AuthModule,
+    UsersModule,
   ],
   controllers: [],
   providers: [AppLogger, { provide: APP_GUARD, useClass: ThrottlerGuard }],

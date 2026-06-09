@@ -9,8 +9,6 @@ import {
   ActiveThemeScript,
 } from "@/providers/active-theme";
 import { Toaster } from "@/components/ui/sonner";
-import { AuthProvider } from "@/providers/auth-provider";
-import { getCurrentUser } from "@/api/auth-server";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -29,12 +27,11 @@ export const metadata: Metadata = {
   description: "Joytab authentication UI",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { user, isExpired, isError } = await getCurrentUser();
   return (
     <html
       lang="en"
@@ -49,9 +46,7 @@ export default async function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <ActiveThemeProvider>
             <QueryProvider>
-              <AuthProvider user={user} isExpired={isExpired} isError={isError}>
-                {children}
-              </AuthProvider>
+              {children}
             </QueryProvider>
             <Toaster />
           </ActiveThemeProvider>
