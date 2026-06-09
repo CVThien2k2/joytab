@@ -1,16 +1,18 @@
 "use client"
 
 import Link from "next/link"
-import { useMe } from "@/hooks/use-auth-api"
+import { useAuthStore } from "@/stores/auth-store"
 import { Button } from "@/components/ui/button"
-import { LogoutButton } from "@/components/auth/logout-button"
+import { LogoutButton } from "@/components/common/logout-button"
 
 /**
- * Input: Không nhận props; lấy user qua useMe (react-query, CSR).
+ * Input: Không nhận props; đọc user từ store (AppWrapper rehydrate + validate).
  * Output: Hiển thị tài khoản đang dùng + nút đăng xuất + link demo gọi API 401.
  */
 export function CurrentUserCard() {
-  const { data: user, isPending } = useMe()
+  const user = useAuthStore((state) => state.user)
+  const checked = useAuthStore((state) => state.checked)
+  const isPending = !user && !checked
 
   return (
     <main className="min-h-screen bg-zinc-50 p-6">

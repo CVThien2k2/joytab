@@ -9,6 +9,7 @@ import {
   ActiveThemeScript,
 } from "@/providers/active-theme";
 import { Toaster } from "@/components/ui/sonner";
+import { AppWrapper } from "@/components/wrapper/app-wrapper";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -46,7 +47,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <ActiveThemeProvider>
             <QueryProvider>
-              {children}
+              <AppWrapper>{children}</AppWrapper>
             </QueryProvider>
             <Toaster />
           </ActiveThemeProvider>

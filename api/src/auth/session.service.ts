@@ -68,7 +68,7 @@ export class SessionService {
 
   /**
    * Input: raw session token từ cookie + deviceId từ cookie.
-   * Output: { userId, email, sessionId } nếu hợp lệ. Sai/khác device/revoked/hết hạn → AUTH_001.
+   * Output: { userId, email, sessionId } nếu hợp lệ. Sai token/khác device → AUTH_001; revoked → AUTH_004; hết hạn → AUTH_005.
    *         Sliding renew: chỉ ghi DB khi thời gian còn lại dưới ngưỡng (mặc định <1 ngày).
    */
   async validateSession(
@@ -81,8 +81,14 @@ export class SessionService {
       include: { user: true },
     });
     const now = Date.now();
-    if (!session || session.device_id !== deviceId || session.is_revoked || session.expires_at.getTime() <= now) {
+    if (!session || session.device_id !== deviceId) {
       throw new AppException(ERROR_CODES.AUTH_001);
+    }
+    if (session.is_revoked) {
+      throw new AppException(ERROR_CODES.AUTH_004);
+    }
+    if (session.expires_at.getTime() <= now) {
+      throw new AppException(ERROR_CODES.AUTH_005);
     }
     if (session.expires_at.getTime() - now < this.tokenService.getSessionRenewThresholdMs()) {
       await this.databaseService.userSession.update({

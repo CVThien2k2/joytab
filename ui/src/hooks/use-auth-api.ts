@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import axios from "axios"
 import {
   fetchAccounts,
   fetchDevices,
@@ -11,19 +12,44 @@ import {
   revokeSession,
   switchAccount,
 } from "@/api/auth"
+import { useAuthStore } from "@/stores/auth-store"
 
 const AUTH_ME_KEY = ["auth", "me"]
 const AUTH_ACCOUNTS_KEY = ["auth", "accounts"]
 const AUTH_DEVICES_KEY = ["auth", "devices"]
 
+/** Lấy mã lỗi BE ({ code }) từ AxiosError của /auth/me. */
+function extractErrorCode(error: unknown): string | undefined {
+  if (axios.isAxiosError(error)) {
+    return (error.response?.data as { code?: string } | undefined)?.code
+  }
+  return undefined
+}
+
 /**
  * Input: Không nhận tham số; dựa vào cookie session_id.
- * Output: Query thông tin user hiện tại. 401 → query.isError, dùng để gate route private.
+ * Output: Query /auth/me VÀ đồng bộ store ngay trong queryFn (khỏi useEffect ở AppWrapper):
+ *  - 200 → set user, checked, hết revoked.
+ *  - AUTH_004 (revoked) → checked + revoked (popup).
+ *  - AUTH_005 hết phiên / AUTH_001 → xoá user + checked (⇒ RequireAuth về /login).
  */
 export function useMe() {
   return useQuery({
     queryKey: AUTH_ME_KEY,
-    queryFn: fetchMe,
+    queryFn: async () => {
+      try {
+        const user = await fetchMe()
+        useAuthStore.setState({ user, checked: true, revoked: false })
+        return user
+      } catch (error) {
+        if (extractErrorCode(error) === "AUTH_004") {
+          useAuthStore.setState({ checked: true, revoked: true })
+        } else {
+          useAuthStore.setState({ user: null, checked: true })
+        }
+        throw error
+      }
+    },
     retry: false,
   })
 }
