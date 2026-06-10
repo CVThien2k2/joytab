@@ -4,12 +4,7 @@ icon: lucide/book-open-text
 
 # Tài liệu dự án Comitor
 
-Hiện chỉ công bố tài liệu **Thiết kế dự án Super App / Mini App**:
-
-- [Thiết kế dự án Super App](superapp-miniapp-auth-architecture-20260605.md)
-
-<!--
---- Mục lục cũ: tạm ẩn để dễ rollback ---
+Trang này là mục lục tổng hợp các tài liệu nền tảng của dự án.
 
 ## Mục lục chính
 
@@ -24,9 +19,7 @@ Hiện chỉ công bố tài liệu **Thiết kế dự án Super App / Mini App
 9. [Tra cứu cấu hình môi trường](environment-configuration-reference-20260522.md)
 10. [Mã lỗi dự án](project-error-codes-20260522.md)
 11. [Phiên bản](phien-ban-20260522.md)
-12. [API Google login redirect](google-auth-redirect-api-20260523.md)
 
 ## Ghi chú sử dụng
 - Các file trên hiện là khung tài liệu để điền chi tiết dần.
 - Khi bổ sung file docs mới, cần cập nhật đồng thời `docs/index.md` và `nav` trong `zensical.toml`.
--->
