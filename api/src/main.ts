@@ -11,9 +11,12 @@ import { AppModule } from './app.module';
  * Output: Khởi tạo ứng dụng NestJS và bật shutdown hooks để đóng tài nguyên đúng cách.
  */
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    bufferLogs: true,
-  });
+  // Không dùng bufferLogs: buffer chỉ được flush khi app listen THÀNH CÔNG (hoặc khi
+  // có exception đồng bộ lúc tạo instance). Nếu init bị treo — vd connectWithRetry
+  // không kết nối được DB và lặp vô hạn — thì app.listen() không bao giờ tới bước flush,
+  // nên mọi log bootstrap kẹt trong buffer và màn hình trống trơn. In trực tiếp để luôn
+  // thấy tiến trình khởi động kể cả khi kết nối lỗi.
+  const app = await NestFactory.create(AppModule);
   app.useLogger(app.get(AppLogger));
   const frontendOrigin = process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000';
   app.use(helmet({ contentSecurityPolicy: false }));
@@ -27,4 +30,9 @@ async function bootstrap() {
   app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 3000);
 }
-void bootstrap();
+bootstrap().catch((err) => {
+  // Dùng console trực tiếp (đồng bộ) thay vì AppLogger: lúc này logger có thể chưa sẵn
+  // sàng hoặc queue async chưa kịp drain trước khi process thoát, dễ nuốt mất lỗi.
+  console.error('Fatal error during bootstrap:', err);
+  process.exit(1);
+});

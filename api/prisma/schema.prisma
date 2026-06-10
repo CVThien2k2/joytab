@@ -78,4 +78,3 @@ model UserSession {
   @@index([device_id, is_revoked])
   @@map("user_sessions")
 }
-

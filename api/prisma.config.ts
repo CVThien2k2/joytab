@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
+import { buildPostgresUrl } from './src/common/utils/database-url';
 
 /**
  * Input: Không có tham số, đọc DB_HOST từ biến môi trường.
@@ -34,15 +35,18 @@ function getDbName(): string {
 }
 
 /**
- * Input: Không có tham số, đọc các biến DB_HOST, DB_USER, DB_PASSWORD, DB_NAME.
- * Output: Trả về connection string PostgreSQL cho Prisma CLI.
+ * Input: Không có tham số, đọc DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_PARAMS.
+ * Output: Trả về connection string PostgreSQL cho Prisma CLI (dùng chung buildPostgresUrl với runtime).
  */
 function buildDatabaseUrl(): string {
-  const user = encodeURIComponent(getDbUser());
-  const password = encodeURIComponent(getDbPassword());
-  const host = getDbHost();
-  const database = getDbName();
-  return `postgresql://${user}:${password}@${host}:5432/${database}`;
+  return buildPostgresUrl({
+    host: getDbHost(),
+    user: getDbUser(),
+    password: getDbPassword(),
+    database: getDbName(),
+    port: process.env.DB_PORT,
+    params: process.env.DB_PARAMS,
+  });
 }
 
 export default defineConfig({

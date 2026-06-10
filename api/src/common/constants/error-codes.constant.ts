@@ -75,6 +75,10 @@ export const ERROR_CODES = {
     code: 'SYS_012',
     message: 'Missing REDIS_DB',
   },
+  SYS_013: {
+    code: 'SYS_013',
+    message: 'Database connection failed',
+  },
   UNKNOWN_001: {
     code: 'UNKNOWN_001',
     message: 'Unknown error',

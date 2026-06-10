@@ -21,7 +21,6 @@ CREATE TABLE "users" (
 -- CreateTable
 CREATE TABLE "devices" (
     "id" UUID NOT NULL,
-    "device_fingerprint" VARCHAR(255) NOT NULL,
     "device_name" VARCHAR(255),
     "platform" VARCHAR(50),
     "last_seen_at" TIMESTAMPTZ(6),
@@ -49,12 +48,12 @@ CREATE TABLE "user_sessions" (
     "id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
     "device_id" UUID NOT NULL,
-    "refresh_token_hash" TEXT NOT NULL,
-    "access_expires_at" TIMESTAMPTZ(6) NOT NULL,
-    "refresh_expires_at" TIMESTAMPTZ(6) NOT NULL,
+    "token_hash" TEXT NOT NULL,
     "is_revoked" BOOLEAN NOT NULL DEFAULT false,
     "revoked_at" TIMESTAMPTZ(6),
     "revoke_reason" VARCHAR(100),
+    "last_used_at" TIMESTAMPTZ(6),
+    "expires_at" TIMESTAMPTZ(6) NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL,
 
@@ -71,13 +70,10 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 CREATE UNIQUE INDEX "users_provider_provider_user_id_key" ON "users"("provider", "provider_user_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devices_device_fingerprint_key" ON "devices"("device_fingerprint");
-
--- CreateIndex
 CREATE UNIQUE INDEX "device_users_device_id_user_id_key" ON "device_users"("device_id", "user_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "device_users_device_id_key" ON "device_users"("device_id") WHERE ("is_active" = true);
+CREATE UNIQUE INDEX "user_sessions_token_hash_key" ON "user_sessions"("token_hash");
 
 -- CreateIndex
 CREATE INDEX "user_sessions_user_id_is_revoked_idx" ON "user_sessions"("user_id", "is_revoked");
