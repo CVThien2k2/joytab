@@ -53,7 +53,10 @@ export class SessionService {
    * Input: userId, email, deviceId, transaction client.
    * Output: Có phiên sống → cấp token mới + ghi Redis; chưa có → tạo mới. Trả raw token.
    */
-  async createOrRefreshSession(params: { userId: string; email: string; deviceId: string }, tx: PrismaTx): Promise<string> {
+  async createOrRefreshSession(
+    params: { userId: string; email: string; deviceId: string },
+    tx: PrismaTx,
+  ): Promise<string> {
     const existing = await tx.userSession.findFirst({
       where: { user_id: params.userId, device_id: params.deviceId, is_revoked: false, expires_at: { gt: new Date() } },
       orderBy: { created_at: 'desc' },
