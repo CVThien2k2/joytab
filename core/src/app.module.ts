@@ -1,11 +1,11 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { LoggerModule } from 'nestjs-pino';
+import { randomUUID } from 'crypto';
 import { AuthModule } from './auth/auth.module';
 import { RedisCacheModule } from './cache/redis-cache.module';
-import { AppLogger } from './common/loggers/app.logger';
-import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
 
@@ -45,6 +45,36 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
       isGlobal: true,
       validate: validateEnvironmentVariables,
     }),
+    LoggerModule.forRoot({
+      pinoHttp: {
+        /**
+         * Input: request và response HTTP.
+         * Output: correlation id cho request — ưu tiên X-Request-Id do gateway gắn,
+         * không có thì tự sinh, và gắn ngược lại vào response header.
+         */
+        genReqId: (req, res) => {
+          const incoming = req.headers['x-request-id'];
+          const id = (typeof incoming === 'string' && incoming) || randomUUID();
+          res.setHeader('x-request-id', id);
+          return id;
+        },
+        customProps: () => ({ service: 'core' }),
+        autoLogging: true,
+        level: process.env.LOG_LEVEL ?? 'info',
+        redact: [
+          'req.headers.cookie',
+          'req.headers.authorization',
+          'req.body.password',
+          'req.body.token',
+          'req.body.code',
+          'req.body.secret',
+        ],
+        transport:
+          process.env.NODE_ENV === 'production'
+            ? undefined
+            : { target: 'pino-pretty', options: { singleLine: true } },
+      },
+    }),
     ThrottlerModule.forRoot({
       throttlers: [{ name: 'global', ttl: 60000, limit: 60 }],
     }),
@@ -54,10 +84,6 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
     UsersModule,
   ],
   controllers: [],
-  providers: [AppLogger, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
-  }
-}
+export class AppModule {}
