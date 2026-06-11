@@ -1,4 +1,4 @@
-/** Hằng "session contract" — phải khớp với SSO (spec mục 7). */
+/** Hằng "session contract" — phải khớp với core (spec mục 7). */
 const MS_PER_SECOND = 1000;
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * MS_PER_SECOND;
 export const SESSION_RENEW_THRESHOLD_MS = 24 * 60 * 60 * MS_PER_SECOND;

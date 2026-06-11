@@ -40,7 +40,7 @@ export class GatewayAuthMiddleware implements NestMiddleware {
     const rawToken = readCookie(req.headers.cookie, SESSION_COOKIE_NAME);
     const deviceId = readCookie(req.headers.cookie, DEVICE_COOKIE_NAME);
     let session = rawToken ? await this.sessionStore.validate(rawToken) : null;
-    // Cache-aside: Redis miss mà vẫn có cookie token → hỏi SSO (check Postgres + rehydrate Redis), tự lành khi Redis mất.
+    // Cache-aside: Redis miss mà vẫn có cookie token → hỏi core (check Postgres + rehydrate Redis), tự lành khi Redis mất.
     if (!session && rawToken) {
       session = await this.introspectService.introspect(req.headers.cookie);
     }

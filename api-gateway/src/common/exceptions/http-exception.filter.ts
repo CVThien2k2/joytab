@@ -11,7 +11,7 @@ import { AppException } from './app.exception';
 export class HttpExceptionFilter implements ExceptionFilter {
   /**
    * Input: Exception trong pipeline + host.
-   * Output: JSON lỗi chuẩn { success, code, message } đồng bộ với SSO/FE.
+   * Output: JSON lỗi chuẩn { success, code, message } đồng bộ với core/FE.
    */
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();

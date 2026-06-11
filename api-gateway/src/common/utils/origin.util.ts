@@ -5,7 +5,7 @@
  *  - Exact origin:       https://app.example.com
  *  - Wildcard subdomain: https://*.example.com  (khớp mọi subdomain + apex example.com)
  *
- * Wildcard phù hợp với SSO cross-subdomain: mọi subdomain đều dùng chung cookie nên
+ * Wildcard phù hợp với core cross-subdomain: mọi subdomain đều dùng chung cookie nên
  * đều được tin tưởng, khỏi phải liệt kê từng subdomain.
  */
 

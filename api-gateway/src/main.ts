@@ -15,7 +15,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(helmet({ contentSecurityPolicy: false }));
   // Allowlist origin (CORS_ALLOWED_ORIGINS, fallback FRONTEND_ORIGIN) — dùng chung với CSRF middleware.
-  // Hỗ trợ wildcard subdomain (https://*.example.com) cho SSO cross-subdomain.
+  // Hỗ trợ wildcard subdomain (https://*.example.com) cho core cross-subdomain.
   const allowlist = resolveOriginAllowlist((key) => process.env[key]);
   app.enableCors({
     origin: (

@@ -61,7 +61,7 @@ export class SessionStoreService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Input: raw session token (từ cookie).
-   * Output: SHA-256 hex để tra key Redis (khớp cách SSO băm token).
+   * Output: SHA-256 hex để tra key Redis (khớp cách core băm token).
    */
   hashToken(rawToken: string): string {
     return createHash('sha256').update(rawToken).digest('hex');

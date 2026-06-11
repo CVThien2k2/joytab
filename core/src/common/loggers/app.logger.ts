@@ -173,11 +173,11 @@ export class AppLogger extends ConsoleLogger {
 
   /**
    * Input: Runtime cwd hiện tại.
-   * Output: Đường dẫn thư mục log thuộc dự án BE (`sso/logs`) ở cả dev và dist runtime.
+   * Output: Đường dẫn thư mục log thuộc dự án BE (`core/logs`) ở cả dev và dist runtime.
    */
   private resolveLogDirectory(): string {
     const cwd = process.cwd();
-    return cwd.endsWith('sso') ? join(cwd, 'logs') : join(cwd, 'sso', 'logs');
+    return cwd.endsWith('core') ? join(cwd, 'logs') : join(cwd, 'core', 'logs');
   }
 
   /**
