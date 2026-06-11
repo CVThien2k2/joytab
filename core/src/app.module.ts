@@ -70,9 +70,7 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
           'req.body.secret',
         ],
         transport:
-          process.env.NODE_ENV === 'production'
-            ? undefined
-            : { target: 'pino-pretty', options: { singleLine: true } },
+          process.env.NODE_ENV === 'production' ? undefined : { target: 'pino-pretty', options: { singleLine: true } },
       },
     }),
     ThrottlerModule.forRoot({
