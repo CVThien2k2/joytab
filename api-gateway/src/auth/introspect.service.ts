@@ -25,7 +25,7 @@ export class IntrospectService {
   ): Promise<SessionPayload | null> {
     if (!cookieHeader) return null;
     try {
-      const res = await fetch(`${this.coreUrl}/auth/introspect`, {
+      const res = await fetch(`${this.coreUrl}/v1/auth/introspect`, {
         method: 'POST',
         headers: { cookie: cookieHeader },
       });

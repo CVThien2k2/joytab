@@ -26,8 +26,8 @@ export class ProxyMiddleware implements NestMiddleware {
    * Output: Đẩy request xuống core.
    */
   use(req: Request, res: Response, next: NextFunction): void {
-    // forRoutes('/auth') mount strip prefix khỏi req.url → khôi phục full path để proxy đúng endpoint core.
-    req.url = req.originalUrl;
+    // Gateway expose dưới /api; bỏ tiền tố /api rồi forward phần còn lại (/v1/...) xuống core.
+    req.url = req.originalUrl.replace(/^\/api/, '');
     void this.proxy(req, res, next);
   }
 }

@@ -3,14 +3,14 @@
  * Gồm OAuth, switch (dùng device cookie), logout, accounts.
  */
 const PUBLIC_PREFIXES = [
-  '/auth/google',
-  '/auth/switch',
-  '/auth/logout',
-  '/auth/accounts',
+  '/api/v1/auth/google',
+  '/api/v1/auth/switch',
+  '/api/v1/auth/logout',
+  '/api/v1/auth/accounts',
 ];
 
 /**
- * Input: path của request (vd '/auth/google/callback').
+ * Input: path của request (vd '/api/v1/auth/google/callback').
  * Output: true nếu là route public (không bắt buộc xác thực session).
  */
 export function isPublicPath(path: string): boolean {

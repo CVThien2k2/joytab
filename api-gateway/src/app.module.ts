@@ -14,11 +14,11 @@ import { IntrospectService } from './auth/introspect.service';
 export class AppModule implements NestModule {
   /**
    * Input: MiddlewareConsumer.
-   * Output: Áp chuỗi CSRF → auth → proxy cho /auth và /api theo đúng thứ tự.
+   * Output: Áp chuỗi CSRF → auth → proxy cho /api theo đúng thứ tự.
    */
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(CsrfMiddleware, GatewayAuthMiddleware, ProxyMiddleware)
-      .forRoutes('/auth', '/api');
+      .forRoutes('/api');
   }
 }
