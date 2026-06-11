@@ -120,6 +120,8 @@ sequenceDiagram
 
 > Mô hình phiên: Redis là store validate nhanh (gateway đọc, tự sliding-renew TTL); Postgres là nguồn sự thật bền vững cho liệt kê device/session, remote revoke và audit. Sliding-renew chỉ diễn ra ở Redis nên `expires_at` trong Postgres có thể trễ — chấp nhận được vì listing/audit không cần độ chính xác từng giây.
 
+> Cache-aside (tự lành khi Redis mất): khi gateway tra Redis bị miss mà request vẫn có cookie session, gateway gọi nội bộ `POST /auth/introspect` của SSO; SSO đối chiếu Postgres (nguồn sự thật), nếu phiên còn hợp lệ thì ghi lại key vào Redis (rehydrate) và trả identity cho gateway. Nhờ vậy Redis bị restart/flush sạch không làm user mất phiên — request đầu của mỗi user tự nạp lại cache, các request sau lại đọc nhanh từ Redis. Gateway vẫn KHÔNG kết nối DB; SSO là nơi duy nhất chạm Postgres. Phiên đã revoke (Postgres `is_revoked`) sẽ không bị introspect hồi sinh.
+
 ### 4.5 Kiến trúc Database
 ```mermaid
 flowchart LR
