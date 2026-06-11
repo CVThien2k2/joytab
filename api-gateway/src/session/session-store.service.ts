@@ -1,10 +1,24 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import { createClient, RedisClientType } from 'redis';
-import { SESSION_KEY_PREFIX, SESSION_RENEW_THRESHOLD_MS, SESSION_TTL_MS } from './session.constants';
+import {
+  SESSION_KEY_PREFIX,
+  SESSION_RENEW_THRESHOLD_MS,
+  SESSION_TTL_MS,
+} from './session.constants';
 
-export type SessionPayload = { userId: string; email: string; sessionId: string; deviceId: string };
+export type SessionPayload = {
+  userId: string;
+  email: string;
+  sessionId: string;
+  deviceId: string;
+};
 
 @Injectable()
 export class SessionStoreService implements OnModuleInit, OnModuleDestroy {
@@ -18,11 +32,15 @@ export class SessionStoreService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {
     const host = this.configService.get<string>('REDIS_HOST');
     const port = this.configService.get<string>('REDIS_PORT');
-    const password = (this.configService.get<string>('REDIS_PASSWORD') ?? '').trim();
+    const password = (
+      this.configService.get<string>('REDIS_PASSWORD') ?? ''
+    ).trim();
     const db = this.configService.get<string>('REDIS_DB') ?? '0';
     const auth = password ? `:${password}@` : '';
     this.client = createClient({ url: `redis://${auth}${host}:${port}/${db}` });
-    this.client.on('error', (err: Error) => this.logger.error(`Redis error: ${err.message}`));
+    this.client.on('error', (err: Error) =>
+      this.logger.error(`Redis error: ${err.message}`),
+    );
   }
 
   /**

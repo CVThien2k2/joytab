@@ -35,14 +35,16 @@ export class GatewayAuthMiddleware implements NestMiddleware {
 
     const rawToken = readCookie(req.headers.cookie, SESSION_COOKIE_NAME);
     const deviceId = readCookie(req.headers.cookie, DEVICE_COOKIE_NAME);
-    const session = rawToken ? await this.sessionStore.validate(rawToken) : null;
+    const session = rawToken
+      ? await this.sessionStore.validate(rawToken)
+      : null;
 
     const authed = session !== null && session.deviceId === deviceId;
     if (authed) {
-      req.headers[HEADER_USER_ID] = session!.userId;
-      req.headers[HEADER_USER_EMAIL] = session!.email;
-      req.headers[HEADER_SESSION_ID] = session!.sessionId;
-      req.headers[HEADER_DEVICE_ID] = session!.deviceId;
+      req.headers[HEADER_USER_ID] = session.userId;
+      req.headers[HEADER_USER_EMAIL] = session.email;
+      req.headers[HEADER_SESSION_ID] = session.sessionId;
+      req.headers[HEADER_DEVICE_ID] = session.deviceId;
       next();
       return;
     }
@@ -58,7 +60,10 @@ export class GatewayAuthMiddleware implements NestMiddleware {
  * Input: header cookie thô + tên cookie.
  * Output: Giá trị cookie (decode) hoặc null.
  */
-function readCookie(cookieHeader: string | undefined, name: string): string | null {
+function readCookie(
+  cookieHeader: string | undefined,
+  name: string,
+): string | null {
   if (!cookieHeader) return null;
   for (const pair of cookieHeader.split(';')) {
     const [k, ...v] = pair.trim().split('=');

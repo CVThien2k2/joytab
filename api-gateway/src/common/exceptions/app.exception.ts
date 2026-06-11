@@ -9,7 +9,12 @@ export class AppException extends HttpException {
    * Output: HttpException nghiệp vụ — map code sang status (AUTH_006→403, còn lại→401).
    */
   constructor(error: ErrorCodeItem) {
-    super(error.message, error.code === 'AUTH_006' ? HttpStatus.FORBIDDEN : HttpStatus.UNAUTHORIZED);
+    super(
+      error.message,
+      error.code === 'AUTH_006'
+        ? HttpStatus.FORBIDDEN
+        : HttpStatus.UNAUTHORIZED,
+    );
     this.code = error.code;
   }
 }

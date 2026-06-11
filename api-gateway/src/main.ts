@@ -2,7 +2,10 @@ import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { AppModule } from './app.module';
-import { isOriginAllowed, resolveOriginAllowlist } from './common/utils/origin.util';
+import {
+  isOriginAllowed,
+  resolveOriginAllowlist,
+} from './common/utils/origin.util';
 
 /**
  * Input: Không có tham số.
@@ -15,7 +18,10 @@ async function bootstrap() {
   // Hỗ trợ wildcard subdomain (https://*.example.com) cho SSO cross-subdomain.
   const allowlist = resolveOriginAllowlist((key) => process.env[key]);
   app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
       // origin undefined: same-origin hoặc client non-browser (curl) → cho qua, CSRF middleware chặn mutation.
       if (!origin || isOriginAllowed(origin, allowlist)) {
         callback(null, true);

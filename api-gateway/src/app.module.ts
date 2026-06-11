@@ -16,6 +16,8 @@ export class AppModule implements NestModule {
    * Output: Áp chuỗi CSRF → auth → proxy cho /auth và /api theo đúng thứ tự.
    */
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(CsrfMiddleware, GatewayAuthMiddleware, ProxyMiddleware).forRoutes('/auth', '/api');
+    consumer
+      .apply(CsrfMiddleware, GatewayAuthMiddleware, ProxyMiddleware)
+      .forRoutes('/auth', '/api');
   }
 }

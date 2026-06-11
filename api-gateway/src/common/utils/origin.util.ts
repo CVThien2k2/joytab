@@ -23,15 +23,21 @@ export type OriginMatcher = {
  * Output: Allowlist đã parse — ưu tiên CORS_ALLOWED_ORIGINS, fallback FRONTEND_ORIGIN.
  *         Dùng chung cho CORS (main.ts) và CSRF guard để cùng một nguồn cấu hình.
  */
-export function resolveOriginAllowlist(get: (key: string) => string | undefined): OriginMatcher[] {
-  return parseAllowedOrigins(get('CORS_ALLOWED_ORIGINS') ?? get('FRONTEND_ORIGIN'));
+export function resolveOriginAllowlist(
+  get: (key: string) => string | undefined,
+): OriginMatcher[] {
+  return parseAllowedOrigins(
+    get('CORS_ALLOWED_ORIGINS') ?? get('FRONTEND_ORIGIN'),
+  );
 }
 
 /**
  * Input: Chuỗi origin phân tách bằng dấu phẩy (có thể undefined/rỗng).
  * Output: Danh sách matcher đã parse; bỏ qua entry rỗng/không hợp lệ.
  */
-export function parseAllowedOrigins(raw: string | undefined | null): OriginMatcher[] {
+export function parseAllowedOrigins(
+  raw: string | undefined | null,
+): OriginMatcher[] {
   if (!raw) return [];
   return raw
     .split(',')
@@ -45,7 +51,10 @@ export function parseAllowedOrigins(raw: string | undefined | null): OriginMatch
  * Input: Origin của request (header Origin/Referer) + allowlist đã parse.
  * Output: true nếu origin khớp một matcher trong allowlist (so khớp cả protocol).
  */
-export function isOriginAllowed(origin: string | undefined | null, allowlist: OriginMatcher[]): boolean {
+export function isOriginAllowed(
+  origin: string | undefined | null,
+  allowlist: OriginMatcher[],
+): boolean {
   if (!origin) return false;
   let url: URL;
   try {
@@ -56,7 +65,10 @@ export function isOriginAllowed(origin: string | undefined | null, allowlist: Or
   return allowlist.some((matcher) => {
     if (matcher.protocol !== url.protocol) return false;
     if (matcher.baseHost !== null) {
-      return url.host === matcher.baseHost || url.host.endsWith(`.${matcher.baseHost}`);
+      return (
+        url.host === matcher.baseHost ||
+        url.host.endsWith(`.${matcher.baseHost}`)
+      );
     }
     return matcher.host === url.host;
   });

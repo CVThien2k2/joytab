@@ -12,7 +12,8 @@ export class ProxyMiddleware implements NestMiddleware {
    * Output: Khởi tạo proxy stream sang SSO, giữ nguyên path, forward cookie + Set-Cookie + redirect 302.
    */
   constructor(private readonly configService: ConfigService) {
-    const target = this.configService.get<string>('SSO_URL') ?? 'http://localhost:8001';
+    const target =
+      this.configService.get<string>('SSO_URL') ?? 'http://localhost:8001';
     this.proxy = createProxyMiddleware({
       target,
       changeOrigin: false,

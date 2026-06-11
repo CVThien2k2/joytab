@@ -3,7 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { NextFunction, Request, Response } from 'express';
 import { ERROR_CODES } from '../constants/error-codes.constant';
 import { AppException } from '../exceptions/app.exception';
-import { isOriginAllowed, OriginMatcher, resolveOriginAllowlist } from '../utils/origin.util';
+import {
+  isOriginAllowed,
+  OriginMatcher,
+  resolveOriginAllowlist,
+} from '../utils/origin.util';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -17,7 +21,9 @@ export class CsrfMiddleware implements NestMiddleware {
    * Output: Middleware CSRF parse allowlist sẵn.
    */
   constructor(private readonly configService: ConfigService) {
-    this.allowlist = resolveOriginAllowlist((key) => this.configService.get<string>(key));
+    this.allowlist = resolveOriginAllowlist((key) =>
+      this.configService.get<string>(key),
+    );
   }
 
   /**
@@ -29,9 +35,11 @@ export class CsrfMiddleware implements NestMiddleware {
       next();
       return;
     }
-    const origin = (req.headers.origin as string | undefined) ?? originFromReferer(req.headers.referer);
+    const origin = req.headers.origin ?? originFromReferer(req.headers.referer);
     if (!isOriginAllowed(origin, this.allowlist)) {
-      this.logger.warn(`CSRF chặn ${req.method} ${req.url} — origin: ${origin ?? '(none)'}`);
+      this.logger.warn(
+        `CSRF chặn ${req.method} ${req.url} — origin: ${origin ?? '(none)'}`,
+      );
       throw new AppException(ERROR_CODES.AUTH_006);
     }
     next();
