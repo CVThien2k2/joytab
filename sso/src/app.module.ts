@@ -4,7 +4,6 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { RedisCacheModule } from './cache/redis-cache.module';
-import { CsrfGuard } from './common/guards/csrf.guard';
 import { AppLogger } from './common/loggers/app.logger';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
@@ -55,7 +54,7 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
     UsersModule,
   ],
   controllers: [],
-  providers: [AppLogger, { provide: APP_GUARD, useClass: ThrottlerGuard }, { provide: APP_GUARD, useClass: CsrfGuard }],
+  providers: [AppLogger, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

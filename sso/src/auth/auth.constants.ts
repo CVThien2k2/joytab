@@ -30,15 +30,3 @@ export const AUTH_THROTTLE_LIMIT = 10;
 
 // ===== FE origin fallback khi thiếu env FRONTEND_ORIGIN =====
 export const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:3000';
-
-// ===== CSRF (Origin/Referer check) =====
-/**
- * Method "an toàn" theo RFC 7231 — không đổi trạng thái nên bỏ qua kiểm tra CSRF.
- * OAuth redirect (GET /auth/google, /auth/google/callback) nằm trong nhóm này.
- */
-export const CSRF_SAFE_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
-/**
- * Env chứa allowlist origin (phân tách bằng dấu phẩy) cho CORS + CSRF.
- * Thiếu thì fallback về FRONTEND_ORIGIN (single-origin).
- */
-export const CORS_ALLOWED_ORIGINS_ENV = 'CORS_ALLOWED_ORIGINS';
