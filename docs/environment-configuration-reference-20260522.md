@@ -24,6 +24,7 @@
 | `COOKIE_DOMAIN` | api-gateway | N | - | Cookie domain dùng chung cross-subdomain; rỗng = host-only cho local dev. |
 | `NODE_ENV` | api-gateway | N | `development` | Môi trường chạy gateway. |
 | `LOG_LEVEL` | api-gateway | N | `info` | Mức log `nestjs-pino` (`trace|debug|info|warn|error|fatal`); log JSON ra stdout. |
+| `PROXY_TIMEOUT_MS` | api-gateway | N | `30000` | Timeout (ms) khi gateway proxy request sang core; quá hạn trả `SYS_504` (504). |
 
 ### 3.2 Core (`core`)
 | Biến | Module | Bắt buộc | Mặc định | Mô tả |

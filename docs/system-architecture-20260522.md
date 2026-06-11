@@ -64,6 +64,26 @@ flowchart LR
 | Edge Auth | Đọc token từ cookie `session_id`, hash SHA-256 và đối chiếu key `session:{hash}` trong Redis; strip mọi header `X-User-*` client gửi rồi inject `X-User-Id`, `X-User-Email`, `X-Session-Id`, `X-Device-Id` tin cậy. Route public (`/api/v1/auth/google`, `/api/v1/auth/google/callback`, `/api/v1/auth/switch`, `/api/v1/auth/logout`, `/api/v1/auth/accounts`) đi qua không bắt buộc session; route protected (`/api/v1/auth/me`, `/api/v1/auth/devices`, `/api/v1/auth/sessions/:id`, `/api/v1/users` và mọi `/api/v1/...` khác trong tương lai) thiếu phiên hợp lệ trả 401. |
 | Proxy sang Core | Dùng `http-proxy-middleware` chuyển tiếp `/api/*` sang core (`CORE_URL`): strip prefix `/api` rồi forward phần còn lại `/v1/...` (vd `/api/v1/auth/me` -> core `/v1/auth/me`). Versioning đặt ở cấp controller core (`v1/auth`, `v1/users`), không phải global prefix. |
 
+> Xử lý lỗi & resilience (Gateway): mọi trường hợp lỗi đều trả envelope chuẩn `{success:false, code, message}` với code chuẩn (đồng bộ core/FE). Global exception filter suy code chuẩn cho mọi exception (kể cả `HttpException` không phải `AppException` → map theo status) và log 5xx qua pino kèm `reqId/method/url`. Bảng case → code → HTTP:
+>
+> | Trường hợp | Code | HTTP |
+> |---|---|---|
+> | Chưa xác thực / thiếu phiên | `AUTH_001` | 401 |
+> | Phiên bị revoke (propagate từ core) | `AUTH_004` | 401 |
+> | Phiên hết hạn (propagate từ core) | `AUTH_005` | 401 |
+> | CSRF / Origin không hợp lệ | `AUTH_006` | 403 |
+> | Route lạ không thuộc `/api` | `SYS_404` | 404 |
+> | Core không kết nối được (proxy `on.error`) | `SYS_502` | 502 |
+> | Không verify được phiên (Redis lẫn core đều lỗi) | `SYS_503` | 503 |
+> | Core timeout (`proxyTimeout`/`PROXY_TIMEOUT_MS`) | `SYS_504` | 504 |
+> | Lỗi nội bộ | `SYS_001` | 500 |
+>
+> - Proxy có `proxyTimeout` + handler `on.error` → core unreachable trả `SYS_502`, timeout trả `SYS_504` (không còn 504 thô), kèm log pino có `errCode`.
+> - Resilience auth: Redis chết lúc chạy → degrade sang core introspect (không 500), introspect propagate đúng code core (`AUTH_001/004/005`); cả Redis lẫn core đều lỗi → `SYS_503`.
+> - Boot không crash: Redis chết lúc khởi động → gateway vẫn boot (connect nền + retry), chạy degraded tới khi Redis hồi.
+> - `GET /health`: liveness endpoint (không proxy), trả `{ status: 'ok' }` 200.
+> - `bodyParser: false` ở gateway (proxy thuần) để không nuốt body POST trước khi forward.
+
 ### 4.3 Kiến trúc Core
 ```mermaid
 flowchart LR
