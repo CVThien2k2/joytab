@@ -4,11 +4,12 @@ import { SessionStoreModule } from './session/session-store.module';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
 import { GatewayAuthMiddleware } from './auth/gateway-auth.middleware';
 import { ProxyMiddleware } from './proxy/proxy.middleware';
+import { IntrospectService } from './auth/introspect.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), SessionStoreModule],
   controllers: [],
-  providers: [],
+  providers: [IntrospectService],
 })
 export class AppModule implements NestModule {
   /**

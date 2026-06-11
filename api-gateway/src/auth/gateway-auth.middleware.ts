@@ -12,6 +12,7 @@ import {
 } from '../session/session.constants';
 import { SessionStoreService } from '../session/session-store.service';
 import { isPublicPath } from './auth-paths';
+import { IntrospectService } from './introspect.service';
 
 @Injectable()
 export class GatewayAuthMiddleware implements NestMiddleware {
@@ -19,7 +20,10 @@ export class GatewayAuthMiddleware implements NestMiddleware {
    * Input: SessionStoreService để validate session qua Redis.
    * Output: Middleware edge-auth cho gateway.
    */
-  constructor(private readonly sessionStore: SessionStoreService) {}
+  constructor(
+    private readonly sessionStore: SessionStoreService,
+    private readonly introspectService: IntrospectService,
+  ) {}
 
   /**
    * Input: request/response/next.
@@ -35,12 +39,13 @@ export class GatewayAuthMiddleware implements NestMiddleware {
 
     const rawToken = readCookie(req.headers.cookie, SESSION_COOKIE_NAME);
     const deviceId = readCookie(req.headers.cookie, DEVICE_COOKIE_NAME);
-    const session = rawToken
-      ? await this.sessionStore.validate(rawToken)
-      : null;
+    let session = rawToken ? await this.sessionStore.validate(rawToken) : null;
+    // Cache-aside: Redis miss mà vẫn có cookie token → hỏi SSO (check Postgres + rehydrate Redis), tự lành khi Redis mất.
+    if (!session && rawToken) {
+      session = await this.introspectService.introspect(req.headers.cookie);
+    }
 
-    const authed = session !== null && session.deviceId === deviceId;
-    if (authed) {
+    if (session !== null && session.deviceId === deviceId) {
       req.headers[HEADER_USER_ID] = session.userId;
       req.headers[HEADER_USER_EMAIL] = session.email;
       req.headers[HEADER_SESSION_ID] = session.sessionId;
