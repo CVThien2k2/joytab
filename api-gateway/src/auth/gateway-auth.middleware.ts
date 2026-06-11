@@ -53,7 +53,7 @@ export class GatewayAuthMiddleware implements NestMiddleware {
       next();
       return;
     }
-    // Dùng originalUrl (full path) vì forRoutes('/auth') mount kiểu Express strip prefix khỏi req.path.
+    // Dùng originalUrl (full path) vì forRoutes('/api') mount kiểu Express strip prefix khỏi req.path.
     if (isPublicPath(req.originalUrl.split('?')[0])) {
       next();
       return;
