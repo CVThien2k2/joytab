@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
@@ -7,6 +8,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
 import { GatewayAuthMiddleware } from './auth/gateway-auth.middleware';
 import { ProxyMiddleware } from './proxy/proxy.middleware';
 import { IntrospectService } from './auth/introspect.service';
+import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 
 @Module({
   imports: [
@@ -46,7 +48,10 @@ import { IntrospectService } from './auth/introspect.service';
     SessionStoreModule,
   ],
   controllers: [],
-  providers: [IntrospectService],
+  providers: [
+    IntrospectService,
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+  ],
 })
 export class AppModule implements NestModule {
   /**

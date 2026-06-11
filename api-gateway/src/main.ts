@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
-import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { AppModule } from './app.module';
 import {
   isOriginAllowed,
@@ -13,7 +12,10 @@ import {
  * Output: Khởi tạo gateway NestJS, bật helmet + filter lỗi + shutdown hooks, listen PORT (default 8000).
  */
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    bodyParser: false,
+  });
   app.useLogger(app.get(Logger));
   app.use(helmet({ contentSecurityPolicy: false }));
   // Allowlist origin (CORS_ALLOWED_ORIGINS, fallback FRONTEND_ORIGIN) — dùng chung với CSRF middleware.
@@ -35,7 +37,6 @@ async function bootstrap() {
     },
     credentials: true,
   });
-  app.useGlobalFilters(new HttpExceptionFilter());
   app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 8000);
 }
