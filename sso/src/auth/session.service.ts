@@ -81,14 +81,14 @@ export class SessionService {
   }
 
   /**
-   * Input: raw session token từ cookie + deviceId từ cookie.
-   * Output: { userId, email, sessionId } nếu hợp lệ. Sai token/khác device → AUTH_001; revoked → AUTH_004; hết hạn → AUTH_005.
-   *         Sliding renew: chỉ ghi DB khi thời gian còn lại dưới ngưỡng (mặc định <1 ngày).
+   * Input: raw session token + deviceId từ cookie.
+   * Output: { userId, email, sessionId, deviceId } nếu hợp lệ; đồng thời rehydrate Redis (warm cache).
+   *         Sai token/khác device → AUTH_001; revoked → AUTH_004; hết hạn → AUTH_005. Sliding renew khi gần hết hạn.
    */
   async validateSession(
     rawToken: string,
     deviceId: string,
-  ): Promise<{ userId: string; email: string; sessionId: string }> {
+  ): Promise<{ userId: string; email: string; sessionId: string; deviceId: string }> {
     const hash = this.tokenService.hashToken(rawToken);
     const session = await this.databaseService.userSession.findUnique({
       where: { token_hash: hash },
@@ -104,13 +104,21 @@ export class SessionService {
     if (session.expires_at.getTime() <= now) {
       throw new AppException(ERROR_CODES.AUTH_005);
     }
-    if (session.expires_at.getTime() - now < this.tokenService.getSessionRenewThresholdMs()) {
+    let expiresAtMs = session.expires_at.getTime();
+    if (expiresAtMs - now < this.tokenService.getSessionRenewThresholdMs()) {
+      expiresAtMs = now + this.tokenService.getSessionTtlMs();
       await this.databaseService.userSession.update({
         where: { id: session.id },
-        data: { last_used_at: new Date(), expires_at: new Date(now + this.tokenService.getSessionTtlMs()) },
+        data: { last_used_at: new Date(), expires_at: new Date(expiresAtMs) },
       });
     }
-    return { userId: session.user_id, email: session.user.email, sessionId: session.id };
+    // Rehydrate Redis (warm cache) với TTL còn lại — để gateway đọc nhanh lần sau sau khi Redis mất.
+    await this.sessionRedisService.putSession(
+      hash,
+      { userId: session.user_id, email: session.user.email, sessionId: session.id, deviceId: session.device_id },
+      expiresAtMs - now,
+    );
+    return { userId: session.user_id, email: session.user.email, sessionId: session.id, deviceId: session.device_id };
   }
 
   /**

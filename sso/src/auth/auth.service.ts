@@ -88,6 +88,14 @@ export class AuthService {
   }
 
   /**
+   * Input: raw session token + deviceId từ cookie (gateway gọi khi Redis miss).
+   * Output: payload session nếu hợp lệ (đã rehydrate Redis trong validateSession); ném AUTH_* nếu không.
+   */
+  async introspect(rawToken: string, deviceId: string) {
+    return this.sessionService.validateSession(rawToken, deviceId);
+  }
+
+  /**
    * Input: userId từ SessionGuard.
    * Output: Thông tin user hiện tại.
    */
