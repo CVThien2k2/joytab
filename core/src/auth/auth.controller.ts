@@ -21,7 +21,7 @@ import {
 } from './auth.constants';
 
 @Throttle({ global: { ttl: AUTH_THROTTLE_TTL_MS, limit: AUTH_THROTTLE_LIMIT } })
-@Controller('auth')
+@Controller('v1/auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 

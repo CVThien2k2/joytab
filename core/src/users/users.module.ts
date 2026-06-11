@@ -3,7 +3,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UsersController } from './users.controller';
 
 /**
- * [DEMO] Module cho route /users — import AuthModule để SessionGuard dùng được SessionService.
+ * [DEMO] Module cho route /v1/users — dùng GatewayUserGuard (tin header X-User-Id từ gateway).
  */
 @Module({
   imports: [AuthModule],

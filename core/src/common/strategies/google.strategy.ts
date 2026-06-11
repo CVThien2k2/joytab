@@ -17,7 +17,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     super({
       clientID: getRequiredConfig(configService, 'GOOGLE_CLIENT_ID', ERROR_CODES.SYS_002),
       clientSecret: getRequiredConfig(configService, 'GOOGLE_CLIENT_SECRET', ERROR_CODES.SYS_003),
-      callbackURL: `${getRequiredConfig(configService, 'API_URL', ERROR_CODES.SYS_004)}/auth/google/callback`,
+      callbackURL: `${getRequiredConfig(configService, 'API_URL', ERROR_CODES.SYS_004)}/api/v1/auth/google/callback`,
       scope: ['email', 'profile'],
     });
   }

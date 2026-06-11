@@ -96,7 +96,7 @@ export class AuthService {
   }
 
   /**
-   * Input: userId từ SessionGuard.
+   * Input: userId từ GatewayUserGuard.
    * Output: Thông tin user hiện tại.
    */
   async getMe(userId: string) {
@@ -106,7 +106,7 @@ export class AuthService {
   }
 
   /**
-   * Input: userId từ SessionGuard.
+   * Input: userId từ GatewayUserGuard.
    * Output: Danh sách thiết bị/phiên của user.
    */
   async listDevices(userId: string) {

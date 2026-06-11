@@ -1,17 +1,17 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { SessionGuard } from '../common/guards/session.guard';
+import { GatewayUserGuard } from '../common/guards/gateway-user.guard';
 
 /**
  * [DEMO] Endpoint nghiệp vụ (non-/auth) để minh hoạ luồng 401 phía client bật popup hết phiên.
  */
-@Controller('users')
+@Controller('v1/users')
 export class UsersController {
   /**
-   * Input: Cookie session_id + device_id hợp lệ (SessionGuard); thiếu/không hợp lệ → 401 (AUTH_001).
+   * Input: header X-User-Id (qua GatewayUserGuard); thiếu → 401 (AUTH_001).
    * Output: Danh sách user stub. Dùng để FE gọi (không gửi cookie) nhằm demo popup hết phiên.
    */
   @Get()
-  @UseGuards(SessionGuard)
+  @UseGuards(GatewayUserGuard)
   findAll(): { data: { users: Array<{ id: string; email: string; fullName: string }> } } {
     return {
       data: {
