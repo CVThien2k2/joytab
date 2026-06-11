@@ -23,12 +23,14 @@
 | `CORS_ALLOWED_ORIGINS` | api-gateway | Y | `http://localhost:3000` | Allowlist origin cho CORS + kiểm tra CSRF Origin/Referer (phân tách dấu phẩy; hỗ trợ `https://*.example.com`). |
 | `COOKIE_DOMAIN` | api-gateway | N | - | Cookie domain dùng chung cross-subdomain; rỗng = host-only cho local dev. |
 | `NODE_ENV` | api-gateway | N | `development` | Môi trường chạy gateway. |
+| `LOG_LEVEL` | api-gateway | N | `info` | Mức log `nestjs-pino` (`trace|debug|info|warn|error|fatal`); log JSON ra stdout. |
 
 ### 3.2 Core (`core`)
 | Biến | Module | Bắt buộc | Mặc định | Mô tả |
 |---|---|---|---|---|
 | `PORT` | core | Y | `8001` | Cổng nội bộ của core; chỉ gateway proxy tới (không public). |
 | `NODE_ENV` | core | N | `development` | Môi trường chạy backend; dùng để bật chính sách cookie callback Google (`production` => `SameSite=None; Secure`, còn lại => `SameSite=Lax; Secure=false`). |
+| `LOG_LEVEL` | core | N | `info` | Mức log `nestjs-pino` (`trace|debug|info|warn|error|fatal`); log JSON ra stdout. |
 | `DB_HOST` | core | Y | - | Host PostgreSQL server (bắt buộc, không fallback trong code). |
 | `DB_USER` | core | Y | - | Username kết nối PostgreSQL (bắt buộc, không fallback trong code). |
 | `DB_PASSWORD` | core | Y | - | Password kết nối PostgreSQL (bắt buộc, không fallback trong code). |
@@ -53,6 +55,7 @@
 - `PORT` (gateway `8000`, core `8001`)
 - `CORE_URL` (gateway proxy tới core)
 - `NODE_ENV`
+- `LOG_LEVEL` (gateway + core; mức log pino stdout, mặc định `info`)
 
 ### 4.2 Database
 - `DB_HOST`

@@ -122,6 +122,8 @@ sequenceDiagram
 
 > Cache-aside (tự lành khi Redis mất): khi gateway tra Redis bị miss mà request vẫn có cookie session, gateway gọi nội bộ `POST /api/v1/auth/introspect` (gateway gọi `CORE_URL/v1/auth/introspect`) của core; core đối chiếu Postgres (nguồn sự thật), nếu phiên còn hợp lệ thì ghi lại key vào Redis (rehydrate) và trả identity cho gateway. Nhờ vậy Redis bị restart/flush sạch không làm user mất phiên — request đầu của mỗi user tự nạp lại cache, các request sau lại đọc nhanh từ Redis. Gateway vẫn KHÔNG kết nối DB; core là nơi duy nhất chạm Postgres. Phiên đã revoke (Postgres `is_revoked`) sẽ không bị introspect hồi sinh.
 
+> Logging: cả gateway + core dùng `nestjs-pino` → log JSON ra **stdout** (không ghi file; phù hợp microservice, để collector/Docker thu gom sau). Gateway sinh/nhận `X-Request-Id` và forward xuống core; mọi log mang cùng `reqId` + field `service` (`gateway`/`core`) → trace được 1 request xuyên service. Dev dùng `pino-pretty`, prod xuất JSON thô; mức log qua `LOG_LEVEL` (mặc định `info`); redact các field nhạy cảm (cookie/authorization/secret). (Định hướng) Phase sau khi dockerize sẽ gom stdout về log tập trung (Loki/ELK/hosted).
+
 ### 4.5 Kiến trúc Database
 ```mermaid
 flowchart LR
