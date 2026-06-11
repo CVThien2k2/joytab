@@ -19,7 +19,7 @@ flowchart LR
   GUEST((Khách mới))
   USER((Người dùng))
 
-  subgraph SYS[SSO qua API Gateway]
+  subgraph SYS[Core qua API Gateway]
     UC1([UC-001])
     UC2([UC-002])
     UC3([UC-003])
@@ -35,11 +35,11 @@ flowchart LR
 ```
 
 ## 3.1 Vai trò API Gateway trong luồng xác thực
-- Mọi request từ UI đều đi qua **API Gateway** (cổng public `8000`) trước khi tới **SSO** (port nội bộ `8001`).
+- Mọi request từ UI đều đi qua **API Gateway** (cổng public `8000`) trước khi tới **Core** (port nội bộ `8001`).
 - Gateway xử lý edge: CORS allowlist, kiểm tra CSRF Origin/Referer, đọc cookie `session_id`, đối chiếu `session:{sha256(token)}` trong Redis, strip header `X-User-*` do client gửi rồi inject identity tin cậy (`X-User-Id`, `X-User-Email`, `X-Session-Id`, `X-Device-Id`).
 - Route public (`/auth/google`, `/auth/google/callback`, `/auth/switch`, `/auth/logout`, `/auth/accounts`) đi qua không bắt buộc session; route protected (`/auth/me`, `/auth/devices`, `/auth/sessions/:id`, `/api/*`) thiếu phiên hợp lệ sẽ bị gateway trả 401.
-- SSO không tự validate cookie nữa mà tin cậy header `X-User-Id` của gateway qua `GatewayUserGuard`. Khi create/refresh/switch, SSO ghi session vào **cả Redis** (validate nhanh, có TTL) **và Postgres** (nguồn sự thật cho liệt kê device/session, remote revoke, audit); khi logout/revoke thì xóa key Redis.
-- Trong các sequence dưới đây, `API as SSO` là phần nghiệp vụ phía sau gateway; gateway chỉ được vẽ tách riêng ở các luồng cần làm rõ xác thực edge.
+- Core không tự validate cookie nữa mà tin cậy header `X-User-Id` của gateway qua `GatewayUserGuard`. Khi create/refresh/switch, core ghi session vào **cả Redis** (validate nhanh, có TTL) **và Postgres** (nguồn sự thật cho liệt kê device/session, remote revoke, audit); khi logout/revoke thì xóa key Redis.
+- Trong các sequence dưới đây, `API as Core` là phần nghiệp vụ phía sau gateway; gateway chỉ được vẽ tách riêng ở các luồng cần làm rõ xác thực edge.
 
 ## 4. Luồng chi tiết từng use case
 
@@ -49,7 +49,7 @@ sequenceDiagram
   actor ND as Người dùng
   participant UI
   participant GW as API Gateway
-  participant API as SSO
+  participant API as Core
   participant GG as Google
   participant DB as Database
   participant RD as Redis
@@ -82,7 +82,7 @@ sequenceDiagram
   actor ND as Người dùng
   participant UI
   participant GW as API Gateway
-  participant API as SSO
+  participant API as Core
   participant GG as Google
   participant DB as Database
 
@@ -109,7 +109,7 @@ sequenceDiagram
   actor ND as Người dùng
   participant UI
   participant GW as API Gateway
-  participant API as SSO
+  participant API as Core
   participant DB as Database
   participant RD as Redis
 
@@ -134,7 +134,7 @@ sequenceDiagram
   actor ND as Người dùng
   participant UI
   participant GW as API Gateway
-  participant API as SSO
+  participant API as Core
   participant DB as Database
   participant RD as Redis
 
@@ -162,7 +162,7 @@ sequenceDiagram
   actor ND as Người dùng
   participant UI
   participant GW as API Gateway
-  participant API as SSO
+  participant API as Core
   participant DB as Database
   participant RD as Redis
 
