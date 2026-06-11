@@ -7,7 +7,8 @@
 ## 2. Tầng 1: Cây thư mục tổng dự án
 ```text
 project-root/
-├─ api/
+├─ api-gateway/
+├─ sso/
 ├─ ui/
 ├─ docs/
 ├─ .ai/
@@ -18,14 +19,18 @@ project-root/
 ```
 
 Thành phần hạ tầng ngoài source code:
-- PostgreSQL: database chính của hệ thống.
-- Redis: cache layer dùng cùng Service API.
+- PostgreSQL: database chính của hệ thống (nguồn sự thật cho phiên/thiết bị/audit).
+- Redis: store validate session tốc độ cao cho gateway và cache layer dùng cùng SSO.
+
+Vai trò hai service backend:
+- `api-gateway/`: điểm vào public duy nhất (port `8000`), xử lý CORS/CSRF + xác thực edge bằng Redis rồi proxy sang SSO.
+- `sso/`: service nội bộ (port `8001`, đổi tên từ `api/`), xử lý OAuth Google, phiên, device/account; tin cậy identity header do gateway inject.
 
 ## 3. Tầng 2: Cây thư mục chi tiết theo module
 
-### 3.1 Backend `api/`
+### 3.1 Backend `sso/`
 ```text
-api/
+sso/
 ├─ .prettierrc
 ├─ eslint.config.mjs
 ├─ nest-cli.json
@@ -77,39 +82,79 @@ Bảng mô tả chi tiết Backend:
 
 | Đường dẫn | Loại | Vai trò |
 |---|---|---|
-| `api/.prettierrc` | Cấu hình | Thiết lập format code cho backend. |
-| `api/eslint.config.mjs` | Cấu hình | Thiết lập luật lint cho backend. |
-| `api/nest-cli.json` | Cấu hình | Cấu hình Nest CLI cho build/generate. |
-| `api/package.json` | Metadata/Script | Khai báo script và dependency backend, gồm nhóm lệnh database với tiền tố `db:` (`db:generate`, `db:validate`, `db:migrate:*`, `db:push`, `db:pull`, `db:studio`). |
-| `api/pnpm-lock.yaml` | Lockfile | Khóa phiên bản dependency backend. |
-| `api/prisma/schema.prisma` | Cấu hình database | Định nghĩa schema Prisma cho PostgreSQL. |
-| `api/prisma.config.ts` | Cấu hình database | Cấu hình Prisma CLI và datasource URL từ môi trường. |
-| `api/src/main.ts` | Mã nguồn | Entry point khởi tạo ứng dụng NestJS, bật CORS theo `FRONTEND_ORIGIN` với `credentials: true`, sau đó chạy HTTP server. |
-| `api/src/app.module.ts` | Mã nguồn | Module gốc, đăng ký Config global với validate env bắt buộc (fail-fast khi thiếu biến) và import các module nghiệp vụ. |
-| `api/src/cache/redis-cache.module.ts` | Mã nguồn | Module tách riêng cấu hình Redis cache, đọc env bắt buộc qua ConfigService và đăng ký CacheModule global. |
-| `api/src/auth/auth.module.ts` | Mã nguồn | Module xác thực, gom controller/service/strategy cho OAuth Google và code-exchange flow qua cache manager. |
-| `api/src/auth/auth.controller.ts` | Mã nguồn | Endpoint khởi tạo Google OAuth, callback set cookie HttpOnly `google_change_token` theo `NODE_ENV` (`production` => `None+Secure`, dev => `Lax`) + redirect `/login/callback?code=...`, endpoint exchange trả access token + Google user và set cookie HttpOnly riêng `rt_<userId>`, đồng thời có `GET /auth/me` để FE lấy thông tin user hiện tại sau khi đổi account. |
-| `api/src/auth/dto/exchange-google-code.dto.ts` | Mã nguồn | DTO validate request body cho endpoint `POST /auth/google/exchange`. |
-| `api/src/auth/auth.utils.ts` | Mã nguồn | Utility nội bộ module `auth` để build URL redirect Google, khai báo hằng số cookie/tTL callback, và đọc giá trị cookie từ header. |
-| `api/src/auth/token.service.ts` | Mã nguồn | Service tách riêng trách nhiệm sinh one-time code, ký access/refresh token, và parse JWT change token của flow exchange. |
-| `api/src/auth/auth.service.ts` | Mã nguồn | Nghiệp vụ đồng bộ user Google, lưu one-time `code -> email` TTL 60s trong Redis, rồi exchange bằng đối soát code với email trong JWT cookie để cấp access/refresh token và trả Google user. |
-| `api/src/common/constants/error-codes.constant.ts` | Mã nguồn | Danh sách mã lỗi chuẩn dùng chung toàn backend. |
-| `api/src/common/exceptions/app.exception.ts` | Mã nguồn | Exception nghiệp vụ dùng object mã lỗi chuẩn và HTTP status tương ứng. |
-| `api/src/common/filters/http-exception.filter.ts` | Mã nguồn | Global filter map exception về format lỗi chuẩn của dự án. |
-| `api/src/common/guards/google-auth.guard.ts` | Mã nguồn | Guard bọc `AuthGuard('google')` để kích hoạt luồng OAuth Google. |
-| `api/src/common/interfaces/express-user.d.ts` | Khai báo kiểu | Mở rộng type `Express.User` dùng chung cho `req.user`. |
-| `api/src/common/interceptors/response.interceptor.ts` | Mã nguồn | Global interceptor chuẩn hóa success response. |
-| `api/src/common/loggers/app.logger.ts` | Mã nguồn | Custom logger dùng queue bất đồng bộ cho log output, vẫn in terminal và ghi thêm vào `api/logs/YYYY-MM-DD.log`, đồng thời rút gọn log lỗi bootstrap/runtime. |
-| `api/src/common/pipes/parse-uuid.pipe.ts` | Mã nguồn | Pipe UUID dùng chung với format lỗi thống nhất. |
-| `api/src/common/strategies/google.strategy.ts` | Mã nguồn | Passport strategy xác thực Google OAuth 2.0 dùng chung. |
-| `api/src/common/utils/functions.ts` | Mã nguồn | File tập trung các hàm dùng chung backend, gồm hàm đọc cấu hình bắt buộc và helper xác định runtime production theo `NODE_ENV`. |
-| `api/src/common/utils/types.ts` | Mã nguồn | File tập trung các type dùng chung backend như error code, response envelope và Google user profile. |
-| `api/src/database/database.module.ts` | Mã nguồn | Module đóng gói và export service kết nối database. |
-| `api/src/database/database.service.ts` | Mã nguồn | Service Prisma dùng chung để các module khác inject. |
-| `api/tsconfig.json` | Cấu hình | Cấu hình TypeScript chính của backend. |
-| `api/tsconfig.build.json` | Cấu hình build | Cấu hình TypeScript cho quá trình build. |
+| `sso/.prettierrc` | Cấu hình | Thiết lập format code cho backend. |
+| `sso/eslint.config.mjs` | Cấu hình | Thiết lập luật lint cho backend. |
+| `sso/nest-cli.json` | Cấu hình | Cấu hình Nest CLI cho build/generate. |
+| `sso/package.json` | Metadata/Script | Khai báo script và dependency backend, gồm nhóm lệnh database với tiền tố `db:` (`db:generate`, `db:validate`, `db:migrate:*`, `db:push`, `db:pull`, `db:studio`). |
+| `sso/pnpm-lock.yaml` | Lockfile | Khóa phiên bản dependency backend. |
+| `sso/prisma/schema.prisma` | Cấu hình database | Định nghĩa schema Prisma cho PostgreSQL. |
+| `sso/prisma.config.ts` | Cấu hình database | Cấu hình Prisma CLI và datasource URL từ môi trường. |
+| `sso/src/main.ts` | Mã nguồn | Entry point khởi tạo ứng dụng NestJS, chạy HTTP server nội bộ ở `PORT=8001`. CORS/CSRF đã chuyển hết về API Gateway nên SSO không tự bật nữa. |
+| `sso/src/app.module.ts` | Mã nguồn | Module gốc, đăng ký Config global với validate env bắt buộc (fail-fast khi thiếu biến) và import các module nghiệp vụ. |
+| `sso/src/cache/redis-cache.module.ts` | Mã nguồn | Module tách riêng cấu hình Redis cache, đọc env bắt buộc qua ConfigService và đăng ký CacheModule global. |
+| `sso/src/auth/auth.module.ts` | Mã nguồn | Module xác thực, gom controller/service/strategy cho OAuth Google và code-exchange flow qua cache manager. |
+| `sso/src/auth/auth.controller.ts` | Mã nguồn | Endpoint khởi tạo Google OAuth, callback set cookie HttpOnly `google_change_token` theo `NODE_ENV` (`production` => `None+Secure`, dev => `Lax`) + redirect `/login/callback?code=...`, endpoint exchange trả access token + Google user và set cookie HttpOnly riêng `rt_<userId>`, đồng thời có `GET /auth/me` để FE lấy thông tin user hiện tại sau khi đổi account. |
+| `sso/src/auth/dto/exchange-google-code.dto.ts` | Mã nguồn | DTO validate request body cho endpoint `POST /auth/google/exchange`. |
+| `sso/src/auth/auth.utils.ts` | Mã nguồn | Utility nội bộ module `auth` để build URL redirect Google, khai báo hằng số cookie/tTL callback, và đọc giá trị cookie từ header. |
+| `sso/src/auth/token.service.ts` | Mã nguồn | Service tách riêng trách nhiệm sinh one-time code, ký access/refresh token, và parse JWT change token của flow exchange. |
+| `sso/src/auth/auth.service.ts` | Mã nguồn | Nghiệp vụ đồng bộ user Google, lưu one-time `code -> email` TTL 60s trong Redis, rồi exchange bằng đối soát code với email trong JWT cookie để cấp access/refresh token và trả Google user. |
+| `sso/src/common/constants/error-codes.constant.ts` | Mã nguồn | Danh sách mã lỗi chuẩn dùng chung toàn backend. |
+| `sso/src/common/exceptions/app.exception.ts` | Mã nguồn | Exception nghiệp vụ dùng object mã lỗi chuẩn và HTTP status tương ứng. |
+| `sso/src/common/filters/http-exception.filter.ts` | Mã nguồn | Global filter map exception về format lỗi chuẩn của dự án. |
+| `sso/src/common/guards/google-auth.guard.ts` | Mã nguồn | Guard bọc `AuthGuard('google')` để kích hoạt luồng OAuth Google. |
+| `sso/src/common/interfaces/express-user.d.ts` | Khai báo kiểu | Mở rộng type `Express.User` dùng chung cho `req.user`. |
+| `sso/src/common/interceptors/response.interceptor.ts` | Mã nguồn | Global interceptor chuẩn hóa success response. |
+| `sso/src/common/loggers/app.logger.ts` | Mã nguồn | Custom logger dùng queue bất đồng bộ cho log output, vẫn in terminal và ghi thêm vào `sso/logs/YYYY-MM-DD.log`, đồng thời rút gọn log lỗi bootstrap/runtime. |
+| `sso/src/common/pipes/parse-uuid.pipe.ts` | Mã nguồn | Pipe UUID dùng chung với format lỗi thống nhất. |
+| `sso/src/common/strategies/google.strategy.ts` | Mã nguồn | Passport strategy xác thực Google OAuth 2.0 dùng chung. |
+| `sso/src/common/utils/functions.ts` | Mã nguồn | File tập trung các hàm dùng chung backend, gồm hàm đọc cấu hình bắt buộc và helper xác định runtime production theo `NODE_ENV`. |
+| `sso/src/common/utils/types.ts` | Mã nguồn | File tập trung các type dùng chung backend như error code, response envelope và Google user profile. |
+| `sso/src/database/database.module.ts` | Mã nguồn | Module đóng gói và export service kết nối database. |
+| `sso/src/database/database.service.ts` | Mã nguồn | Service Prisma dùng chung để các module khác inject. |
+| `sso/tsconfig.json` | Cấu hình | Cấu hình TypeScript chính của backend. |
+| `sso/tsconfig.build.json` | Cấu hình build | Cấu hình TypeScript cho quá trình build. |
 
-### 3.2 Frontend `ui/`
+### 3.2 API Gateway `api-gateway/`
+```text
+api-gateway/
+├─ .env.example
+├─ eslint.config.mjs
+├─ nest-cli.json
+├─ package.json
+├─ pnpm-lock.yaml
+├─ src/
+│  ├─ app.module.ts
+│  ├─ main.ts
+│  ├─ auth/
+│  │  ├─ auth-paths.ts
+│  │  └─ gateway-auth.middleware.ts
+│  ├─ proxy/
+│  │  └─ proxy.middleware.ts
+│  └─ session/
+│     ├─ session.constants.ts
+│     ├─ session-store.module.ts
+│     └─ session-store.service.ts
+├─ tsconfig.build.json
+└─ tsconfig.json
+```
+
+Bảng mô tả chi tiết API Gateway:
+
+| Đường dẫn | Loại | Vai trò |
+|---|---|---|
+| `api-gateway/.env.example` | Cấu hình | Mẫu biến môi trường gateway (`PORT=8000`, `SSO_URL`, `REDIS_*`, `CORS_ALLOWED_ORIGINS`, `COOKIE_DOMAIN`). |
+| `api-gateway/src/main.ts` | Mã nguồn | Entry point khởi tạo gateway, lắng nghe cổng public `8000`. |
+| `api-gateway/src/app.module.ts` | Mã nguồn | Module gốc, đăng ký Config global và mắc chuỗi middleware xác thực edge + proxy. |
+| `api-gateway/src/auth/auth-paths.ts` | Mã nguồn | Khai báo danh sách route public (không bắt buộc session) để phân biệt với route protected. |
+| `api-gateway/src/auth/gateway-auth.middleware.ts` | Mã nguồn | Middleware đọc cookie `session_id`, validate qua Redis, strip header `X-User-*` client gửi rồi inject identity tin cậy; route protected thiếu phiên hợp lệ trả 401. |
+| `api-gateway/src/proxy/proxy.middleware.ts` | Mã nguồn | Proxy `/auth/*` và `/api/*` sang SSO (`SSO_URL`) bằng `http-proxy-middleware`. |
+| `api-gateway/src/session/session-store.module.ts` | Mã nguồn | Module đóng gói và export service đọc session từ Redis. |
+| `api-gateway/src/session/session-store.service.ts` | Mã nguồn | Service đọc `session:{sha256(token)}` từ Redis, sliding-renew TTL khi phiên còn hợp lệ. |
+| `api-gateway/src/session/session.constants.ts` | Mã nguồn | Hằng số dùng chung cho session store (prefix key, tên cookie, header identity). |
+| `api-gateway/tsconfig.json` | Cấu hình | Cấu hình TypeScript chính của gateway. |
+| `api-gateway/tsconfig.build.json` | Cấu hình build | Cấu hình TypeScript cho quá trình build gateway. |
+
+### 3.3 Frontend `ui/`
 ```text
 ui/
 ├─ eslint.config.mjs
@@ -191,7 +236,7 @@ Bảng mô tả chi tiết Frontend:
 | `ui/src/stores/auth-store.ts` | Mã nguồn | Zustand store persist user info + access token theo từng account trong localStorage, lưu `activeAccountId`, hỗ trợ switch account và logout. |
 | `ui/tsconfig.json` | Cấu hình | Cấu hình TypeScript chính của frontend. |
 
-### 3.3 Tài liệu `docs/`
+### 3.4 Tài liệu `docs/`
 ```text
 docs/
 ├─ business-overview-and-system-requirements-20260522.md

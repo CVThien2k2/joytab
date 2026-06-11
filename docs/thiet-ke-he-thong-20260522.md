@@ -19,7 +19,7 @@ flowchart LR
   GUEST((Khách mới))
   USER((Người dùng))
 
-  subgraph SYS[Service API]
+  subgraph SYS[SSO qua API Gateway]
     UC1([UC-001])
     UC2([UC-002])
     UC3([UC-003])
@@ -34,6 +34,13 @@ flowchart LR
   USER --> UC5
 ```
 
+## 3.1 Vai trò API Gateway trong luồng xác thực
+- Mọi request từ UI đều đi qua **API Gateway** (cổng public `8000`) trước khi tới **SSO** (port nội bộ `8001`).
+- Gateway xử lý edge: CORS allowlist, kiểm tra CSRF Origin/Referer, đọc cookie `session_id`, đối chiếu `session:{sha256(token)}` trong Redis, strip header `X-User-*` do client gửi rồi inject identity tin cậy (`X-User-Id`, `X-User-Email`, `X-Session-Id`, `X-Device-Id`).
+- Route public (`/auth/google`, `/auth/google/callback`, `/auth/switch`, `/auth/logout`, `/auth/accounts`) đi qua không bắt buộc session; route protected (`/auth/me`, `/auth/devices`, `/auth/sessions/:id`, `/api/*`) thiếu phiên hợp lệ sẽ bị gateway trả 401.
+- SSO không tự validate cookie nữa mà tin cậy header `X-User-Id` của gateway qua `GatewayUserGuard`. Khi create/refresh/switch, SSO ghi session vào **cả Redis** (validate nhanh, có TTL) **và Postgres** (nguồn sự thật cho liệt kê device/session, remote revoke, audit); khi logout/revoke thì xóa key Redis.
+- Trong các sequence dưới đây, `API as SSO` là phần nghiệp vụ phía sau gateway; gateway chỉ được vẽ tách riêng ở các luồng cần làm rõ xác thực edge.
+
 ## 4. Luồng chi tiết từng use case
 
 ### 4.1 UC-001: Đăng nhập bằng Google
@@ -41,22 +48,27 @@ flowchart LR
 sequenceDiagram
   actor ND as Người dùng
   participant UI
-  participant API as Service API
+  participant GW as API Gateway
+  participant API as SSO
   participant GG as Google
   participant DB as Database
   participant RD as Redis
 
   ND->>UI: Chọn đăng nhập Google
-  UI->>API: GET /auth/google
+  UI->>GW: GET /auth/google (route public)
+  GW->>API: Proxy (không bắt buộc session)
   API->>GG: Redirect sang Google OAuth
-  GG-->>API: Callback /auth/google/callback + profile
+  GG-->>API: Callback /auth/google/callback + profile (qua gateway)
   alt Callback hợp lệ
     API->>DB: Tạo hoặc cập nhật user
     API->>RD: Lưu one-time mapping code -> email (TTL 60s)
     API-->>UI: Set cookie HttpOnly JWT (change token) + redirect /login/callback?code=...
-    UI->>API: POST /auth/google/exchange (code + cookie change token)
+    UI->>GW: POST /auth/google/exchange (code + cookie change token)
+    GW->>API: Proxy
     API->>RD: Validate code với email trong JWT, xóa code (one-time)
-    API-->>UI: Trả access token + Google user, đồng thời set cookie HttpOnly refresh token
+    API->>DB: Ghi user_session (nguồn sự thật)
+    API->>RD: Ghi session:{hash} -> {userId,email,sessionId,deviceId} (TTL)
+    API-->>UI: Trả Google user + set cookie HttpOnly session_id
     UI-->>ND: Đăng nhập thành công
   else Credential không hợp lệ
     API-->>UI: Redirect về /login
@@ -69,12 +81,14 @@ sequenceDiagram
 sequenceDiagram
   actor ND as Người dùng
   participant UI
-  participant API as Service API
+  participant GW as API Gateway
+  participant API as SSO
   participant GG as Google
   participant DB as Database
 
   ND->>UI: Chọn Thêm tài khoản
-  UI->>API: Gửi credential Google mới
+  UI->>GW: Gửi credential Google mới (route public /auth/accounts)
+  GW->>API: Proxy
   API->>GG: Xác thực credential
   GG-->>API: Kết quả xác thực
   API->>DB: Kiểm tra account đã liên kết với thiết bị chưa
@@ -94,15 +108,19 @@ sequenceDiagram
 sequenceDiagram
   actor ND as Người dùng
   participant UI
-  participant API as Service API
+  participant GW as API Gateway
+  participant API as SSO
   participant DB as Database
+  participant RD as Redis
 
   ND->>UI: Chọn tài khoản đích
-  UI->>API: Gửi device_id và target_account_id
+  UI->>GW: Gửi device_id và target_account_id (route public /auth/switch)
+  GW->>API: Proxy
   API->>DB: Kiểm tra mapping account-device
   alt Tài khoản thuộc thiết bị
     API->>DB: Tạo hoặc đổi user_session active
-    API-->>UI: Trả session mới
+    API->>RD: Ghi session:{hash} cho phiên mới (TTL)
+    API-->>UI: Trả session mới + set cookie session_id
     UI-->>ND: Chuyển tài khoản thành công
   else Không thuộc thiết bị
     API-->>UI: Trả lỗi không hợp lệ
@@ -115,14 +133,19 @@ sequenceDiagram
 sequenceDiagram
   actor ND as Người dùng
   participant UI
-  participant API as Service API
+  participant GW as API Gateway
+  participant API as SSO
   participant DB as Database
+  participant RD as Redis
 
   ND->>UI: Chọn xóa tài khoản khỏi máy
-  UI->>API: Gửi device_id và account_id
+  UI->>GW: Gửi device_id và account_id (route protected)
+  GW->>RD: Validate session:{hash} + inject X-User-*
+  GW->>API: Proxy kèm identity tin cậy
   API->>DB: Kiểm tra policy account cuối cùng
   alt Được phép xóa
     API->>DB: Hủy session account trên thiết bị hiện tại
+    API->>RD: Xóa session:{hash} của account bị gỡ
     API->>DB: Xóa mapping device_users
     API->>DB: Nếu account active thì chuyển account active khác
     API-->>UI: Trả kết quả xóa
@@ -138,15 +161,20 @@ sequenceDiagram
 sequenceDiagram
   actor ND as Người dùng
   participant UI
-  participant API as Service API
+  participant GW as API Gateway
+  participant API as SSO
   participant DB as Database
+  participant RD as Redis
 
   ND->>UI: Chọn đăng xuất khỏi các máy khác
-  UI->>API: Gửi current_device_id
+  UI->>GW: Gửi current_device_id (route protected)
+  GW->>RD: Validate session:{hash} + inject X-User-*
+  GW->>API: Proxy kèm identity tin cậy
   API->>DB: Lấy session active của user
   API->>DB: Lọc session khác current_device
   alt Có session khác
     API->>DB: Revoke các session đã lọc
+    API->>RD: Xóa session:{hash} của các phiên đã revoke
     API-->>UI: Trả số lượng session đã revoke
     UI-->>ND: Đăng xuất máy khác thành công
   else Không có session khác
