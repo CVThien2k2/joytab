@@ -5,7 +5,11 @@ import { SessionPayload } from '../session/session-store.service';
 export type IntrospectResult =
   | { status: 'ok'; payload: SessionPayload }
   | { status: 'unauthorized'; code: string } // code thật từ core: AUTH_001/004/005
-  | { status: 'upstream_error' }; // core không kết nối được / 5xx
+  | { status: 'timeout' } // core nhận kết nối nhưng không phản hồi kịp → SYS_504
+  | { status: 'unreachable' }; // không kết nối được core / core trả 5xx → SYS_502
+
+const INTROSPECT_TIMEOUT_MS =
+  Number(process.env.INTROSPECT_TIMEOUT_MS) || 5_000;
 
 @Injectable()
 export class IntrospectService {
@@ -23,16 +27,20 @@ export class IntrospectService {
 
   /**
    * Input: header cookie thô của request (chứa session_id + device_id).
-   * Output: IntrospectResult — ok (kèm payload) / unauthorized (kèm code core) / upstream_error (core lỗi/không reachable).
+   * Output: IntrospectResult — ok (kèm payload) / unauthorized (kèm code core) /
+   *         timeout (core không phản hồi kịp → SYS_504) / unreachable (không kết nối được hoặc core 5xx → SYS_502).
    */
   async introspect(
     cookieHeader: string | undefined,
   ): Promise<IntrospectResult> {
     if (!cookieHeader) return { status: 'unauthorized', code: 'AUTH_001' };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), INTROSPECT_TIMEOUT_MS);
     try {
       const res = await fetch(`${this.coreUrl}/v1/auth/introspect`, {
         method: 'POST',
         headers: { cookie: cookieHeader },
+        signal: controller.signal,
       });
       if (res.ok) {
         const body = (await res.json()) as { data?: SessionPayload };
@@ -46,14 +54,24 @@ export class IntrospectService {
         } | null;
         return { status: 'unauthorized', code: body?.code ?? 'AUTH_001' };
       }
-      // 5xx hoặc status lạ → coi như upstream error
+      // 5xx hoặc status lạ → core đang chạy nhưng lỗi upstream → coi như unreachable (SYS_502)
       this.logger.warn(`Core introspect trả ${res.status}`);
-      return { status: 'upstream_error' };
+      return { status: 'unreachable' };
     } catch (err) {
+      // Abort do hết timeout → core nhận kết nối nhưng không phản hồi kịp (SYS_504)
+      if (err instanceof Error && err.name === 'AbortError') {
+        this.logger.error(
+          `Introspect core timeout sau ${INTROSPECT_TIMEOUT_MS}ms`,
+        );
+        return { status: 'timeout' };
+      }
+      // Lỗi kết nối/mạng (ECONNREFUSED/ECONNRESET/ENOTFOUND/EHOSTUNREACH) → unreachable (SYS_502)
       this.logger.error(
         `Introspect core lỗi: ${err instanceof Error ? err.message : String(err)}`,
       );
-      return { status: 'upstream_error' };
+      return { status: 'unreachable' };
+    } finally {
+      clearTimeout(timer);
     }
   }
 }

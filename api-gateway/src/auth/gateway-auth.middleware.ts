@@ -36,7 +36,7 @@ export class GatewayAuthMiddleware implements NestMiddleware {
   /**
    * Input: request/response/next.
    * Output: Strip header giả mạo; validate Redis (lỗi Redis → degrade introspect); inject identity khi hợp lệ.
-   *         Route bảo vệ: sai/thiếu phiên → code core thật (AUTH_001/004/005); core lỗi → SYS_503. Route public → cho qua.
+   *         Route bảo vệ: sai/thiếu phiên → code core thật (AUTH_001/004/005); core timeout → SYS_504; core unreachable/5xx → SYS_502. Route public → cho qua.
    */
   async use(req: Request, _res: Response, next: NextFunction): Promise<void> {
     delete req.headers[HEADER_USER_ID];
@@ -84,9 +84,13 @@ export class GatewayAuthMiddleware implements NestMiddleware {
       next();
       return;
     }
-    if (result.status === 'upstream_error') {
-      // không verify được phiên (Redis lẫn core đều không xong) → 503 (không phải 401 gây hiểu nhầm)
-      return this.deny(req, next, false, ERROR_CODES.SYS_503);
+    if (result.status === 'timeout') {
+      // core nhận kết nối nhưng không phản hồi kịp → 504 (đồng nhất với proxy path)
+      return this.deny(req, next, false, ERROR_CODES.SYS_504);
+    }
+    if (result.status === 'unreachable') {
+      // không kết nối được core / core trả 5xx → 502 (đồng nhất với proxy path)
+      return this.deny(req, next, false, ERROR_CODES.SYS_502);
     }
     // unauthorized (hoặc ok nhưng sai device) → propagate code core thật
     const code =

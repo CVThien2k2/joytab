@@ -30,8 +30,15 @@ export class ProxyMiddleware implements NestMiddleware {
       on: {
         error: (err, req, res) => {
           const errCode = (err as NodeJS.ErrnoException).code;
+          // proxyTimeout của httpxy KHÔNG surface là ETIMEDOUT mà huỷ socket →
+          // err.code = 'ECONNRESET', message = 'socket hang up' (đã kiểm chứng thực tế).
+          // → coi ECONNRESET / socket hang up (cùng ETIMEDOUT/ECONNABORTED) là TIMEOUT → SYS_504.
+          // Connect thất bại thật (ECONNREFUSED/ENOTFOUND/EHOSTUNREACH) là UNREACHABLE → SYS_502.
           const isTimeout =
-            errCode === 'ETIMEDOUT' || errCode === 'ECONNABORTED';
+            errCode === 'ETIMEDOUT' ||
+            errCode === 'ECONNABORTED' ||
+            errCode === 'ECONNRESET' ||
+            err.message === 'socket hang up';
           const item = isTimeout ? ERROR_CODES.SYS_504 : ERROR_CODES.SYS_502;
           const reqId =
             (req as { id?: string | number }).id ?? req.headers['x-request-id'];

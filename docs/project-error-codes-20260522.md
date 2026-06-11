@@ -16,9 +16,9 @@
 | `VALIDATION_001` | `400` | Bad request | Dữ liệu đầu vào không hợp lệ theo rule validate/pipes. | Kiểm tra payload/query/path params trước khi gọi API. |
 | `SYS_404` | `404` | Resource not found | Không tìm thấy endpoint hoặc tài nguyên tương ứng. | Kiểm tra URL, method HTTP và ID resource. |
 | `SYS_001` | `500` | Internal server error | Lỗi hệ thống nội bộ không mong muốn. | Kiểm tra log backend, cấu hình và trạng thái hạ tầng. |
-| `SYS_502` | `502` | Upstream service unavailable | (API Gateway) Không kết nối được tới core khi proxy (`on.error` của `http-proxy-middleware`). | Kiểm tra core (`CORE_URL`) còn sống và network giữa gateway↔core. |
-| `SYS_503` | `503` | Service temporarily unavailable | (API Gateway) Không verify được phiên vì cả Redis lẫn core introspect đều lỗi. | Kiểm tra trạng thái Redis và core; thử lại khi hạ tầng hồi. |
-| `SYS_504` | `504` | Gateway timeout | (API Gateway) Core không phản hồi trong `PROXY_TIMEOUT_MS` khi proxy. | Kiểm tra độ trễ/tải core, cân nhắc tăng `PROXY_TIMEOUT_MS`. |
+| `SYS_502` | `502` | Upstream service unavailable | (API Gateway) Core **unreachable** (không kết nối được: `ECONNREFUSED`/`ENOTFOUND`/`EHOSTUNREACH`) hoặc core trả `5xx` khi introspect (bad upstream). Áp dụng đồng nhất cho **cả proxy lẫn introspect (auth)**. | Kiểm tra core (`CORE_URL`) còn sống và network giữa gateway↔core. |
+| `SYS_503` | `503` | Service temporarily unavailable | **Reserved** — KHÔNG còn dùng cho core-down. Dành cho tương lai khi *bản thân gateway* không khả dụng (self-unavailable). Hiện không emit. | — |
+| `SYS_504` | `504` | Gateway timeout | (API Gateway) Core **timeout** — đã kết nối/thử kết nối nhưng không phản hồi kịp. Proxy: hết `PROXY_TIMEOUT_MS` (httpxy huỷ socket → `ECONNRESET`/`socket hang up`). Introspect: hết `INTROSPECT_TIMEOUT_MS` (`AbortController`). Áp dụng đồng nhất cho **cả proxy lẫn introspect (auth)**. | Kiểm tra độ trễ/tải core, cân nhắc tăng `PROXY_TIMEOUT_MS`/`INTROSPECT_TIMEOUT_MS`. |
 | `SYS_002` | `500` | Missing GOOGLE_CLIENT_ID | Thiếu biến môi trường `GOOGLE_CLIENT_ID` khi khởi tạo Google OAuth strategy. | Bổ sung `GOOGLE_CLIENT_ID` trong env runtime của API. |
 | `SYS_003` | `500` | Missing GOOGLE_CLIENT_SECRET | Thiếu biến môi trường `GOOGLE_CLIENT_SECRET` khi khởi tạo Google OAuth strategy. | Bổ sung `GOOGLE_CLIENT_SECRET` trong env runtime của API. |
 | `SYS_004` | `500` | Missing GOOGLE_CALLBACK_URL | Thiếu biến môi trường `GOOGLE_CALLBACK_URL` khi khởi tạo Google OAuth strategy. | Bổ sung `GOOGLE_CALLBACK_URL` trong env runtime của API. |
