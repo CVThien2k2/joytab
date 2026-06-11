@@ -1,7 +1,11 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
+import { Logger } from 'nestjs-pino';
 import { AppException } from '../common/exceptions/app.exception';
-import { ERROR_CODES } from '../common/constants/error-codes.constant';
+import {
+  ERROR_CODES,
+  ErrorCodeItem,
+} from '../common/constants/error-codes.constant';
 import {
   DEVICE_COOKIE_NAME,
   HEADER_DEVICE_ID,
@@ -10,28 +14,31 @@ import {
   HEADER_USER_ID,
   SESSION_COOKIE_NAME,
 } from '../session/session.constants';
-import { SessionStoreService } from '../session/session-store.service';
+import {
+  SessionPayload,
+  SessionStoreService,
+} from '../session/session-store.service';
 import { isPublicPath } from './auth-paths';
 import { IntrospectService } from './introspect.service';
 
 @Injectable()
 export class GatewayAuthMiddleware implements NestMiddleware {
   /**
-   * Input: SessionStoreService để validate session qua Redis.
-   * Output: Middleware edge-auth cho gateway.
+   * Input: SessionStoreService (Redis), IntrospectService (fallback core), Logger.
+   * Output: Middleware edge-auth chịu lỗi cho gateway.
    */
   constructor(
     private readonly sessionStore: SessionStoreService,
     private readonly introspectService: IntrospectService,
+    private readonly logger: Logger,
   ) {}
 
   /**
    * Input: request/response/next.
-   * Output: Strip header X-User-* giả mạo; validate session Redis; inject identity khi hợp lệ.
-   *         Route bảo vệ thiếu/sai session → 401; route public thì cho qua không identity.
+   * Output: Strip header giả mạo; validate Redis (lỗi Redis → degrade introspect); inject identity khi hợp lệ.
+   *         Route bảo vệ: sai/thiếu phiên → code core thật (AUTH_001/004/005); core lỗi → SYS_503. Route public → cho qua.
    */
   async use(req: Request, _res: Response, next: NextFunction): Promise<void> {
-    // Chống giả mạo: luôn xóa mọi header identity client tự gửi.
     delete req.headers[HEADER_USER_ID];
     delete req.headers[HEADER_USER_EMAIL];
     delete req.headers[HEADER_SESSION_ID];
@@ -39,26 +46,77 @@ export class GatewayAuthMiddleware implements NestMiddleware {
 
     const rawToken = readCookie(req.headers.cookie, SESSION_COOKIE_NAME);
     const deviceId = readCookie(req.headers.cookie, DEVICE_COOKIE_NAME);
-    let session = rawToken ? await this.sessionStore.validate(rawToken) : null;
-    // Cache-aside: Redis miss mà vẫn có cookie token → hỏi core (check Postgres + rehydrate Redis), tự lành khi Redis mất.
-    if (!session && rawToken) {
-      session = await this.introspectService.introspect(req.headers.cookie);
+    const publicPath = isPublicPath(req.originalUrl.split('?')[0]);
+
+    if (!rawToken) {
+      return this.deny(req, next, publicPath, ERROR_CODES.AUTH_001);
     }
 
-    if (session !== null && session.deviceId === deviceId) {
-      req.headers[HEADER_USER_ID] = session.userId;
-      req.headers[HEADER_USER_EMAIL] = session.email;
-      req.headers[HEADER_SESSION_ID] = session.sessionId;
-      req.headers[HEADER_DEVICE_ID] = session.deviceId;
+    // 1) Thử Redis trước (nhanh). Redis chết → degrade, KHÔNG 500.
+    let redisSession: SessionPayload | null = null;
+    try {
+      redisSession = await this.sessionStore.validate(rawToken);
+    } catch (err) {
+      this.logger.warn(
+        `Redis validate lỗi, degrade sang introspect: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (redisSession) {
+      if (redisSession.deviceId === deviceId) {
+        this.inject(req, redisSession);
+        next();
+        return;
+      }
+      // Redis có nhưng sai device → từ chối (không introspect lại vô ích)
+      return this.deny(req, next, publicPath, ERROR_CODES.AUTH_001);
+    }
+
+    // 2) Redis miss/lỗi → hỏi core (cache-aside / degrade).
+    const result = await this.introspectService.introspect(req.headers.cookie);
+    if (result.status === 'ok' && result.payload.deviceId === deviceId) {
+      this.inject(req, result.payload);
       next();
       return;
     }
-    // Dùng originalUrl (full path) vì forRoutes('/api') mount kiểu Express strip prefix khỏi req.path.
-    if (isPublicPath(req.originalUrl.split('?')[0])) {
+    if (result.status === 'upstream_error') {
+      // không verify được phiên (Redis lẫn core đều không xong) → 503 (không phải 401 gây hiểu nhầm)
+      return this.deny(req, next, publicPath, ERROR_CODES.SYS_503);
+    }
+    // unauthorized (hoặc ok nhưng sai device) → propagate code core thật
+    const code =
+      result.status === 'unauthorized'
+        ? (ERROR_CODES[result.code as keyof typeof ERROR_CODES] ??
+          ERROR_CODES.AUTH_001)
+        : ERROR_CODES.AUTH_001;
+    return this.deny(req, next, publicPath, code);
+  }
+
+  /**
+   * Input: request + payload session hợp lệ.
+   * Output: Gắn identity header tin cậy cho downstream.
+   */
+  private inject(req: Request, session: SessionPayload): void {
+    req.headers[HEADER_USER_ID] = session.userId;
+    req.headers[HEADER_USER_EMAIL] = session.email;
+    req.headers[HEADER_SESSION_ID] = session.sessionId;
+    req.headers[HEADER_DEVICE_ID] = session.deviceId;
+  }
+
+  /**
+   * Input: request, next, cờ public, error code để dùng nếu route bảo vệ.
+   * Output: Route public → cho qua không identity; route bảo vệ → next(AppException) đúng code.
+   */
+  private deny(
+    req: Request,
+    next: NextFunction,
+    publicPath: boolean,
+    error: ErrorCodeItem,
+  ): void {
+    if (publicPath) {
       next();
       return;
     }
-    next(new AppException(ERROR_CODES.AUTH_001));
+    next(new AppException(error));
   }
 }
 
