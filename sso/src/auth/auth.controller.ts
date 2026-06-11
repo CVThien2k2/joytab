@@ -5,7 +5,7 @@ import { Request, Response } from 'express';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import { GoogleAuthGuard } from '../common/guards/google-auth.guard';
-import { SessionGuard } from '../common/guards/session.guard';
+import { GatewayUserGuard } from '../common/guards/gateway-user.guard';
 import { isProductionEnvironment } from '../common/utils/functions';
 import { AuthService } from './auth.service';
 import { SwitchAccountDto } from './dto/switch-account.dto';
@@ -114,31 +114,31 @@ export class AuthController {
   }
 
   /**
-   * Input: session cookie (qua SessionGuard).
+   * Input: header X-User-Id (qua GatewayUserGuard).
    * Output: Thông tin user hiện tại.
    */
   @Get('me')
-  @UseGuards(SessionGuard)
+  @UseGuards(GatewayUserGuard)
   async me(@Req() request: Request & { userId: string }) {
     return this.authService.getMe(request.userId);
   }
 
   /**
-   * Input: session cookie (qua SessionGuard).
+   * Input: header X-User-Id (qua GatewayUserGuard).
    * Output: Danh sách thiết bị/phiên của user.
    */
   @Get('devices')
-  @UseGuards(SessionGuard)
+  @UseGuards(GatewayUserGuard)
   async devices(@Req() request: Request & { userId: string }) {
     return this.authService.listDevices(request.userId);
   }
 
   /**
-   * Input: session cookie (qua SessionGuard) + sessionId.
+   * Input: header X-User-Id (qua GatewayUserGuard) + sessionId.
    * Output: Revoke session từ xa nếu thuộc về user.
    */
   @Delete('sessions/:id')
-  @UseGuards(SessionGuard)
+  @UseGuards(GatewayUserGuard)
   async revokeSession(@Param('id') id: string, @Req() request: Request & { userId: string }) {
     await this.authService.revokeSession(id, request.userId);
     return { success: true };
