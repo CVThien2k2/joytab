@@ -40,7 +40,10 @@ export class CsrfMiddleware implements NestMiddleware {
       this.logger.warn(
         `CSRF chặn ${req.method} ${req.url} — origin: ${origin ?? '(none)'}`,
       );
-      throw new AppException(ERROR_CODES.AUTH_006);
+      // Dùng next(err) (không throw): throw trong middleware sync thoát khỏi
+      // cơ chế .catch(next) của Nest → ra Express default 500. next(err) giữ đúng AppException.
+      next(new AppException(ERROR_CODES.AUTH_006));
+      return;
     }
     next();
   }

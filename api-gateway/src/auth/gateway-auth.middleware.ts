@@ -48,11 +48,12 @@ export class GatewayAuthMiddleware implements NestMiddleware {
       next();
       return;
     }
-    if (isPublicPath(req.path)) {
+    // Dùng originalUrl (full path) vì forRoutes('/auth') mount kiểu Express strip prefix khỏi req.path.
+    if (isPublicPath(req.originalUrl.split('?')[0])) {
       next();
       return;
     }
-    throw new AppException(ERROR_CODES.AUTH_001);
+    next(new AppException(ERROR_CODES.AUTH_001));
   }
 }
 

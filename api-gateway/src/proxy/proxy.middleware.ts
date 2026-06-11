@@ -26,6 +26,8 @@ export class ProxyMiddleware implements NestMiddleware {
    * Output: Đẩy request xuống SSO.
    */
   use(req: Request, res: Response, next: NextFunction): void {
+    // forRoutes('/auth') mount strip prefix khỏi req.url → khôi phục full path để proxy đúng endpoint SSO.
+    req.url = req.originalUrl;
     void this.proxy(req, res, next);
   }
 }

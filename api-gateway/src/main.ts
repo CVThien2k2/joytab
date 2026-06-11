@@ -27,7 +27,9 @@ async function bootstrap() {
         callback(null, true);
         return;
       }
-      callback(new Error(`Origin not allowed by CORS: ${origin}`), false);
+      // Origin lạ: KHÔNG ném Error (sẽ thành 500), chỉ không set CORS header → request đi tiếp
+      // không kèm Access-Control-Allow-Origin (trình duyệt tự chặn đọc), và CSRF middleware trả 403 cho mutation.
+      callback(null, false);
     },
     credentials: true,
   });
