@@ -19,7 +19,7 @@ flowchart LR
 | Thành phần | Vai trò |
 |---|---|
 | UI | Nhận thao tác người dùng, hiển thị dữ liệu và gọi API. UI luôn gọi vào API Gateway (cổng public `8000`). |
-| API Gateway | Điểm vào public duy nhất (port `8000`). Xử lý edge concerns (CORS allowlist, CSRF Origin/Referer), xác thực edge bằng cookie `session_id` đối chiếu trực tiếp Redis, strip header `X-User-*` do client gửi (chống spoof), inject identity tin cậy rồi proxy `/auth/*` và `/api/*` sang core. |
+| API Gateway | Điểm vào public duy nhất (port `8000`). Xử lý edge concerns (CORS allowlist, CSRF Origin/Referer), xác thực edge bằng cookie `session_id` đối chiếu trực tiếp Redis, strip header `X-User-*` do client gửi (chống spoof), inject identity tin cậy rồi proxy `/api/*` sang core (strip prefix `/api`, forward phần còn lại `/v1/...`). `/api` là namespace public duy nhất cho mọi backend API hiện tại và tương lai. |
 | Core | Service nội bộ (port `8001`, đổi tên từ `api`). Xử lý đăng nhập Google OAuth, cấp/refresh/switch phiên, quản lý device/account, revoke. Endpoint protected tin cậy header `X-User-Id` do gateway inject thay vì tự validate cookie. |
 | Database | Lưu trữ dữ liệu nghiệp vụ và là nguồn sự thật bền vững cho phiên/thiết bị/audit. |
 | Redis Cache | Store validate phiên tốc độ cao (`session:{sha256(token)}` -> `{userId,email,sessionId,deviceId}`) cho gateway, cùng dữ liệu cache/token tạm thời. |
@@ -61,8 +61,8 @@ flowchart LR
 | Node trong sơ đồ | Thành phần và nhiệm vụ |
 |---|---|
 | Edge: CORS/CSRF | Áp dụng CORS allowlist và kiểm tra Origin/Referer chống CSRF cho mọi request public. |
-| Edge Auth | Đọc token từ cookie `session_id`, hash SHA-256 và đối chiếu key `session:{hash}` trong Redis; strip mọi header `X-User-*` client gửi rồi inject `X-User-Id`, `X-User-Email`, `X-Session-Id`, `X-Device-Id` tin cậy. Route public (`/auth/google`, `/auth/google/callback`, `/auth/switch`, `/auth/logout`, `/auth/accounts`) đi qua không bắt buộc session; route protected (`/auth/me`, `/auth/devices`, `/auth/sessions/:id`, `/api/*`) thiếu phiên hợp lệ trả 401. |
-| Proxy sang Core | Dùng `http-proxy-middleware` chuyển tiếp `/auth/*` và `/api/*` sang core (`CORE_URL`). |
+| Edge Auth | Đọc token từ cookie `session_id`, hash SHA-256 và đối chiếu key `session:{hash}` trong Redis; strip mọi header `X-User-*` client gửi rồi inject `X-User-Id`, `X-User-Email`, `X-Session-Id`, `X-Device-Id` tin cậy. Route public (`/api/v1/auth/google`, `/api/v1/auth/google/callback`, `/api/v1/auth/switch`, `/api/v1/auth/logout`, `/api/v1/auth/accounts`) đi qua không bắt buộc session; route protected (`/api/v1/auth/me`, `/api/v1/auth/devices`, `/api/v1/auth/sessions/:id`, `/api/v1/users` và mọi `/api/v1/...` khác trong tương lai) thiếu phiên hợp lệ trả 401. |
+| Proxy sang Core | Dùng `http-proxy-middleware` chuyển tiếp `/api/*` sang core (`CORE_URL`): strip prefix `/api` rồi forward phần còn lại `/v1/...` (vd `/api/v1/auth/me` -> core `/v1/auth/me`). Versioning đặt ở cấp controller core (`v1/auth`, `v1/users`), không phải global prefix. |
 
 ### 4.3 Kiến trúc Core
 ```mermaid
@@ -87,8 +87,8 @@ sequenceDiagram
 
   rect rgb(245,245,245)
   note over UI,CORE: Đăng nhập (route public)
-  UI->>GW: GET /auth/google
-  GW->>CORE: Proxy (không bắt buộc session)
+  UI->>GW: GET /api/v1/auth/google
+  GW->>CORE: Proxy /v1/auth/google (không bắt buộc session)
   CORE->>CORE: Google OAuth, cấp phiên
   CORE->>RD: Ghi session:{hash} (TTL)
   CORE->>CORE: Ghi session vào Postgres (nguồn sự thật)
@@ -97,7 +97,7 @@ sequenceDiagram
 
   rect rgb(245,245,245)
   note over UI,CORE: Request đã xác thực (route protected)
-  UI->>GW: GET /auth/me (cookie session_id)
+  UI->>GW: GET /api/v1/auth/me (cookie session_id)
   GW->>RD: GET session:{sha256(token)}
   alt Phiên hợp lệ
     RD-->>GW: {userId,email,sessionId,deviceId} (sliding-renew TTL)
@@ -110,7 +110,7 @@ sequenceDiagram
 
   rect rgb(245,245,245)
   note over UI,CORE: Đăng xuất / revoke
-  UI->>GW: POST /auth/logout (hoặc revoke session)
+  UI->>GW: POST /api/v1/auth/logout (hoặc revoke session)
   GW->>CORE: Proxy
   CORE->>RD: DEL session:{hash}
   CORE->>CORE: Cập nhật trạng thái phiên trong Postgres
@@ -120,7 +120,7 @@ sequenceDiagram
 
 > Mô hình phiên: Redis là store validate nhanh (gateway đọc, tự sliding-renew TTL); Postgres là nguồn sự thật bền vững cho liệt kê device/session, remote revoke và audit. Sliding-renew chỉ diễn ra ở Redis nên `expires_at` trong Postgres có thể trễ — chấp nhận được vì listing/audit không cần độ chính xác từng giây.
 
-> Cache-aside (tự lành khi Redis mất): khi gateway tra Redis bị miss mà request vẫn có cookie session, gateway gọi nội bộ `POST /auth/introspect` của core; core đối chiếu Postgres (nguồn sự thật), nếu phiên còn hợp lệ thì ghi lại key vào Redis (rehydrate) và trả identity cho gateway. Nhờ vậy Redis bị restart/flush sạch không làm user mất phiên — request đầu của mỗi user tự nạp lại cache, các request sau lại đọc nhanh từ Redis. Gateway vẫn KHÔNG kết nối DB; core là nơi duy nhất chạm Postgres. Phiên đã revoke (Postgres `is_revoked`) sẽ không bị introspect hồi sinh.
+> Cache-aside (tự lành khi Redis mất): khi gateway tra Redis bị miss mà request vẫn có cookie session, gateway gọi nội bộ `POST /api/v1/auth/introspect` (gateway gọi `CORE_URL/v1/auth/introspect`) của core; core đối chiếu Postgres (nguồn sự thật), nếu phiên còn hợp lệ thì ghi lại key vào Redis (rehydrate) và trả identity cho gateway. Nhờ vậy Redis bị restart/flush sạch không làm user mất phiên — request đầu của mỗi user tự nạp lại cache, các request sau lại đọc nhanh từ Redis. Gateway vẫn KHÔNG kết nối DB; core là nơi duy nhất chạm Postgres. Phiên đã revoke (Postgres `is_revoked`) sẽ không bị introspect hồi sinh.
 
 ### 4.5 Kiến trúc Database
 ```mermaid
@@ -152,7 +152,7 @@ flowchart LR
 | Core | Điều phối tích hợp, kiểm soát timeout/retry/log cho luồng ngoài. |
 | Outbound HTTPS | Kênh gọi ra dịch vụ bên ngoài. |
 | External Service | Hệ thống thứ ba cung cấp dữ liệu/chức năng tích hợp (vd Google OAuth). |
-| Response/Callback | Dữ liệu phản hồi hoặc callback/webhook; callback Google quay lại qua gateway (`API_URL` trỏ về `http://localhost:8000`). |
+| Response/Callback | Dữ liệu phản hồi hoặc callback/webhook; callback Google quay lại qua gateway với `redirect_uri` = `http://localhost:8000/api/v1/auth/google/callback` (core `google.strategy` build từ `API_URL` + `/api/v1/auth/google/callback`). |
 
 ### 4.7 Kiến trúc Redis Cache
 ```mermaid

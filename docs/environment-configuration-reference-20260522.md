@@ -15,7 +15,7 @@
 | Biến | Module | Bắt buộc | Mặc định | Mô tả |
 |---|---|---|---|---|
 | `PORT` | api-gateway | Y | `8000` | Cổng public duy nhất của hệ thống; FE gọi vào đây. |
-| `CORE_URL` | api-gateway | Y | `http://localhost:8001` | URL nội bộ của core để gateway proxy `/auth/*` và `/api/*`. |
+| `CORE_URL` | api-gateway | Y | `http://localhost:8001` | URL nội bộ của core để gateway proxy `/api/*` sang (strip prefix `/api`, forward `/v1/...`). |
 | `REDIS_HOST` | api-gateway | Y | - | Host Redis server để validate session (trùng cấu hình core). |
 | `REDIS_PORT` | api-gateway | Y | - | Port Redis server. |
 | `REDIS_PASSWORD` | api-gateway | Y | - | Mật khẩu Redis. |
@@ -35,8 +35,8 @@
 | `DB_NAME` | core | Y | - | Tên database PostgreSQL (bắt buộc, không fallback trong code). |
 | `GOOGLE_CLIENT_ID` | core | Y | - | Client ID OAuth 2.0 cho đăng nhập Google. |
 | `GOOGLE_CLIENT_SECRET` | core | Y | - | Client secret OAuth 2.0 cho đăng nhập Google. |
-| `API_URL` | core | Y | `http://localhost:8000` | URL public của hệ thống (gateway); core build `redirect_uri` Google OAuth là `${API_URL}/auth/google/callback` nên callback trỏ về gateway. |
-| `JWT_SECRET` | core | Y | - | Secret HS256 ký access token trả về ở `POST /auth/google/exchange`. Google change token và refresh token sinh ngẫu nhiên + SHA-256 hash lưu Redis (không dùng JWT). |
+| `API_URL` | core | Y | `http://localhost:8000` | URL public của hệ thống (gateway); core build `redirect_uri` Google OAuth là `${API_URL}/api/v1/auth/google/callback` nên callback trỏ về gateway. |
+| `JWT_SECRET` | core | Y | - | Secret HS256 ký access token trả về ở `POST /api/v1/auth/google/exchange`. Google change token và refresh token sinh ngẫu nhiên + SHA-256 hash lưu Redis (không dùng JWT). |
 | `FRONTEND_ORIGIN` | core | N | `http://localhost:3000` | Origin FE để BE redirect cố định sau callback Google. CORS/CSRF nay do gateway xử lý. |
 | `REDIS_HOST` | core | Y | - | Host Redis server (bắt buộc, không fallback trong code). |
 | `REDIS_PORT` | core | Y | - | Port Redis server (bắt buộc, không fallback trong code). |
@@ -46,7 +46,7 @@
 ### 3.3 Frontend (`ui`)
 | Biến | Module | Bắt buộc | Mặc định | Mô tả |
 |---|---|---|---|---|
-| `NEXT_PUBLIC_API_BASE_URL` | ui | N | `http://localhost:8000` | Base URL để FE gọi vào API Gateway (`/auth/google`, `/auth/google/exchange`, ...). |
+| `NEXT_PUBLIC_API_BASE_URL` | ui | N | `http://localhost:8000/api/v1` | Base URL để FE gọi vào API Gateway dưới namespace `/api/v1`; FE giữ path tương đối (`/auth/me`, `/users`, `/auth/google`, ...) và axios resolve thành `/api/v1/...`. |
 
 ## 4. Nhóm cấu hình theo chức năng
 ### 4.1 Ứng dụng
@@ -75,9 +75,9 @@
 ### 4.5 Tích hợp FE-BE đăng nhập Google
 - `FRONTEND_ORIGIN` (Core redirect sau login)
 - `API_URL` (gateway, driver cho `redirect_uri` Google OAuth)
-- `NEXT_PUBLIC_API_BASE_URL` (FE trỏ vào gateway `8000`)
-- FE luôn gọi qua API Gateway (`8000`); gateway proxy sang core (`8001`).
-- FE gọi `POST /auth/google/exchange` phải bật gửi credentials để kèm cookie `google_change_token`.
+- `NEXT_PUBLIC_API_BASE_URL` (FE trỏ vào gateway namespace `http://localhost:8000/api/v1`)
+- FE luôn gọi qua API Gateway namespace `/api/v1`; gateway strip `/api` và proxy `/v1/...` sang core (`8001`).
+- FE gọi `POST /api/v1/auth/google/exchange` phải bật gửi credentials để kèm cookie `google_change_token`.
 - BE trả access token trong JSON response để FE persist theo account; phiên được set vào cookie HttpOnly `session_id` mà gateway dùng để validate qua Redis.
 
 ## 5. Quy trình cập nhật cấu hình

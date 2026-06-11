@@ -93,8 +93,8 @@ Bảng mô tả chi tiết Backend:
 | `core/src/app.module.ts` | Mã nguồn | Module gốc, đăng ký Config global với validate env bắt buộc (fail-fast khi thiếu biến) và import các module nghiệp vụ. |
 | `core/src/cache/redis-cache.module.ts` | Mã nguồn | Module tách riêng cấu hình Redis cache, đọc env bắt buộc qua ConfigService và đăng ký CacheModule global. |
 | `core/src/auth/auth.module.ts` | Mã nguồn | Module xác thực, gom controller/service/strategy cho OAuth Google và code-exchange flow qua cache manager. |
-| `core/src/auth/auth.controller.ts` | Mã nguồn | Endpoint khởi tạo Google OAuth, callback set cookie HttpOnly `google_change_token` theo `NODE_ENV` (`production` => `None+Secure`, dev => `Lax`) + redirect `/login/callback?code=...`, endpoint exchange trả access token + Google user và set cookie HttpOnly riêng `rt_<userId>`, đồng thời có `GET /auth/me` để FE lấy thông tin user hiện tại sau khi đổi account. |
-| `core/src/auth/dto/exchange-google-code.dto.ts` | Mã nguồn | DTO validate request body cho endpoint `POST /auth/google/exchange`. |
+| `core/src/auth/auth.controller.ts` | Mã nguồn | Controller versioned ở cấp `v1/auth` (public form `/api/v1/auth/...`): endpoint khởi tạo Google OAuth, callback set cookie HttpOnly `google_change_token` theo `NODE_ENV` (`production` => `None+Secure`, dev => `Lax`) + redirect `/login/callback?code=...`, endpoint exchange trả access token + Google user và set cookie HttpOnly riêng `rt_<userId>`, đồng thời có `GET /v1/auth/me` (public `/api/v1/auth/me`) để FE lấy thông tin user hiện tại sau khi đổi account. |
+| `core/src/auth/dto/exchange-google-code.dto.ts` | Mã nguồn | DTO validate request body cho endpoint exchange `POST /v1/auth/google/exchange` (public `/api/v1/auth/google/exchange`). |
 | `core/src/auth/auth.utils.ts` | Mã nguồn | Utility nội bộ module `auth` để build URL redirect Google, khai báo hằng số cookie/tTL callback, và đọc giá trị cookie từ header. |
 | `core/src/auth/token.service.ts` | Mã nguồn | Service tách riêng trách nhiệm sinh one-time code, ký access/refresh token, và parse JWT change token của flow exchange. |
 | `core/src/auth/auth.service.ts` | Mã nguồn | Nghiệp vụ đồng bộ user Google, lưu one-time `code -> email` TTL 60s trong Redis, rồi exchange bằng đối soát code với email trong JWT cookie để cấp access/refresh token và trả Google user. |
@@ -147,7 +147,7 @@ Bảng mô tả chi tiết API Gateway:
 | `api-gateway/src/app.module.ts` | Mã nguồn | Module gốc, đăng ký Config global và mắc chuỗi middleware xác thực edge + proxy. |
 | `api-gateway/src/auth/auth-paths.ts` | Mã nguồn | Khai báo danh sách route public (không bắt buộc session) để phân biệt với route protected. |
 | `api-gateway/src/auth/gateway-auth.middleware.ts` | Mã nguồn | Middleware đọc cookie `session_id`, validate qua Redis, strip header `X-User-*` client gửi rồi inject identity tin cậy; route protected thiếu phiên hợp lệ trả 401. |
-| `api-gateway/src/proxy/proxy.middleware.ts` | Mã nguồn | Proxy `/auth/*` và `/api/*` sang core (`CORE_URL`) bằng `http-proxy-middleware`. |
+| `api-gateway/src/proxy/proxy.middleware.ts` | Mã nguồn | Proxy namespace public `/api/*` sang core (`CORE_URL`) bằng `http-proxy-middleware`: strip prefix `/api` rồi forward phần còn lại `/v1/...` (vd `/api/v1/users` -> core `/v1/users`). |
 | `api-gateway/src/session/session-store.module.ts` | Mã nguồn | Module đóng gói và export service đọc session từ Redis. |
 | `api-gateway/src/session/session-store.service.ts` | Mã nguồn | Service đọc `session:{sha256(token)}` từ Redis, sliding-renew TTL khi phiên còn hợp lệ. |
 | `api-gateway/src/session/session.constants.ts` | Mã nguồn | Hằng số dùng chung cho session store (prefix key, tên cookie, header identity). |
@@ -221,11 +221,11 @@ Bảng mô tả chi tiết Frontend:
 | `ui/src/app/layout.tsx` | Mã nguồn | Root layout của App Router. |
 | `ui/src/app/(private)/layout.tsx` | Mã nguồn | Route group layout cho vùng private cần đăng nhập, giữ URL thật không đổi và bảo vệ route bằng trạng thái auth trong Zustand sau khi persist hydrate. |
 | `ui/src/app/(private)/page.tsx` | Mã nguồn | Trang chính tại `/`, render home client component dưới Suspense. |
-| `ui/src/app/(private)/home-page-client.tsx` | Mã nguồn | Client component chuyển account, gọi `GET /auth/me` theo account active và hiển thị thông tin user hiện tại. |
+| `ui/src/app/(private)/home-page-client.tsx` | Mã nguồn | Client component chuyển account, gọi path tương đối `/auth/me` (resolve thành `/api/v1/auth/me` qua axios baseURL `NEXT_PUBLIC_API_BASE_URL`) theo account active và hiển thị thông tin user hiện tại. |
 | `ui/src/app/(auth)/layout.tsx` | Mã nguồn | Route group layout cho vùng auth chỉ dành cho người chưa đăng nhập, giữ URL thật không đổi và redirect về `/` nếu đã có session. |
 | `ui/src/app/(auth)/login/callback/page.tsx` | Mã nguồn | Route callback Google của FE, bọc client logic dưới Suspense. |
 | `ui/src/app/(auth)/login/callback/callback-client.tsx` | Mã nguồn | Client component gọi BE đổi `code` với `withCredentials: true` để gửi cookie đổi mã, lưu token+user vào store và redirect về `/`. |
-| `ui/src/app/(auth)/login/page.tsx` | Mã nguồn | Trang login Google trong auth route group, chuyển hướng sang BE `/auth/google` bằng axios baseURL. |
+| `ui/src/app/(auth)/login/page.tsx` | Mã nguồn | Trang login Google trong auth route group, chuyển hướng sang BE bằng path tương đối `/auth/google` (resolve thành `/api/v1/auth/google` qua axios baseURL `NEXT_PUBLIC_API_BASE_URL`). |
 | `ui/src/app/globals.css` | Mã nguồn CSS | Khai báo style global của UI. |
 | `ui/src/app/favicon.ico` | Asset giao diện | Favicon của ứng dụng. |
 | `ui/src/components/ui/button.tsx` | Mã nguồn | Button UI dùng chung theo cấu hình shadcn hiện tại. |
