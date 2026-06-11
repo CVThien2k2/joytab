@@ -19,6 +19,10 @@ export const ERROR_CODES = {
     code: 'AUTH_005',
     message: 'Session expired',
   },
+  AUTH_006: {
+    code: 'AUTH_006',
+    message: 'Request origin not allowed',
+  },
   VALIDATION_001: {
     code: 'VALIDATION_001',
     message: 'Bad request',

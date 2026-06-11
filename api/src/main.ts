@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { AppLogger } from './common/loggers/app.logger';
+import { isOriginAllowed, resolveOriginAllowlist } from './common/utils/origin.util';
 import { AppModule } from './app.module';
 
 /**
@@ -18,10 +19,19 @@ async function bootstrap() {
   // thấy tiến trình khởi động kể cả khi kết nối lỗi.
   const app = await NestFactory.create(AppModule);
   app.useLogger(app.get(AppLogger));
-  const frontendOrigin = process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000';
   app.use(helmet({ contentSecurityPolicy: false }));
+  // Allowlist origin (CORS_ALLOWED_ORIGINS, fallback FRONTEND_ORIGIN) — dùng chung với CsrfGuard.
+  // Hỗ trợ wildcard subdomain (https://*.example.com) cho SSO cross-subdomain.
+  const allowlist = resolveOriginAllowlist((key) => process.env[key]);
   app.enableCors({
-    origin: frontendOrigin,
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // origin undefined: same-origin hoặc client non-browser (curl) → cho qua, CSRF guard chặn mutation.
+      if (!origin || isOriginAllowed(origin, allowlist)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`Origin not allowed by CORS: ${origin}`), false);
+    },
     credentials: true,
   });
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
