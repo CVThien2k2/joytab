@@ -9,6 +9,7 @@ import { GatewayAuthMiddleware } from './auth/gateway-auth.middleware';
 import { ProxyMiddleware } from './proxy/proxy.middleware';
 import { IntrospectService } from './auth/introspect.service';
 import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -47,7 +48,7 @@ import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
     }),
     SessionStoreModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [
     IntrospectService,
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

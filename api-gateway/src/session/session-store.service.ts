@@ -37,7 +37,13 @@ export class SessionStoreService implements OnModuleInit, OnModuleDestroy {
     ).trim();
     const db = this.configService.get<string>('REDIS_DB') ?? '0';
     const auth = password ? `:${password}@` : '';
-    this.client = createClient({ url: `redis://${auth}${host}:${port}/${db}` });
+    this.client = createClient({
+      url: `redis://${auth}${host}:${port}/${db}`,
+      disableOfflineQueue: true,
+      socket: {
+        reconnectStrategy: (retries) => Math.min(retries * 200, 5000),
+      },
+    });
     this.client.on('error', (err: Error) =>
       this.logger.error(`Redis error: ${err.message}`),
     );
@@ -45,10 +51,38 @@ export class SessionStoreService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Input: Không có.
-   * Output: Mở kết nối Redis khi gateway khởi động.
+   * Output: Kết nối Redis ở chế độ nền (không chặn boot). Redis chết lúc khởi động → gateway vẫn chạy,
+   *         validate() sẽ fail-fast và auth middleware tự degrade sang core introspect cho tới khi Redis hồi.
    */
-  async onModuleInit(): Promise<void> {
-    await this.client.connect();
+  onModuleInit(): void {
+    void this.connectWithRetry();
+  }
+
+  /**
+   * Input: số lần thử + delay giữa các lần (ms).
+   * Output: Thử kết nối Redis tối đa maxAttempts lần; hết vẫn KHÔNG ném (gateway chạy degraded).
+   */
+  private async connectWithRetry(
+    maxAttempts = 10,
+    delayMs = 2_000,
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await this.client.connect();
+        this.logger.log('Redis connected');
+        return;
+      } catch (err) {
+        this.logger.warn(
+          `Redis connect lần ${attempt}/${maxAttempts} lỗi: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+    }
+    this.logger.error(
+      'Không kết nối được Redis sau khi retry — gateway chạy degraded (degrade sang core introspect).',
+    );
   }
 
   /**
