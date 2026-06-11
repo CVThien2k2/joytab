@@ -4,7 +4,7 @@ services:
     container_name: joytab-postgres
     restart: unless-stopped
     env_file:
-      - ./api/.env
+      - ./sso/.env
     ports:
       - '5432:5432'
     environment:
