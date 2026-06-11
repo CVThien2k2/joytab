@@ -71,7 +71,13 @@ export class GatewayAuthMiddleware implements NestMiddleware {
       return this.deny(req, next, publicPath, ERROR_CODES.AUTH_001);
     }
 
-    // 2) Redis miss/lỗi → hỏi core (cache-aside / degrade).
+    // 2) Redis miss/lỗi: route public KHÔNG cần introspect → cho qua, tránh gọi core vô ích.
+    if (publicPath) {
+      next();
+      return;
+    }
+
+    // 3) Route bảo vệ + Redis miss/lỗi → hỏi core (cache-aside / degrade).
     const result = await this.introspectService.introspect(req.headers.cookie);
     if (result.status === 'ok' && result.payload.deviceId === deviceId) {
       this.inject(req, result.payload);
@@ -80,7 +86,7 @@ export class GatewayAuthMiddleware implements NestMiddleware {
     }
     if (result.status === 'upstream_error') {
       // không verify được phiên (Redis lẫn core đều không xong) → 503 (không phải 401 gây hiểu nhầm)
-      return this.deny(req, next, publicPath, ERROR_CODES.SYS_503);
+      return this.deny(req, next, false, ERROR_CODES.SYS_503);
     }
     // unauthorized (hoặc ok nhưng sai device) → propagate code core thật
     const code =
@@ -88,7 +94,7 @@ export class GatewayAuthMiddleware implements NestMiddleware {
         ? (ERROR_CODES[result.code as keyof typeof ERROR_CODES] ??
           ERROR_CODES.AUTH_001)
         : ERROR_CODES.AUTH_001;
-    return this.deny(req, next, publicPath, code);
+    return this.deny(req, next, false, code);
   }
 
   /**

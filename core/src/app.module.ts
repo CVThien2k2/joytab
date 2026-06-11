@@ -67,6 +67,11 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
             url: req.url,
           }),
           res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
+          err: (err: Error & { code?: string }) => ({
+            type: err.name,
+            message: err.message,
+            code: err.code,
+          }),
         },
         autoLogging: true,
         level: process.env.LOG_LEVEL ?? 'info',
