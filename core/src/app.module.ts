@@ -59,6 +59,15 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
           return id;
         },
         customProps: () => ({ service: 'core' }),
+        // Log gọn: chỉ giữ reqId/method/url + status, bỏ toàn bộ header rác.
+        serializers: {
+          req: (req: { id: string | number; method: string; url: string }) => ({
+            id: req.id,
+            method: req.method,
+            url: req.url,
+          }),
+          res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
+        },
         autoLogging: true,
         level: process.env.LOG_LEVEL ?? 'info',
         redact: [
