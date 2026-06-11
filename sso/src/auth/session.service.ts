@@ -3,6 +3,7 @@ import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import { DatabaseService } from '../database/database.service';
 import { Prisma } from '../generated/prisma/client';
+import { SessionRedisService } from './session-redis.service';
 import { TokenService } from './token.service';
 
 export type PrismaTx = Prisma.TransactionClient;
@@ -18,14 +19,15 @@ export class SessionService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly tokenService: TokenService,
+    private readonly sessionRedisService: SessionRedisService,
   ) {}
 
   /**
-   * Input: userId, deviceId, transaction client.
-   * Output: Tạo session mới với token_hash + expires_at = now + TTL; trả { sessionId, sessionTokenRaw }.
+   * Input: userId, email, deviceId, transaction client.
+   * Output: Tạo session mới (Postgres) + ghi Redis key; trả { sessionId, sessionTokenRaw }.
    */
   async createSession(
-    params: { userId: string; deviceId: string },
+    params: { userId: string; email: string; deviceId: string },
     tx: PrismaTx,
   ): Promise<{ sessionId: string; sessionTokenRaw: string }> {
     const { raw, hash } = this.tokenService.createSessionToken();
@@ -38,14 +40,20 @@ export class SessionService {
         last_used_at: new Date(),
       },
     });
+    await this.sessionRedisService.putSession(hash, {
+      userId: params.userId,
+      email: params.email,
+      sessionId: session.id,
+      deviceId: params.deviceId,
+    });
     return { sessionId: session.id, sessionTokenRaw: raw };
   }
 
   /**
-   * Input: userId, deviceId, transaction client.
-   * Output: Login/add-account — có phiên sống thì cấp token mới cho phiên đó, chưa có thì tạo mới. Trả raw token.
+   * Input: userId, email, deviceId, transaction client.
+   * Output: Có phiên sống → cấp token mới + ghi Redis; chưa có → tạo mới. Trả raw token.
    */
-  async createOrRefreshSession(params: { userId: string; deviceId: string }, tx: PrismaTx): Promise<string> {
+  async createOrRefreshSession(params: { userId: string; email: string; deviceId: string }, tx: PrismaTx): Promise<string> {
     const existing = await tx.userSession.findFirst({
       where: { user_id: params.userId, device_id: params.deviceId, is_revoked: false, expires_at: { gt: new Date() } },
       orderBy: { created_at: 'desc' },
@@ -59,6 +67,12 @@ export class SessionService {
           last_used_at: new Date(),
           expires_at: new Date(Date.now() + this.tokenService.getSessionTtlMs()),
         },
+      });
+      await this.sessionRedisService.putSession(hash, {
+        userId: params.userId,
+        email: params.email,
+        sessionId: existing.id,
+        deviceId: params.deviceId,
       });
       return raw;
     }
@@ -100,8 +114,8 @@ export class SessionService {
   }
 
   /**
-   * Input: deviceId (từ cookie), userId đích, transaction client.
-   * Output: Account đã link + còn phiên sống → cấp token mới cho phiên đó, trả raw. Ngược lại AUTH_001 (cần login lại).
+   * Input: deviceId, userId đích, transaction client.
+   * Output: Account còn phiên sống → cấp token mới + ghi Redis; ngược lại AUTH_001.
    */
   async switchActiveSession(params: { deviceId: string; userId: string }, tx: PrismaTx): Promise<string> {
     const link = await tx.deviceUser.findUnique({
@@ -110,6 +124,7 @@ export class SessionService {
     if (!link) throw new AppException(ERROR_CODES.AUTH_001);
     const session = await tx.userSession.findFirst({
       where: { user_id: params.userId, device_id: params.deviceId, is_revoked: false, expires_at: { gt: new Date() } },
+      include: { user: true },
       orderBy: { created_at: 'desc' },
     });
     if (!session) throw new AppException(ERROR_CODES.AUTH_001);
@@ -122,28 +137,36 @@ export class SessionService {
         expires_at: new Date(Date.now() + this.tokenService.getSessionTtlMs()),
       },
     });
+    await this.sessionRedisService.putSession(hash, {
+      userId: params.userId,
+      email: session.user.email,
+      sessionId: session.id,
+      deviceId: params.deviceId,
+    });
     return raw;
   }
 
   /**
    * Input: raw session token, transaction client.
-   * Output: Revoke session sở hữu token (reason 'logout'). Bỏ qua nếu không khớp.
+   * Output: Revoke session sở hữu token + xóa Redis key. Bỏ qua nếu không khớp.
    */
   async revokeByRawToken(rawToken: string, tx: PrismaTx): Promise<void> {
     const hash = this.tokenService.hashToken(rawToken);
     const session = await tx.userSession.findUnique({ where: { token_hash: hash } });
     if (!session) return;
     await this.revokeSession(session.id, 'logout', tx);
+    await this.sessionRedisService.deleteSession(hash);
   }
 
   /**
    * Input: sessionId, userId chủ sở hữu, transaction client.
-   * Output: Revoke session (reason 'revoked_remote') nếu thuộc user; AUTH_001 nếu không sở hữu.
+   * Output: Revoke session + xóa Redis key nếu thuộc user; AUTH_001 nếu không sở hữu.
    */
   async revokeSessionOwnedByUser(sessionId: string, userId: string, tx: PrismaTx): Promise<void> {
     const session = await tx.userSession.findFirst({ where: { id: sessionId, user_id: userId } });
     if (!session) throw new AppException(ERROR_CODES.AUTH_001);
     await this.revokeSession(sessionId, 'revoked_remote', tx);
+    await this.sessionRedisService.deleteSession(session.token_hash);
   }
 
   /**

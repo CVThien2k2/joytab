@@ -34,7 +34,7 @@ export class AuthService {
       );
       await this.deviceService.linkDeviceUser({ deviceId: device.id, userId: user.id }, tx);
       const sessionTokenRaw = await this.sessionService.createOrRefreshSession(
-        { userId: user.id, deviceId: device.id },
+        { userId: user.id, email: user.email, deviceId: device.id },
         tx,
       );
       return { deviceId: device.id, sessionTokenRaw };
