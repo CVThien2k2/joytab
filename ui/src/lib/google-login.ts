@@ -5,8 +5,8 @@ import { apiClient } from "@/api/client"
  * Output: Chuyển hướng browser sang BE /auth/google để bắt đầu OAuth.
  */
 export function redirectToGoogleLogin(options?: { selectAccount?: boolean }): void {
-  const apiBaseUrl = apiClient.defaults.baseURL ?? "http://localhost:8000"
-  const authUrl = new URL("/auth/google", apiBaseUrl)
+  const apiBaseUrl = apiClient.defaults.baseURL ?? "http://localhost:8000/api/v1"
+  const authUrl = new URL(`${apiBaseUrl.replace(/\/+$/, "")}/auth/google`)
   if (options?.selectAccount) {
     authUrl.searchParams.set("prompt", "select_account")
   }
