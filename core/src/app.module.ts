@@ -67,11 +67,13 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
             url: req.url,
           }),
           res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
-          err: (err: Error & { code?: string }) => ({
-            type: err.name,
-            message: err.message,
-            code: err.code,
-          }),
+          err: (err: Error & { code?: string }) => {
+            // Bỏ synthetic err pino-http tự tạo cho 5xx ("failed with status code N") — đã có dòng nguyên-nhân riêng.
+            if (typeof err?.message === 'string' && err.message.startsWith('failed with status code')) {
+              return undefined;
+            }
+            return { type: err.name, message: err.message, code: err.code };
+          },
         },
         autoLogging: true,
         level: process.env.LOG_LEVEL ?? 'info',

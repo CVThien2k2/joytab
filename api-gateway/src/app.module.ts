@@ -36,13 +36,23 @@ import { HealthController } from './health/health.controller';
           res: (res: { statusCode: number }) => ({
             statusCode: res.statusCode,
           }),
-          err: (err: Error & { code?: string }) => ({
-            type: err.name,
-            message: err.message,
-            code: err.code,
-          }),
+          err: (err: Error & { code?: string }) => {
+            // Bỏ synthetic err pino-http tự tạo cho 5xx ("failed with status code N") — đã có dòng nguyên-nhân riêng.
+            if (
+              typeof err?.message === 'string' &&
+              err.message.startsWith('failed with status code')
+            ) {
+              return undefined;
+            }
+            return { type: err.name, message: err.message, code: err.code };
+          },
         },
-        autoLogging: true,
+        autoLogging: {
+          ignore: (req: { url?: string }) => {
+            const url = req.url ?? '';
+            return url.startsWith('/.well-known/') || url === '/favicon.ico';
+          },
+        },
         level: process.env.LOG_LEVEL ?? 'info',
         redact: ['req.headers.cookie', 'req.headers.authorization'],
         transport:
