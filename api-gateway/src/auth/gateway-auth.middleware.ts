@@ -26,7 +26,7 @@ export class GatewayAuthMiddleware implements NestMiddleware {
    * Output: Strip header X-User-* giả mạo; validate session Redis; inject identity khi hợp lệ.
    *         Route bảo vệ thiếu/sai session → 401; route public thì cho qua không identity.
    */
-  async use(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async use(req: Request, _res: Response, next: NextFunction): Promise<void> {
     // Chống giả mạo: luôn xóa mọi header identity client tự gửi.
     delete req.headers[HEADER_USER_ID];
     delete req.headers[HEADER_USER_EMAIL];
