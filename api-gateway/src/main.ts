@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { AppModule } from './app.module';
@@ -12,7 +13,8 @@ import {
  * Output: Khởi tạo gateway NestJS, bật helmet + filter lỗi + shutdown hooks, listen PORT (default 8000).
  */
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
   app.use(helmet({ contentSecurityPolicy: false }));
   // Allowlist origin (CORS_ALLOWED_ORIGINS, fallback FRONTEND_ORIGIN) — dùng chung với CSRF middleware.
   // Hỗ trợ wildcard subdomain (https://*.example.com) cho core cross-subdomain.

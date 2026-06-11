@@ -28,6 +28,12 @@ export class ProxyMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
     // Gateway expose dưới /api; bỏ tiền tố /api rồi forward phần còn lại (/v1/...) xuống core.
     req.url = req.originalUrl.replace(/^\/api/, '');
+    // Đảm bảo X-Request-Id được forward xuống core kể cả khi thứ tự middleware đổi.
+    // req.id do pino-http (genReqId) gán; no-op khi header đã có sẵn.
+    const reqId = (req as { id?: string | number }).id;
+    if (!req.headers['x-request-id'] && reqId) {
+      req.headers['x-request-id'] = String(reqId);
+    }
     void this.proxy(req, res, next);
   }
 }
