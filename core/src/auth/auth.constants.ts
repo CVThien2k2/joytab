@@ -30,3 +30,9 @@ export const AUTH_THROTTLE_LIMIT = 10;
 
 // ===== FE origin fallback khi thiếu env FRONTEND_ORIGIN =====
 export const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:3000';
+
+// ===== Microservice (TCP) gateway → core =====
+/** Message pattern introspect — gateway gọi khi Redis miss (cache-aside fallback). Phải khớp gateway. */
+export const AUTH_INTROSPECT_PATTERN = 'auth.introspect';
+/** Port TCP microservice core lắng nghe (song song HTTP). Default 8101. */
+export const CORE_TCP_PORT_DEFAULT = 8101;

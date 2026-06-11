@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
 import { SessionStoreModule } from './session/session-store.module';
@@ -8,6 +9,10 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
 import { GatewayAuthMiddleware } from './auth/gateway-auth.middleware';
 import { ProxyMiddleware } from './proxy/proxy.middleware';
 import { IntrospectService } from './auth/introspect.service';
+import {
+  CORE_CLIENT,
+  CORE_TCP_PORT_DEFAULT,
+} from './auth/core-client.constants';
 import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { HealthController } from './health/health.controller';
 
@@ -62,6 +67,23 @@ import { HealthController } from './health/health.controller';
       },
     }),
     SessionStoreModule,
+    // Client TCP tới core microservice — introspect khi Redis miss (cache-aside fallback).
+    // host/port từ env (CORE_TCP_HOST/CORE_TCP_PORT), default localhost:8101.
+    ClientsModule.registerAsync([
+      {
+        name: CORE_CLIENT,
+        inject: [ConfigService],
+        useFactory: (config: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: config.get<string>('CORE_TCP_HOST') ?? 'localhost',
+            port:
+              Number(config.get<string>('CORE_TCP_PORT')) ||
+              CORE_TCP_PORT_DEFAULT,
+          },
+        }),
+      },
+    ]),
   ],
   controllers: [HealthController],
   providers: [

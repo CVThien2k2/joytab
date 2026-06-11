@@ -78,7 +78,7 @@ export class GatewayAuthMiddleware implements NestMiddleware {
     }
 
     // 3) Route bảo vệ + Redis miss/lỗi → hỏi core (cache-aside / degrade).
-    const result = await this.introspectService.introspect(req.headers.cookie);
+    const result = await this.introspectService.introspect(rawToken, deviceId);
     if (result.status === 'ok' && result.payload.deviceId === deviceId) {
       this.inject(req, result.payload);
       next();

@@ -1,10 +1,12 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/exceptions/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
+import { CORE_TCP_PORT_DEFAULT } from './auth/auth.constants';
 
 /**
  * Input: Không có tham số đầu vào.
@@ -22,6 +24,18 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  // Microservice TCP cho gateway gọi introspect khi Redis miss (cache-aside fallback).
+  // KHÔNG truyền inheritAppConfig: pipeline RPC tách khỏi enhancer HTTP (HttpExceptionFilter
+  // switchToHttp() sẽ vỡ trong context RPC, ResponseInterceptor wrap thừa) — AuthRpcController
+  // tự ném RpcException kèm code và trả raw payload.
+  const tcpPort = Number(process.env.CORE_TCP_PORT) || CORE_TCP_PORT_DEFAULT;
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: { host: '0.0.0.0', port: tcpPort },
+  });
+  await app.startAllMicroservices();
+
   app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 3000);
 }

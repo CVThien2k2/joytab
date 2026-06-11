@@ -103,18 +103,6 @@ export class AuthController {
   }
 
   /**
-   * Input: cookie session_id + device_id (gateway gọi nội bộ khi Redis miss).
-   * Output: payload session { userId, email, sessionId, deviceId } + rehydrate Redis; AUTH_001 nếu thiếu/không hợp lệ.
-   */
-  @Post('introspect')
-  async introspect(@Req() request: Request) {
-    const rawToken = readCookieValue(request.headers.cookie, SESSION_COOKIE_NAME);
-    const deviceId = readCookieValue(request.headers.cookie, DEVICE_COOKIE_NAME);
-    if (!rawToken || !isUuid(deviceId)) throw new AppException(ERROR_CODES.AUTH_001);
-    return this.authService.introspect(rawToken, deviceId);
-  }
-
-  /**
    * Input: cookie device_id.
    * Output: Danh sách account trên device + cờ needsRelogin (rỗng nếu chưa có device_id).
    */
