@@ -4,6 +4,8 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+packageExtensionsChecksum: sha256-LmfbwiTXbXp+LFx+/Yko8q+x3Y/kjnTQSLqCVXuuu/c=
+
 importers:
 
   .:
@@ -13,7 +15,7 @@ importers:
         version: 5.2.0
       '@hookform/resolvers':
         specifier: ^5.4.0
-        version: 5.4.0(react-hook-form@7.77.0(react@19.2.4))
+        version: 5.4.0(react-hook-form@7.77.0(react@19.2.4))(zod@4.4.3)
       '@tanstack/react-query':
         specifier: ^5.100.13
         version: 5.100.13(react@19.2.4)
@@ -314,6 +316,7 @@ packages:
     resolution: {integrity: sha512-EIsqr/t/qbinPIhGjMdtvutIN1Kk4uwbROE9/UQ93CAVGR7GkA7Y92+fX80OzXi/OB67jVFYwKGO1WzkxmkFZw==}
     peerDependencies:
       react-hook-form: ^7.55.0
+      zod: ^3.25.0 || ^4.0.0
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -4193,10 +4196,11 @@ snapshots:
     dependencies:
       hono: 4.12.22
 
-  '@hookform/resolvers@5.4.0(react-hook-form@7.77.0(react@19.2.4))':
+  '@hookform/resolvers@5.4.0(react-hook-form@7.77.0(react@19.2.4))(zod@4.4.3)':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.77.0(react@19.2.4)
+      zod: 4.4.3
 
   '@humanfs/core@0.19.2':
     dependencies:

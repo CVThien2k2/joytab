@@ -5,3 +5,7 @@ allowBuilds:
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+packageExtensions:
+  '@hookform/resolvers@*':
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0

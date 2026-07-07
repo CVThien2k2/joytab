@@ -40,13 +40,5 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
-  "pnpm": {
-    "packageExtensions": {
-      "@hookform/resolvers@*": {
-        "peerDependencies": {
-          "zod": "^3.25.0 || ^4.0.0"
-        }
-      }
-    }
-  }
+  "packageManager": "pnpm@11.3.0"
 }
