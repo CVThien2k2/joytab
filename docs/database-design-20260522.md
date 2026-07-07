@@ -40,13 +40,14 @@
 ### 4.2 Bảng `devices`
 | Cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa |
 |---|---|---|---|
-| `id` | uuid | PK | Định danh thiết bị nội bộ |
-| `device_fingerprint` | varchar(255) | UNIQUE, NOT NULL | Dấu vân tay thiết bị |
-| `device_name` | varchar(255) | NULL | Tên hiển thị thiết bị |
-| `platform` | varchar(50) | NULL | Web/Android/iOS/Desktop |
+| `id` | uuid | PK | Định danh thiết bị nội bộ, lưu trong cookie `device_id` |
+| `device_name` | varchar(255) | NULL | Tên hiển thị thiết bị (parse từ user-agent) |
+| `platform` | varchar(50) | NULL | Web/Android/iOS/Desktop (parse từ user-agent) |
 | `last_seen_at` | timestamptz | NULL | Lần hoạt động gần nhất |
 | `created_at` | timestamptz | NOT NULL | Thời điểm tạo |
 | `updated_at` | timestamptz | NOT NULL | Thời điểm cập nhật |
+
+> Không còn cột `device_fingerprint`: định danh thiết bị dựa trên UUID `id` lưu ở cookie `device_id` (sống 1 năm), tạo mới khi thiếu/không hợp lệ.
 
 ### 4.3 Bảng `device_users`
 | Cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa |
@@ -65,29 +66,33 @@
 | `id` | uuid | PK | Định danh session |
 | `user_id` | uuid | FK -> `users.id`, NOT NULL | Chủ sở hữu session |
 | `device_id` | uuid | FK -> `devices.id`, NOT NULL | Thiết bị tạo session |
-| `refresh_token_hash` | text | NOT NULL | Hash refresh token |
-| `access_expires_at` | timestamptz | NOT NULL | Hết hạn access token |
-| `refresh_expires_at` | timestamptz | NOT NULL | Hết hạn refresh token |
+| `token_hash` | text | UNIQUE, NOT NULL | SHA-256 của session token (raw token đặt trong cookie `session_id`) |
 | `is_revoked` | boolean | NOT NULL, default `false` | Cờ revoke session |
 | `revoked_at` | timestamptz | NULL | Thời điểm revoke |
-| `revoke_reason` | varchar(100) | NULL | Lý do revoke |
+| `revoke_reason` | varchar(100) | NULL | Lý do revoke (`logout`, `revoked_remote`) |
+| `last_used_at` | timestamptz | NULL | Lần dùng gần nhất (cập nhật khi sliding renew) |
+| `expires_at` | timestamptz | NOT NULL | Hết hạn session (now + TTL 7 ngày) |
 | `created_at` | timestamptz | NOT NULL | Thời điểm tạo |
 | `updated_at` | timestamptz | NOT NULL | Thời điểm cập nhật |
+
+> Mô hình phiên dùng **một token cookie duy nhất** (`session_id`), không tách access/refresh và không dùng JWT. Token được rotate khi login lại/switch account, và gia hạn `expires_at` theo cơ chế sliding renew (chỉ ghi DB khi thời gian còn lại dưới 1 ngày).
 
 ## 5. Chỉ mục và ràng buộc quan trọng
 - `users.email`: unique index.
 - `users(provider, provider_user_id)`: unique index.
 - `device_users(device_id, user_id)`: unique index.
-- `device_users(device_id) where is_active = true`: unique partial index để đảm bảo mỗi thiết bị chỉ có một user active tại một thời điểm.
-- `user_sessions(user_id, is_revoked)`: index cho tra cứu session active.
+- `user_sessions.token_hash`: unique index (tra cứu session theo hash token cookie).
+- `user_sessions(user_id, is_revoked)`: index cho tra cứu session theo user.
 - `user_sessions(device_id, is_revoked)`: index cho tra cứu session theo thiết bị.
+
+> `previewFeatures = ["partialIndexes"]` đã bật trong generator Prisma; hiện chưa khai báo partial index nào trong schema.
 
 ## 6. Quy tắc dữ liệu cho các case hiện tại
 - Một `user` tương ứng đúng một account Google (định danh bởi `provider_user_id`).
-- Một thiết bị có thể liên kết nhiều user thông qua `device_users`.
-- Mỗi thời điểm, một thiết bị chỉ có một user active (`is_active = true`) theo policy ứng dụng.
+- Một thiết bị có thể liên kết nhiều user thông qua `device_users` (multi-account); khi link, account được set `is_active = true` và không tự deactivate account khác.
+- Account đang "active" trên trình duyệt được xác định bởi cookie `session_id` hiện tại, không bởi cột `is_active`.
 - Một user có thể đăng nhập trên nhiều thiết bị, mỗi thiết bị có session riêng trong `user_sessions`.
-- Use case "đăng xuất khỏi các máy khác" thực hiện bằng cách set `is_revoked = true` cho các session cùng `user_id` nhưng khác `current_device_id`.
+- Session được coi là "sống" khi `is_revoked = false` và `expires_at > now`. Đăng xuất/thu hồi từ xa set `is_revoked = true` kèm `revoke_reason`.
 - Truy vấn nghiệp vụ mặc định loại bỏ bản ghi `users.is_deleted = true`.
 
 ## 7. Dữ liệu chưa nằm trong scope hiện tại

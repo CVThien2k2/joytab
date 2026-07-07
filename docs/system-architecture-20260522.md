@@ -2,25 +2,27 @@
 
 ## 1. Mục tiêu tài liệu
 - Trình bày kiến trúc tổng quát của dự án theo mô hình monolith.
-- Làm rõ vai trò của UI, Service API, Database, Redis Cache, Internet/External.
+- Làm rõ vai trò của UI, Edge Gateway, Service API, Database, Redis Cache, Internet/External.
 
 ## 2. Kiến trúc tổng quát toàn dự án (Monolith)
 ```mermaid
 flowchart LR
-  UI[UI] --> API[Service API]
-  API --> DB[(Database)]
+  UI[UI - Next.js] --> GW[Edge Gateway /api]
+  GW --> API[Service API - NestJS]
+  API --> DB[(PostgreSQL)]
   API --> REDIS[(Redis Cache)]
-  API --> EXT[Internet/External]
-  EXT --> API
+  API --> GG[Google OAuth]
+  GG --> API
 ```
 
 | Thành phần | Vai trò |
 |---|---|
-| UI | Nhận thao tác người dùng, hiển thị dữ liệu và gọi API. |
-| Service API | Một service backend tập trung xử lý toàn bộ nghiệp vụ và tích hợp theo mô hình monolith. |
-| Database | Lưu trữ dữ liệu nghiệp vụ của hệ thống. |
-| Redis Cache | Lưu dữ liệu truy xuất nhanh (cache/session/token/rate-limit data). |
-| Internet/External | Dịch vụ bên ngoài giao tiếp qua outbound/callback/webhook. |
+| UI | Next.js App Router; nhận thao tác người dùng, gọi API kèm cookie (`withCredentials`). |
+| Edge Gateway | Lớp biên nhận `NEXT_PUBLIC_API_BASE_URL` (`.../api/v1`), strip `/api` và forward tới Service API. Core NestJS phục vụ trực tiếp `/auth/*`, `/users/*`. |
+| Service API | Backend monolith (NestJS) xử lý toàn bộ nghiệp vụ; cross-cutting: `helmet`, CORS `credentials`, `ThrottlerModule`, `ValidationPipe`, interceptor/filter chuẩn response, session cookie. |
+| Database | PostgreSQL lưu dữ liệu nghiệp vụ (truy cập qua Prisma + adapter `pg`). |
+| Redis Cache | Lưu dữ liệu truy xuất nhanh (cache), quản lý bởi `@nestjs/cache-manager` + `@keyv/redis`. |
+| Google OAuth | Nhà cung cấp OAuth 2.0 cho đăng nhập; callback về `${API_URL}/auth/google/callback`. |
 
 ## 3. Vai trò các khối chính
 | Khối | Input chính | Output chính |

@@ -2,9 +2,9 @@
 icon: lucide/book-open-text
 ---
 
-# Tài liệu dự án Comitor
+# Tài liệu dự án Joytab
 
-Trang này là mục lục tổng hợp các tài liệu nền tảng của dự án.
+Joytab là ứng dụng web giúp các team/tổ chức chia tiền (split bill) và quản lý quỹ chung minh bạch, đăng nhập bằng Google. Trang này là mục lục tổng hợp các tài liệu nền tảng của dự án.
 
 ## Mục lục chính
 
@@ -21,5 +21,5 @@ Trang này là mục lục tổng hợp các tài liệu nền tảng của dự
 11. [Phiên bản](phien-ban-20260522.md)
 
 ## Ghi chú sử dụng
-- Các file trên hiện là khung tài liệu để điền chi tiết dần.
+- Tài liệu mô tả trạng thái thực tế của codebase (`api/` NestJS + `ui/` Next.js). Khi thay đổi code liên quan business flow/cấu trúc/contract, cập nhật docs tương ứng để giữ đồng bộ.
 - Khi bổ sung file docs mới, cần cập nhật đồng thời `docs/index.md` và `nav` trong `zensical.toml`.
