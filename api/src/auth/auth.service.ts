@@ -13,7 +13,7 @@ type LoginResult = { userId: string; sessionTokenRaw: string; deviceId: string; 
 export class AuthService {
   /**
    * Input: DatabaseService, SessionService, DeviceService.
-   * Output: Service orchestrate nghiệp vụ login/switch/logout/quản lý phiên.
+   * Output: Service orchestrate nghiệp vụ login/logout/quản lý phiên.
    */
   constructor(
     private readonly databaseService: DatabaseService,
@@ -23,7 +23,7 @@ export class AuthService {
 
   /**
    * Input: Google profile đã validate + ngữ cảnh (deviceId cookie, userAgent).
-   * Output: Upsert user, đảm bảo Device, link DeviceUser, tạo/refresh session. Trả raw token + deviceId để set cookie.
+   * Output: Upsert user, đảm bảo Device, tạo/refresh session. Trả raw token + deviceId để set cookie.
    */
   async loginWithGoogle(googleUser: GoogleUser, ctx: LoginContext): Promise<LoginResult> {
     const user = await this.upsertGoogleUser(googleUser);
@@ -32,7 +32,6 @@ export class AuthService {
         { deviceId: ctx.deviceId, deviceName: ctx.deviceName, userAgent: ctx.userAgent },
         tx,
       );
-      await this.deviceService.linkDeviceUser({ deviceId: device.id, userId: user.id }, tx);
       const sessionTokenRaw = await this.sessionService.createOrRefreshSession(
         { userId: user.id, deviceId: device.id },
         tx,
@@ -48,43 +47,11 @@ export class AuthService {
   }
 
   /**
-   * Input: deviceId (từ cookie) + userId đích.
-   * Output: raw token mới cho account đích nếu còn phiên sống; AUTH_001 nếu cần login lại.
-   */
-  async switchAccount(deviceId: string, userId: string): Promise<{ userId: string; sessionTokenRaw: string }> {
-    const sessionTokenRaw = await this.databaseService.$transaction((tx) =>
-      this.sessionService.switchActiveSession({ deviceId, userId }, tx),
-    );
-    return { userId, sessionTokenRaw };
-  }
-
-  /**
    * Input: raw session token.
    * Output: Revoke session hiện tại (logout). Không ném lỗi nếu token đã không hợp lệ.
    */
   async logout(rawToken: string): Promise<void> {
     await this.databaseService.$transaction((tx) => this.sessionService.revokeByRawToken(rawToken, tx));
-  }
-
-  /**
-   * Input: deviceId từ cookie.
-   * Output: Danh sách account trên device + cờ needsRelogin (account hết phiên sống).
-   */
-  async listAccounts(deviceId: string) {
-    const [links, liveUserIds] = await Promise.all([
-      this.deviceService.listAccountsByDevice(deviceId),
-      this.sessionService.listLiveUserIdsForDevice(deviceId),
-    ]);
-    const live = new Set(liveUserIds);
-    return {
-      accounts: links.map((l) => ({
-        userId: l.user.id,
-        email: l.user.email,
-        fullName: l.user.full_name,
-        avatarUrl: l.user.avatar_url,
-        needsRelogin: !live.has(l.user.id),
-      })),
-    };
   }
 
   /**

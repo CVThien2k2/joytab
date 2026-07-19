@@ -4,7 +4,7 @@ import { ThemeProvider as NextThemesProvider } from "next-themes"
 
 /**
  * Input: children + props của next-themes.
- * Output: Quản lý mode light/dark qua class `.dark` trên <html> (chuẩn shadcn dark-mode).
+ * Output: Provider quản lý light/dark qua class trên <html>.
  */
 export function ThemeProvider({
   children,

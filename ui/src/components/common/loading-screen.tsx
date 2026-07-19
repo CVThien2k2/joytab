@@ -1,4 +1,4 @@
-import { JoytabLogo } from "@/components/common/joytab-logo"
+import { JoytabLogo } from "@/components/common/joytab-logo";
 
 /**
  * Input: Không nhận props.
@@ -7,8 +7,8 @@ import { JoytabLogo } from "@/components/common/joytab-logo"
  */
 export function LoadingScreen() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="flex min-h-screen items-center justify-center">
       <JoytabLogo className="w-40 animate-pulse text-primary" />
     </div>
-  )
+  );
 }

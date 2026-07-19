@@ -1,15 +1,12 @@
-import { Body, Controller, Delete, Get, Logger, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Logger, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
-import { ERROR_CODES } from '../common/constants/error-codes.constant';
-import { AppException } from '../common/exceptions/app.exception';
 import { GoogleAuthGuard } from '../common/guards/google-auth.guard';
 import { SessionGuard } from '../common/guards/session.guard';
 import { isProductionEnvironment } from '../common/utils/functions';
 import { AuthService } from './auth.service';
-import { SwitchAccountDto } from './dto/switch-account.dto';
-import { buildGoogleLoginFailedRedirectUrl, buildPostLoginRedirectUrl, isUuid, readCookieValue } from './auth.utils';
+import { buildGoogleLoginFailedRedirectUrl, buildPostLoginRedirectUrl, readCookieValue } from './auth.utils';
 import {
   AUTH_THROTTLE_LIMIT,
   AUTH_THROTTLE_TTL_MS,
@@ -74,23 +71,6 @@ export class AuthController {
   }
 
   /**
-   * Input: body.userId + cookie device_id.
-   * Output: Đổi account active — set lại cookie session_id. AUTH_001 nếu account cần login lại.
-   */
-  @Post('switch')
-  async switchAccount(
-    @Body() body: SwitchAccountDto,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    const deviceId = readCookieValue(request.headers.cookie, DEVICE_COOKIE_NAME);
-    if (!isUuid(deviceId)) throw new AppException(ERROR_CODES.AUTH_001);
-    const result = await this.authService.switchAccount(deviceId, body.userId);
-    response.cookie(SESSION_COOKIE_NAME, result.sessionTokenRaw, this.buildCookieOptions(SESSION_TTL_MS));
-    return { success: true, userId: result.userId };
-  }
-
-  /**
    * Input: cookie session_id.
    * Output: Revoke session hiện tại + xoá cookie session_id (giữ device_id).
    */
@@ -100,17 +80,6 @@ export class AuthController {
     if (rawToken) await this.authService.logout(rawToken);
     response.clearCookie(SESSION_COOKIE_NAME, this.buildCookieOptions(SESSION_TTL_MS));
     return { success: true };
-  }
-
-  /**
-   * Input: cookie device_id.
-   * Output: Danh sách account trên device + cờ needsRelogin (rỗng nếu chưa có device_id).
-   */
-  @Get('accounts')
-  async accounts(@Req() request: Request) {
-    const deviceId = readCookieValue(request.headers.cookie, DEVICE_COOKIE_NAME);
-    if (!isUuid(deviceId)) return { accounts: [] };
-    return this.authService.listAccounts(deviceId);
   }
 
   /**

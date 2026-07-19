@@ -43,7 +43,7 @@ export class SessionService {
 
   /**
    * Input: userId, deviceId, transaction client.
-   * Output: Login/add-account — có phiên sống thì cấp token mới cho phiên đó, chưa có thì tạo mới. Trả raw token.
+   * Output: Login — có phiên sống thì cấp token mới cho phiên đó, chưa có thì tạo mới. Trả raw token.
    */
   async createOrRefreshSession(params: { userId: string; deviceId: string }, tx: PrismaTx): Promise<string> {
     const existing = await tx.userSession.findFirst({
@@ -100,32 +100,6 @@ export class SessionService {
   }
 
   /**
-   * Input: deviceId (từ cookie), userId đích, transaction client.
-   * Output: Account đã link + còn phiên sống → cấp token mới cho phiên đó, trả raw. Ngược lại AUTH_001 (cần login lại).
-   */
-  async switchActiveSession(params: { deviceId: string; userId: string }, tx: PrismaTx): Promise<string> {
-    const link = await tx.deviceUser.findUnique({
-      where: { device_id_user_id: { device_id: params.deviceId, user_id: params.userId } },
-    });
-    if (!link) throw new AppException(ERROR_CODES.AUTH_001);
-    const session = await tx.userSession.findFirst({
-      where: { user_id: params.userId, device_id: params.deviceId, is_revoked: false, expires_at: { gt: new Date() } },
-      orderBy: { created_at: 'desc' },
-    });
-    if (!session) throw new AppException(ERROR_CODES.AUTH_001);
-    const { raw, hash } = this.tokenService.createSessionToken();
-    await tx.userSession.update({
-      where: { id: session.id },
-      data: {
-        token_hash: hash,
-        last_used_at: new Date(),
-        expires_at: new Date(Date.now() + this.tokenService.getSessionTtlMs()),
-      },
-    });
-    return raw;
-  }
-
-  /**
    * Input: raw session token, transaction client.
    * Output: Revoke session sở hữu token (reason 'logout'). Bỏ qua nếu không khớp.
    */
@@ -156,18 +130,6 @@ export class SessionService {
       include: { device: true },
       orderBy: { last_used_at: 'desc' },
     });
-  }
-
-  /**
-   * Input: deviceId.
-   * Output: user_id (distinct) của các account còn phiên sống trên device — để đánh dấu account cần login lại.
-   */
-  async listLiveUserIdsForDevice(deviceId: string): Promise<string[]> {
-    const sessions = await this.databaseService.userSession.findMany({
-      where: { device_id: deviceId, is_revoked: false, expires_at: { gt: new Date() } },
-      select: { user_id: true },
-    });
-    return [...new Set(sessions.map((s) => s.user_id))];
   }
 
   /**

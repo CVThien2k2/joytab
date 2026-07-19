@@ -1,13 +1,11 @@
 "use client"
 
-import Link from "next/link"
 import { useAuthStore } from "@/stores/auth-store"
-import { Button } from "@/components/ui/button"
 import { LogoutButton } from "@/components/common/logout-button"
 
 /**
  * Input: Không nhận props; đọc user từ store (AppWrapper rehydrate + validate).
- * Output: Hiển thị tài khoản đang dùng + nút đăng xuất + link demo gọi API 401.
+ * Output: Hiển thị tài khoản đang dùng + nút đăng xuất.
  */
 export function CurrentUserCard() {
   const user = useAuthStore((state) => state.user)
@@ -34,9 +32,6 @@ export function CurrentUserCard() {
           ) : null}
         </section>
 
-        <Button asChild>
-          <Link href="/users">Xem users (demo gọi API 401) →</Link>
-        </Button>
       </div>
     </main>
   )

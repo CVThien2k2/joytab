@@ -1,6 +1,10 @@
 import type { ComponentProps } from "react"
 import { cn } from "@/lib/utils"
 
+type JoytabLogoProps = ComponentProps<"svg"> & {
+  iconOnly?: boolean
+}
+
 /**
  * Input: props SVG tiêu chuẩn (className, width/height qua CSS...).
  * Output: Logo Joytab dạng vector, tô theo `currentColor` nên đồng bộ với màu
@@ -10,11 +14,15 @@ import { cn } from "@/lib/utils"
  * Mặc định `text-primary`; muốn màu khác chỉ cần override class màu chữ
  * (vd `className="text-foreground"`). Các node mạch để rỗng bằng `--card`.
  */
-export function JoytabLogo({ className, ...props }: ComponentProps<"svg">) {
+export function JoytabLogo({
+  className,
+  iconOnly = false,
+  ...props
+}: JoytabLogoProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 1200 420"
+      viewBox={iconOnly ? "0 0 370 360" : "0 0 1200 420"}
       fill="none"
       className={cn("text-primary", className)}
       role="img"
@@ -24,7 +32,10 @@ export function JoytabLogo({ className, ...props }: ComponentProps<"svg">) {
       <title>Joytab</title>
 
       {/* Icon group */}
-      <g transform="translate(85 56)" stroke="currentColor">
+      <g
+        transform={iconOnly ? "translate(58 9)" : "translate(85 56)"}
+        stroke="currentColor"
+      >
         {/* cashflow J / growth arrow */}
         <path
           d="M238 32 L290 92 H258 V188 C258 260 205 310 132 310 C75 310 29 278 12 229"
@@ -92,18 +103,19 @@ export function JoytabLogo({ className, ...props }: ComponentProps<"svg">) {
         <circle cx="-6" cy="70" r="12" fill="var(--card)" strokeWidth="8" opacity="0.85" />
       </g>
 
-      {/* Wordmark */}
-      <text
-        x="440"
-        y="260"
-        fontFamily="Inter, Arial, Helvetica, sans-serif"
-        fontSize="150"
-        fontWeight="800"
-        letterSpacing="-7"
-        fill="currentColor"
-      >
-        Joytab
-      </text>
+      {!iconOnly ? (
+        <text
+          x="440"
+          y="260"
+          fontFamily="Inter, Arial, Helvetica, sans-serif"
+          fontSize="150"
+          fontWeight="800"
+          letterSpacing="-7"
+          fill="currentColor"
+        >
+          Joytab
+        </text>
+      ) : null}
     </svg>
   )
 }

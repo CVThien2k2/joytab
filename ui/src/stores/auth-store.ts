@@ -6,8 +6,6 @@ type AuthState = {
   user: CurrentUser | null
   /** Đã hoàn tất 1 lần validate /auth/me — trước đó hiện loading. */
   checked: boolean
-  /** Phiên bị thu hồi (AUTH_004) → hiện popup. */
-  revoked: boolean
 }
 
 /**
@@ -17,5 +15,4 @@ type AuthState = {
 export const useAuthStore = create<AuthState>(() => ({
   user: null,
   checked: false,
-  revoked: false,
 }))

@@ -4,10 +4,6 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
-import {
-  ActiveThemeProvider,
-  ActiveThemeScript,
-} from "@/providers/active-theme";
 import { Toaster } from "@/components/ui/sonner";
 import { AppWrapper } from "@/components/wrapper/app-wrapper";
 
@@ -36,21 +32,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="base"
+      data-theme="blue"
       suppressHydrationWarning
       className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", inter.variable)}
     >
-      <head>
-        <ActiveThemeScript />
-      </head>
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <ActiveThemeProvider>
-            <QueryProvider>
-              <AppWrapper>{children}</AppWrapper>
-            </QueryProvider>
-            <Toaster />
-          </ActiveThemeProvider>
+          <QueryProvider>
+            <AppWrapper>{children}</AppWrapper>
+          </QueryProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
