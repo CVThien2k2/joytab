@@ -1,0 +1,28 @@
+{
+  "name": "joytab",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.3.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:api": "turbo run dev --filter=api",
+    "dev:ui": "turbo run dev --filter=ui",
+    "build": "turbo run build",
+    "build:api": "turbo run build --filter=api",
+    "build:ui": "turbo run build --filter=ui",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "format": "turbo run format",
+    "db": "pnpm --filter api",
+    "db:generate": "turbo run db:generate --filter=api",
+    "db:migrate": "pnpm --filter api db:migrate:dev",
+    "db:studio": "pnpm --filter api db:studio",
+    "clean": "rm -rf node_modules .turbo api/node_modules api/dist api/.turbo ui/node_modules ui/.next ui/.turbo"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.7"
+  }
+}

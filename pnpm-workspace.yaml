@@ -1,0 +1,27 @@
+packages:
+  - api
+  - ui
+
+# Gộp từ api/pnpm-workspace.yaml và ui/pnpm-workspace.yaml (đã xoá).
+# Các package này không được chạy postinstall script: nest/prisma/swc dùng lệnh
+# tường minh (vd `db:generate`) thay vì generate lúc install; msw/sharp/unrs-resolver
+# không cần bước build native ở môi trường này.
+allowBuilds:
+  '@nestjs/core': false
+  '@prisma/engines': false
+  '@swc/core': false
+  prisma: false
+  msw: false
+  sharp: false
+  unrs-resolver: false
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
+
+# @hookform/resolvers không khai zod trong peerDependencies nên pnpm cảnh báo
+# missing peer; thêm vào để resolve đúng zod v4 mà ui đang dùng.
+packageExtensions:
+  '@hookform/resolvers@*':
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0

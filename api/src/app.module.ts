@@ -3,7 +3,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
-import { RedisCacheModule } from './cache/redis-cache.module';
+// Redis tạm tắt — xem ghi chú ở mảng imports bên dưới.
+// import { RedisCacheModule } from './cache/redis-cache.module';
 import { AppLogger } from './common/loggers/app.logger';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
@@ -13,9 +14,10 @@ const REQUIRED_ENV_KEYS = [
   'DB_USER',
   'DB_PASSWORD',
   'DB_NAME',
-  'REDIS_HOST',
-  'REDIS_PORT',
-  'REDIS_DB',
+  // Redis tạm tắt — bật lại cùng RedisCacheModule.
+  // 'REDIS_HOST',
+  // 'REDIS_PORT',
+  // 'REDIS_DB',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'API_URL',
@@ -47,7 +49,10 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
     ThrottlerModule.forRoot({
       throttlers: [{ name: 'global', ttl: 60000, limit: 60 }],
     }),
-    RedisCacheModule,
+    // Redis tạm tắt: CacheModule được đăng ký global nhưng không service nào inject
+    // CACHE_MANAGER — session lưu ở Postgres (UserSession.token_hash), ThrottlerModule
+    // dùng in-memory store. Giữ lại vì dự kiến làm cache-aside cho validateSession.
+    // RedisCacheModule,
     DatabaseModule,
     AuthModule,
   ],

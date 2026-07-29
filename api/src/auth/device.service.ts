@@ -33,5 +33,4 @@ export class DeviceService {
       data: { device_name: deviceName, platform, last_seen_at: now },
     });
   }
-
 }
