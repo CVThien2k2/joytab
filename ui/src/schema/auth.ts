@@ -10,14 +10,5 @@ export const userSchema = z.object({
   avatarUrl: z.string().nullable(),
 })
 
-export const deviceSchema = z.object({
-  sessionId: z.string(),
-  deviceId: z.string(),
-  deviceName: z.string().nullable(),
-  platform: z.string().nullable(),
-  lastSeenAt: z.string().nullable(),
-  createdAt: z.string(),
-})
-
-export const devicesResponseSchema = envelope(z.object({ devices: z.array(deviceSchema) }))
+/** Shape dùng chung cho GET /auth/me và POST /auth/refresh. */
 export const meResponseSchema = envelope(z.object({ userId: z.string(), user: userSchema }))

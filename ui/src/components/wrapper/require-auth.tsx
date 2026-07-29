@@ -3,27 +3,24 @@
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
-import { LoadingScreen } from "@/components/common/loading-screen";
 
 /**
  * Input: children (nội dung cần đăng nhập mới xem được).
- * Output: Guard đọc store (useMe bơm vào):
- *  - chưa validate xong (!checked) → LoadingScreen.
- *  - xong mà không có user (hết phiên / chưa login) → redirect /login.
+ * Output: Guard đọc `user` từ store:
+ *  - không có user → redirect /login.
  *  - có user → render children.
+ *
+ * Không cần lo trạng thái "chưa biết": AppWrapper đã chặn render tới khi store rehydrate xong.
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const checked = useAuthStore((state) => state.checked);
 
   useEffect(() => {
-    if (checked && !user) {
+    if (!user) {
       router.replace("/login");
     }
-  }, [checked, user, router]);
-
-  if (!checked) return <LoadingScreen />;
+  }, [user, router]);
 
   if (!user) return null;
 

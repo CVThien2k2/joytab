@@ -23,9 +23,9 @@ export class AppException extends HttpException {
         return HttpStatus.UNAUTHORIZED;
       case 'AUTH_003':
         return HttpStatus.UNAUTHORIZED;
-      case 'AUTH_004':
-        return HttpStatus.UNAUTHORIZED;
       case 'AUTH_005':
+        return HttpStatus.UNAUTHORIZED;
+      case 'AUTH_006':
         return HttpStatus.UNAUTHORIZED;
       case 'AUTH_002':
       case 'VALIDATION_001':

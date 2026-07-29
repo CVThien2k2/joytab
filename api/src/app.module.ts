@@ -21,6 +21,8 @@ const REQUIRED_ENV_KEYS = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'API_URL',
+  // Chỉ access token là JWT; refresh token là chuỗi random nên không cần secret.
+  'JWT_ACCESS_SECRET',
 ] as const;
 
 /**
@@ -50,8 +52,8 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
       throttlers: [{ name: 'global', ttl: 60000, limit: 60 }],
     }),
     // Redis tạm tắt: CacheModule được đăng ký global nhưng không service nào inject
-    // CACHE_MANAGER — session lưu ở Postgres (UserSession.token_hash), ThrottlerModule
-    // dùng in-memory store. Giữ lại vì dự kiến làm cache-aside cho validateSession.
+    // CACHE_MANAGER. Auth JWT không cần cache — access token verify in-memory, refresh
+    // token chỉ tra `refresh_tokens` lúc rotate. ThrottlerModule dùng in-memory store.
     // RedisCacheModule,
     DatabaseModule,
     AuthModule,

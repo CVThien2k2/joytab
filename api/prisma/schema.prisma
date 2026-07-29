@@ -10,54 +10,40 @@ datasource db {
 }
 
 model User {
-  id               String        @id @default(uuid()) @db.Uuid
-  provider         String        @default("google") @db.VarChar(30)
-  provider_user_id String        @unique @db.VarChar(255)
-  email            String        @unique @db.VarChar(255)
-  email_verified   Boolean       @default(false)
-  full_name        String?       @db.VarChar(255)
+  id               String         @id @default(uuid()) @db.Uuid
+  provider         String         @default("google") @db.VarChar(30)
+  provider_user_id String         @unique @db.VarChar(255)
+  email            String         @unique @db.VarChar(255)
+  email_verified   Boolean        @default(false)
+  full_name        String?        @db.VarChar(255)
   avatar_url       String?
-  last_login_at    DateTime?     @db.Timestamptz(6)
-  status           String        @default("active") @db.VarChar(30)
-  created_at       DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime      @updatedAt @db.Timestamptz(6)
-  is_deleted       Boolean       @default(false)
-  deleted_by       String?       @db.Uuid
-  deleted_at       DateTime?     @db.Timestamptz(6)
-  user_sessions    UserSession[]
+  last_login_at    DateTime?      @db.Timestamptz(6)
+  status           String         @default("active") @db.VarChar(30)
+  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime       @updatedAt @db.Timestamptz(6)
+  is_deleted       Boolean        @default(false)
+  deleted_by       String?        @db.Uuid
+  deleted_at       DateTime?      @db.Timestamptz(6)
+  refresh_tokens   RefreshToken[]
 
   @@unique([provider, provider_user_id])
   @@map("users")
 }
 
-model Device {
-  id            String        @id @default(uuid()) @db.Uuid
-  device_name   String?       @db.VarChar(255)
-  platform      String?       @db.VarChar(50)
-  last_seen_at  DateTime?     @db.Timestamptz(6)
-  created_at    DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime      @updatedAt @db.Timestamptz(6)
-  user_sessions UserSession[]
+/// Một row = một refresh token đang/đã tồn tại. RT là chuỗi random opaque, DB chỉ lưu
+/// SHA-256 của nó nên DB bị lộ cũng không dựng lại được token. Chỉ đủ cột để xoay vòng và
+/// thu hồi — cố tình KHÔNG có device_id / last_used_at: đây không phải session management.
+model RefreshToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  user_id     String    @db.Uuid
+  token_hash  String    @unique
+  expires_at  DateTime  @db.Timestamptz(6)
+  revoked_at  DateTime? @db.Timestamptz(6)
+  /// Trỏ tới row thay thế nó khi rotate — để lần theo chuỗi khi điều tra reuse.
+  replaced_by String?   @db.Uuid
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  user        User      @relation(fields: [user_id], references: [id])
 
-  @@map("devices")
-}
-
-model UserSession {
-  id            String    @id @default(uuid()) @db.Uuid
-  user_id       String    @db.Uuid
-  device_id     String    @db.Uuid
-  token_hash    String    @unique
-  is_revoked    Boolean   @default(false)
-  revoked_at    DateTime? @db.Timestamptz(6)
-  revoke_reason String?   @db.VarChar(100)
-  last_used_at  DateTime? @db.Timestamptz(6)
-  expires_at    DateTime  @db.Timestamptz(6)
-  created_at    DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime  @updatedAt @db.Timestamptz(6)
-  user          User      @relation(fields: [user_id], references: [id])
-  device        Device    @relation(fields: [device_id], references: [id])
-
-  @@index([user_id, is_revoked])
-  @@index([device_id, is_revoked])
-  @@map("user_sessions")
+  @@index([user_id, revoked_at])
+  @@map("refresh_tokens")
 }

@@ -2,8 +2,9 @@
  * TẠM TẮT — toàn bộ module được comment, không import vào AppModule nữa.
  *
  * Lý do: CacheModule đăng ký global nhưng không service nào inject CACHE_MANAGER.
- * Session lưu ở Postgres (UserSession.token_hash — session.service.ts), ThrottlerModule
- * dùng in-memory store. Redis vì thế chỉ còn là dependency chặn bootstrap: `await
+ * Auth giờ là JWT: access token verify in-memory không chạm DB, refresh token chỉ tra
+ * Postgres (`refresh_tokens`) mỗi giờ một lần lúc rotate — không có gì cần cache.
+ * ThrottlerModule dùng in-memory store. Redis vì thế chỉ còn là dependency chặn bootstrap: `await
  * client.connect()` + reconnectStrategy retry vô hạn khiến app không bao giờ listen
  * khi Redis chết.
  *

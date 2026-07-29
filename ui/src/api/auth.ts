@@ -1,21 +1,18 @@
 import { apiClient } from "@/api/client"
-import {
-  devicesResponseSchema,
-  meResponseSchema,
-} from "@/schema/auth"
-import type { CurrentUser, DeviceSession } from "@/types/auth"
+import { meResponseSchema } from "@/schema/auth"
+import type { CurrentUser } from "@/types/auth"
 
 /**
- * Input: Không nhận tham số; dùng cookie session_id hiện tại.
- * Output: Đăng xuất account đang active — BE revoke session + xoá cookie session_id (giữ device_id).
+ * Input: Không nhận tham số; dùng cookie `rt` hiện tại.
+ * Output: Đăng xuất — BE revoke refresh token + xoá cả 2 cookie. Luôn thành công.
  */
 export async function logout(): Promise<void> {
   await apiClient.post("/auth/logout")
 }
 
 /**
- * Input: Không nhận tham số; dùng cookie session_id.
- * Output: Thông tin user của account đang active.
+ * Input: Không nhận tham số; dùng cookie `at`.
+ * Output: Thông tin user hiện tại. Chỉ gọi ở trang /auth/callback ngay sau khi login.
  */
 export async function fetchMe(): Promise<CurrentUser> {
   const response = await apiClient.get("/auth/me")
@@ -23,18 +20,11 @@ export async function fetchMe(): Promise<CurrentUser> {
 }
 
 /**
- * Input: Không nhận tham số; dùng cookie session_id.
- * Output: Danh sách thiết bị/phiên của user hiện tại.
+ * Input: Không nhận tham số; dùng cookie `rt`.
+ * Output: Xoay vòng refresh token, BE set lại cookie `at`/`rt`, trả user hiện tại.
+ *         Bình thường interceptor ở api/client.ts tự gọi; hàm này để dùng trực tiếp khi cần.
  */
-export async function fetchDevices(): Promise<DeviceSession[]> {
-  const response = await apiClient.get("/auth/devices")
-  return devicesResponseSchema.parse(response.data).data.devices
-}
-
-/**
- * Input: sessionId của phiên cần thu hồi.
- * Output: Revoke phiên đó ở BE nếu thuộc về user hiện tại.
- */
-export async function revokeSession(sessionId: string): Promise<void> {
-  await apiClient.delete(`/auth/sessions/${sessionId}`)
+export async function refresh(): Promise<CurrentUser> {
+  const response = await apiClient.post("/auth/refresh")
+  return meResponseSchema.parse(response.data).data
 }

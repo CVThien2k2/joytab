@@ -1,22 +1,17 @@
-import { DEFAULT_FRONTEND_ORIGIN } from './auth.constants';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Input: Giá trị bất kỳ từ cookie/param.
- * Output: true nếu là chuỗi UUID hợp lệ — chặn truy vấn Prisma bằng id rác.
- */
-export function isUuid(value: string | null | undefined): value is string {
-  return typeof value === 'string' && UUID_RE.test(value);
-}
+import { ConfigService } from '@nestjs/config';
+import { CookieOptions } from 'express';
+import { isProductionEnvironment } from '../common/utils/functions';
+import { COOKIE_PATH, DEFAULT_FRONTEND_ORIGIN } from './auth.constants';
 
 /**
  * Input: FRONTEND_ORIGIN từ env (có thể rỗng).
- * Output: URL trang chủ FE `/` — đã set cookie session xong thì redirect thẳng về home.
+ * Output: URL trang `/auth/callback` của FE — trang này gọi /auth/me một lần để bơm user
+ *         vào store rồi tự điều hướng về `/`. OAuth là redirect 302 nên không có body nào
+ *         để trả user về, đây là chỗ bù lại.
  */
 export function buildPostLoginRedirectUrl(frontendOrigin: string | undefined): string {
   const baseUrl = normalizeFrontendOrigin(frontendOrigin);
-  return new URL('/', `${baseUrl}/`).toString();
+  return new URL('/auth/callback', `${baseUrl}/`).toString();
 }
 
 /**
@@ -26,6 +21,24 @@ export function buildPostLoginRedirectUrl(frontendOrigin: string | undefined): s
 export function buildGoogleLoginFailedRedirectUrl(frontendOrigin: string | undefined): string {
   const baseUrl = normalizeFrontendOrigin(frontendOrigin);
   return new URL('/login', `${baseUrl}/`).toString();
+}
+
+/**
+ * Input: ConfigService (COOKIE_DOMAIN, NODE_ENV) và tuổi cookie (ms).
+ * Output: Cookie options dùng chung cho cả `at` và `rt`.
+ *         COOKIE_DOMAIN (vd .example.com) để cookie first-party dùng chung FE + API subdomain.
+ *         Không set ở dev → cookie host-only cho localhost.
+ */
+export function buildAuthCookieOptions(configService: ConfigService, maxAgeMs: number): CookieOptions {
+  const domain = configService.get<string>('COOKIE_DOMAIN')?.trim();
+  return {
+    httpOnly: true,
+    secure: isProductionEnvironment(configService),
+    sameSite: 'lax',
+    path: COOKIE_PATH,
+    maxAge: maxAgeMs,
+    ...(domain ? { domain } : {}),
+  };
 }
 
 /**
@@ -61,38 +74,4 @@ export function readCookieValue(cookieHeader: string | undefined, cookieName: st
 function normalizeFrontendOrigin(frontendOrigin?: string): string {
   const rawBaseUrl = frontendOrigin?.trim() || DEFAULT_FRONTEND_ORIGIN;
   return rawBaseUrl.replace(/\/+$/, '');
-}
-
-/**
- * Input: Chuỗi User-Agent (có thể undefined).
- * Output: Tên platform (Windows/macOS/iOS/Android/Linux) hoặc null.
- */
-export function parsePlatformFromUserAgent(userAgent: string | undefined): string | null {
-  if (!userAgent) {
-    return null;
-  }
-  const ua = userAgent.toLowerCase();
-  if (ua.includes('android')) return 'Android';
-  if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios')) return 'iOS';
-  if (ua.includes('windows')) return 'Windows';
-  if (ua.includes('mac os') || ua.includes('macintosh')) return 'macOS';
-  if (ua.includes('linux')) return 'Linux';
-  return null;
-}
-
-/**
- * Input: Chuỗi User-Agent (có thể undefined).
- * Output: Tên trình duyệt làm device name, hoặc null.
- */
-export function parseDeviceNameFromUserAgent(userAgent: string | undefined): string | null {
-  if (!userAgent) {
-    return null;
-  }
-  const ua = userAgent.toLowerCase();
-  if (ua.includes('edg/') || ua.includes('edga') || ua.includes('edgios')) return 'Edge';
-  if (ua.includes('opr/') || ua.includes('opera')) return 'Opera';
-  if (ua.includes('firefox') || ua.includes('fxios')) return 'Firefox';
-  if (ua.includes('chrome') || ua.includes('crios')) return 'Chrome';
-  if (ua.includes('safari')) return 'Safari';
-  return null;
 }

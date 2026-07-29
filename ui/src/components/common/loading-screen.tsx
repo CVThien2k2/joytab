@@ -3,7 +3,7 @@ import { JoytabLogo } from "@/components/common/joytab-logo";
 /**
  * Input: Không nhận props.
  * Output: Màn loading dùng chung — logo Joytab ở giữa, nhấp nháy (animate-pulse).
- *         Dùng khi đang validate phiên từ server (chưa checked).
+ *         Dùng khi store chưa rehydrate xong, hoặc trang /auth/callback đang lấy user.
  */
 export function LoadingScreen() {
   return (

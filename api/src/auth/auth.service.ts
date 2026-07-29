@@ -3,93 +3,36 @@ import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import { GoogleUser } from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
-import { DeviceService } from './device.service';
-import { SessionService } from './session.service';
 
-type LoginContext = { deviceId?: string | null; deviceName?: string; userAgent?: string };
-type LoginResult = { userId: string; sessionTokenRaw: string; deviceId: string; user: GoogleUser };
+type CurrentUser = { userId: string; user: GoogleUser };
 
 @Injectable()
 export class AuthService {
   /**
-   * Input: DatabaseService, SessionService, DeviceService.
-   * Output: Service orchestrate nghiệp vụ login/logout/quản lý phiên.
+   * Input: DatabaseService.
+   * Output: Service nghiệp vụ user của luồng auth. Việc cấp/xoay token nằm ở AuthJwtService
+   *         và RefreshTokenService — service này không biết gì về token.
    */
-  constructor(
-    private readonly databaseService: DatabaseService,
-    private readonly sessionService: SessionService,
-    private readonly deviceService: DeviceService,
-  ) {}
+  constructor(private readonly databaseService: DatabaseService) {}
 
   /**
-   * Input: Google profile đã validate + ngữ cảnh (deviceId cookie, userAgent).
-   * Output: Upsert user, đảm bảo Device, tạo/refresh session. Trả raw token + deviceId để set cookie.
+   * Input: Google profile đã validate.
+   * Output: Upsert user theo provider_user_id, trả { userId, user }. Không tạo session,
+   *         không ghi nhận thiết bị.
    */
-  async loginWithGoogle(googleUser: GoogleUser, ctx: LoginContext): Promise<LoginResult> {
+  async loginWithGoogle(googleUser: GoogleUser): Promise<CurrentUser> {
     const user = await this.upsertGoogleUser(googleUser);
-    const result = await this.databaseService.$transaction(async (tx) => {
-      const device = await this.deviceService.ensureDevice(
-        { deviceId: ctx.deviceId, deviceName: ctx.deviceName, userAgent: ctx.userAgent },
-        tx,
-      );
-      const sessionTokenRaw = await this.sessionService.createOrRefreshSession(
-        { userId: user.id, deviceId: device.id },
-        tx,
-      );
-      return { deviceId: device.id, sessionTokenRaw };
-    });
-    return {
-      userId: user.id,
-      sessionTokenRaw: result.sessionTokenRaw,
-      deviceId: result.deviceId,
-      user: this.toGoogleUser(user),
-    };
-  }
-
-  /**
-   * Input: raw session token.
-   * Output: Revoke session hiện tại (logout). Không ném lỗi nếu token đã không hợp lệ.
-   */
-  async logout(rawToken: string): Promise<void> {
-    await this.databaseService.$transaction((tx) => this.sessionService.revokeByRawToken(rawToken, tx));
-  }
-
-  /**
-   * Input: userId từ SessionGuard.
-   * Output: Thông tin user hiện tại.
-   */
-  async getMe(userId: string) {
-    const user = await this.databaseService.user.findUnique({ where: { id: userId } });
-    if (!user) throw new AppException(ERROR_CODES.AUTH_001);
     return { userId: user.id, user: this.toGoogleUser(user) };
   }
 
   /**
-   * Input: userId từ SessionGuard.
-   * Output: Danh sách thiết bị/phiên của user.
+   * Input: userId từ JwtAuthGuard hoặc từ claim `sub` của refresh token.
+   * Output: Thông tin user hiện tại; AUTH_001 nếu user không còn tồn tại.
    */
-  async listDevices(userId: string) {
-    const sessions = await this.sessionService.listByUser(userId);
-    return {
-      devices: sessions.map((s) => ({
-        sessionId: s.id,
-        deviceId: s.device_id,
-        deviceName: s.device.device_name,
-        platform: s.device.platform,
-        lastSeenAt: s.device.last_seen_at,
-        createdAt: s.created_at,
-      })),
-    };
-  }
-
-  /**
-   * Input: sessionId cần revoke + userId chủ sở hữu.
-   * Output: Revoke session từ xa nếu thuộc về user.
-   */
-  async revokeSession(sessionId: string, userId: string): Promise<void> {
-    await this.databaseService.$transaction((tx) =>
-      this.sessionService.revokeSessionOwnedByUser(sessionId, userId, tx),
-    );
+  async getMe(userId: string): Promise<CurrentUser> {
+    const user = await this.databaseService.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppException(ERROR_CODES.AUTH_001);
+    return { userId: user.id, user: this.toGoogleUser(user) };
   }
 
   private toGoogleUser(user: {

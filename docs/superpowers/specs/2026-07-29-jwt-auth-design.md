@@ -6,8 +6,8 @@ Ngày: 2026-07-29
 
 Bỏ hoàn toàn cơ chế session-cookie tra DB mỗi request và toàn bộ phần quản lý thiết bị.
 Thay bằng access token JWT stateless (verify in-memory, không chạm DB) cộng refresh token
-xoay vòng có lưu vết trong DB để còn thu hồi được. FE lưu user vào zustand store persist
-localStorage, load lại trang là hiển thị được ngay.
+opaque xoay vòng, lưu hash trong DB để còn thu hồi được. FE lưu user vào zustand store
+persist localStorage, load lại trang là hiển thị được ngay.
 
 Phạm vi: đúng phần auth. Không thêm tính năng mới, không đổi UI ngoài việc dọn những chỗ
 đang phụ thuộc vào device/session.
@@ -18,7 +18,7 @@ Phạm vi: đúng phần auth. Không thêm tính năng mới, không đổi UI 
 |---|---|---|
 | Thu hồi token | Có, qua 1 bảng `refresh_tokens` | Cần logout thật và cắt được RT bị lộ. Bảng này **không phải** session management quay lại: không device, không `last_used_at`, không endpoint liệt kê phiên |
 | AT | JWT, TTL 1 giờ, stateless | API nghiệp vụ verify in-memory, không query DB |
-| RT | JWT `{ sub, jti, typ }`, TTL 7 ngày, rotate mỗi lần refresh | Verify signature chặn token rác trước khi chạm DB; `jti` là khóa row, không cần cột `token_hash` |
+| RT | Chuỗi random 32 bytes (opaque), DB lưu SHA-256, TTL 7 ngày, rotate mỗi lần refresh | Đã phải tra DB dù sao nên JWT không thêm được gì; token ngắn hơn, không mang claim nào, DB bị lộ cũng không dựng lại được token |
 | Ai refresh | FE axios interceptor, single-flight | Guard BE thuần verify, dễ test; rotation không xảy ra trong GET request |
 | Phát hiện RT dùng lại | Revoke toàn bộ RT còn sống của user đó | Dấu hiệu token bị copy |
 | FE lấy user | Trang `/auth/callback` gọi `/auth/me` **một lần** sau login | OAuth là redirect 302 nên không có body để trả user về |
@@ -43,14 +43,19 @@ Phạm vi: đúng phần auth. Không thêm tính năng mới, không đổi UI 
 |  | Access token | Refresh token |
 |---|---|---|
 | Cookie | `at` | `rt` |
+| Dạng | JWT HS256 | `randomBytes(32).hex` — 64 ký tự, không mang thông tin gì |
 | TTL | 1 giờ | 7 ngày, reset lại mỗi lần rotate |
-| Payload | `{ sub, email, typ: 'at' }` | `{ sub, jti, typ: 'rt' }` |
-| Secret | `JWT_ACCESS_SECRET` | `JWT_REFRESH_SECRET` |
-| Alg | HS256 | HS256 |
-| State | không | `jti` = 1 row trong `refresh_tokens` |
+| Payload | `{ sub, email, typ: 'at' }` | — |
+| Secret | `JWT_ACCESS_SECRET` | không cần |
+| State | không | 1 row `refresh_tokens`, khớp bằng `token_hash` = SHA-256(raw) |
 
-Hai secret riêng để AT không bao giờ đi qua được chỗ verify RT kể cả khi quên check `typ`.
-Verify vẫn check `typ` — hai lớp độc lập.
+Chỉ AT là JWT. RT đã buộc phải tra DB để rotate/revoke nên chữ ký JWT không thêm được gì
+ngoài độ dài cookie. Hash SHA-256 trần, không salt/KDF: token đã có 32 bytes entropy nên
+không có gì để brute-force.
+
+Đổi `JWT_ACCESS_SECRET` → vô hiệu mọi AT đang lưu hành nhưng **không** đăng xuất ai: RT vẫn
+sống, FE refresh xong là đi tiếp (chậm nhất 1 giờ). Muốn đăng xuất toàn bộ thì revoke bảng
+`refresh_tokens`.
 
 Cookie options dùng lại `buildCookieOptions` đang có ở [auth.controller.ts](../../../api/src/auth/auth.controller.ts):
 `httpOnly`, `sameSite=lax`, `path=/`, `secure` khi production, `domain` theo `COOKIE_DOMAIN`
@@ -64,9 +69,9 @@ nếu có. Tách hàm này ra `auth.utils.ts` vì giờ nhiều endpoint cùng d
 FE /login  ──bấm──▶  BE GET /auth/google  ──▶  Google
 Google  ──▶  BE GET /auth/google/callback
                  ├─ upsert users theo provider_user_id
-                 ├─ issue RT row → sign RT (jti = row.id)
+                 ├─ issue RT: random raw + insert row (token_hash = sha256(raw))
                  ├─ sign AT
-                 ├─ Set-Cookie: at, rt
+                 ├─ Set-Cookie: at (JWT), rt (raw)
                  └─ 302 → ${FRONTEND_ORIGIN}/auth/callback
 FE /auth/callback  ──▶  GET /auth/me  ──▶  { userId, user }
                  ├─ setUser(user)  (persist localStorage)
@@ -92,22 +97,25 @@ FE interceptor thấy 401 AUTH_005 (và request chưa retry, và không phải /
 ### POST /auth/refresh
 
 1. Đọc cookie `rt`. Không có → `AUTH_006`.
-2. Verify JWT bằng `JWT_REFRESH_SECRET`, check `typ === 'rt'`. Fail → `AUTH_006`.
-3. Tra `refresh_tokens` theo `id = jti`. Không thấy → `AUTH_006`.
-4. `revoked_at != null` → **reuse detected** → `revokeAllForUser(sub)` → `AUTH_006`.
-5. `expires_at <= now` → `AUTH_006`.
-6. `rotate(jti, sub)` — trong 1 transaction: insert row mới (`user_id`, `expires_at = now + 7d`),
-   update row cũ `{ revoked_at: now, replaced_by: <id row mới> }`.
-7. Sign AT mới + RT mới (`jti` = id row mới), set lại 2 cookie.
-8. Trả `{ userId, user }` — cùng shape với `/auth/me` để FE cập nhật store luôn nếu cần.
+2. Tra `refresh_tokens` theo `token_hash = sha256(raw)`. Không thấy → `AUTH_006`.
+3. `revoked_at != null` → **reuse detected** → `revokeAllForUser(row.user_id)` → `AUTH_006`.
+4. `expires_at <= now` → `AUTH_006`.
+5. `rotate(row.id, row.user_id)` — trong 1 transaction: insert row mới (raw mới,
+   `expires_at = now + 7d`), update row cũ `{ revoked_at: now, replaced_by: <id row mới> }`.
+6. Sign AT mới, set lại cookie `at` + `rt` (raw mới).
+7. Trả `{ userId, user }` — cùng shape với `/auth/me` để FE cập nhật store luôn nếu cần.
 
-Bước 4 đứng trước bước 5 có chủ ý: RT đã bị revoke thì luôn coi là tín hiệu tấn công, kể cả
+Bước 3 đứng trước bước 4 có chủ ý: RT đã bị revoke thì luôn coi là tín hiệu tấn công, kể cả
 khi nó cũng đã hết hạn.
+
+Không cần check `row.user_id` khớp với gì cả — `token_hash` unique nên row tìm được chính là
+chủ sở hữu, không có claim nào từ client để phải đối chiếu. Đây là một cái lợi cụ thể của RT
+opaque so với JWT.
 
 ### POST /auth/logout
 
-Không cần guard. Đọc cookie `rt` → decode (không verify chặt, token có thể đã hết hạn) →
-nếu có `jti` thì `revoke(jti)` → clear cookie `at` và `rt` → trả `{ success: true }`.
+Không cần guard. Đọc cookie `rt` → `revokeByRawToken(raw)` (hash rồi `updateMany`, không khớp
+thì no-op) → clear cookie `at` và `rt` → trả `{ success: true }`.
 Không ném lỗi khi token vô hiệu: logout phải luôn thành công.
 
 FE `useLogout` clear store (kèm localStorage) và query cache rồi về `/login`.
@@ -120,8 +128,9 @@ Bỏ model `Device`, bỏ model `UserSession`, bỏ field `user_sessions` trên 
 
 ```prisma
 model RefreshToken {
-  id          String    @id @default(uuid()) @db.Uuid   // = jti trong RT
+  id          String    @id @default(uuid()) @db.Uuid
   user_id     String    @db.Uuid
+  token_hash  String    @unique                        // SHA-256 của RT thô
   expires_at  DateTime  @db.Timestamptz(6)
   revoked_at  DateTime? @db.Timestamptz(6)
   replaced_by String?   @db.Uuid                        // lần theo chuỗi rotation
@@ -144,24 +153,26 @@ DROP TABLE IF EXISTS "user_sessions";
 DROP TABLE IF EXISTS "devices";
 
 CREATE TABLE "refresh_tokens" (
-  "id"          UUID         NOT NULL DEFAULT gen_random_uuid(),
-  "user_id"     UUID         NOT NULL,
-  "expires_at"  TIMESTAMPTZ(6) NOT NULL,
-  "revoked_at"  TIMESTAMPTZ(6),
-  "replaced_by" UUID,
-  "created_at"  TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "token_hash" TEXT NOT NULL,
+    "expires_at" TIMESTAMPTZ(6) NOT NULL,
+    "revoked_at" TIMESTAMPTZ(6),
+    "replaced_by" UUID,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "refresh_tokens_user_id_revoked_at_idx" ON "refresh_tokens" ("user_id", "revoked_at");
+CREATE UNIQUE INDEX "refresh_tokens_token_hash_key" ON "refresh_tokens"("token_hash");
+CREATE INDEX "refresh_tokens_user_id_revoked_at_idx" ON "refresh_tokens"("user_id", "revoked_at");
 
-ALTER TABLE "refresh_tokens"
-  ADD CONSTRAINT "refresh_tokens_user_id_fkey"
-  FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fkey"
+  FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ```
 
-Sinh migration bằng `pnpm db:migrate:dev` để Prisma tự ra SQL, đối chiếu với bản trên rồi
-`pnpm db:generate` để dọn `api/src/generated/prisma/models/Device.ts` và `UserSession.ts`.
+Apply bằng `pnpm db:migrate:deploy`, rồi `pnpm db:generate` để dọn
+`api/src/generated/prisma/models/Device.ts` và `UserSession.ts`.
 
 ## Backend — file theo file
 
@@ -175,26 +186,29 @@ Sinh migration bằng `pnpm db:migrate:dev` để Prisma tự ra SQL, đối chi
 ### Thêm
 
 **`api/src/auth/jwt.service.ts`** — class đặt tên `AuthJwtService` để không trùng `JwtService`
-của `@nestjs/jwt` mà nó bọc bên trong. Mỗi hàm một việc:
+của `@nestjs/jwt` mà nó bọc bên trong. Chỉ lo access token:
 
 - `signAccessToken({ userId, email }): Promise<string>`
-- `signRefreshToken({ userId, jti }): Promise<string>`
 - `verifyAccessToken(token): Promise<AccessTokenPayload>` — **chỉ** hết hạn → `AUTH_005`;
   sai chữ ký / sai `typ` / malformed → `AUTH_001`. Phân biệt hai nhánh này là bắt buộc:
   FE chỉ refresh khi thấy `AUTH_005`, nên token bị giả mạo phải trả `AUTH_001` để không
   kéo FE vào vòng refresh vô nghĩa.
-- `verifyRefreshToken(token): Promise<RefreshTokenPayload>` — mọi lỗi → `AUTH_006`
-- `decodeRefreshTokenUnsafe(token): RefreshTokenPayload | null` — chỉ cho logout
 
-**`api/src/auth/refresh-token.service.ts`** — vòng đời row `refresh_tokens`:
+Nhận diện token hết hạn bằng `err.name === 'TokenExpiredError'` chứ không `instanceof`:
+`jsonwebtoken` là transitive dependency của `@nestjs/jwt`, pnpm strict không cho import trực tiếp.
 
-- `issue(userId): Promise<{ id: string }>` — một insert, không cần transaction (dùng lúc login)
-- `findById(id): Promise<RefreshToken | null>` — trả row thô, controller tự áp 4 điều kiện
-  (không thấy / đã revoke / hết hạn) để giữ service không biết gì về error code của luồng HTTP
-- `rotate(oldId, userId): Promise<{ id: string }>` — tự mở `$transaction` bên trong: insert row
-  mới rồi update row cũ `{ revoked_at, replaced_by }`
-- `revoke(id): Promise<void>`
+**`api/src/auth/refresh-token.service.ts`** — vòng đời refresh token. Trả `{ raw, row }`: `raw`
+đi vào cookie, DB chỉ giữ `token_hash`.
+
+- `issue(userId): Promise<{ raw, row: { id } }>` — một insert, không cần transaction (lúc login)
+- `findByRawToken(raw): Promise<RefreshToken | null>` — hash rồi `findUnique` theo `token_hash`;
+  trả row thô, controller tự áp 3 điều kiện (không thấy / đã revoke / hết hạn) để giữ service
+  không biết gì về error code của luồng HTTP
+- `rotate(oldId, userId): Promise<{ raw, row: { id } }>` — tự mở `$transaction` bên trong:
+  insert row mới rồi update row cũ `{ revoked_at, replaced_by }`
+- `revokeByRawToken(raw): Promise<void>` — `updateMany`, không khớp thì no-op
 - `revokeAllForUser(userId): Promise<void>`
+- private `createRawToken()` = `randomBytes(32).hex`, private `hashToken()` = SHA-256 hex
 
 **`api/src/common/guards/jwt-auth.guard.ts`** — đọc cookie `at` → `verifyAccessToken` → gán
 `request.userId`, `request.userEmail`. Không có cookie → `AUTH_001`.
@@ -206,8 +220,10 @@ của `@nestjs/jwt` mà nó bọc bên trong. Mỗi hàm một việc:
 ```ts
 export const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;              // 1 giờ
 export const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;    // 7 ngày
+export const REFRESH_TOKEN_BYTES = 32;                        // → 64 ký tự hex
 export const ACCESS_COOKIE_NAME = 'at';
 export const REFRESH_COOKIE_NAME = 'rt';
+export const ACCESS_TOKEN_TYPE = 'at';                        // claim `typ`
 ```
 
 Giữ `COOKIE_PATH`, `AUTH_THROTTLE_*`, `DEFAULT_FRONTEND_ORIGIN`.
@@ -230,10 +246,10 @@ Thêm `buildAuthCookieOptions(configService, maxAgeMs)` chuyển từ private me
 | Route | Thay đổi |
 |---|---|
 | `GET /auth/google` | không đổi |
-| `GET /auth/google/callback` | bỏ đọc cookie `device_id`; upsert user → issue RT row → sign AT+RT → set 2 cookie → 302 `${FE}/auth/callback` |
-| `POST /auth/refresh` | **mới**, theo 8 bước ở trên |
+| `GET /auth/google/callback` | bỏ đọc cookie `device_id`; upsert user → issue RT → sign AT → set 2 cookie → 302 `${FE}/auth/callback` |
+| `POST /auth/refresh` | **mới**, theo 7 bước ở trên |
 | `GET /auth/me` | đổi `SessionGuard` → `JwtAuthGuard`, shape response giữ nguyên |
-| `POST /auth/logout` | bỏ revoke session; revoke RT row + clear 2 cookie |
+| `POST /auth/logout` | bỏ revoke session; `revokeByRawToken` + clear 2 cookie |
 | `GET /auth/devices` | **xóa** |
 | `DELETE /auth/sessions/:id` | **xóa** |
 
@@ -243,23 +259,23 @@ Giữ `@Throttle` ở cấp controller cho cả `/auth/refresh`.
 từng lần sign/verify nên không cấu hình global). Providers: `AuthService`, `GoogleStrategy`,
 `AuthJwtService`, `RefreshTokenService`. Exports: `AuthJwtService` (cho `JwtAuthGuard`).
 
-**`api/src/app.module.ts`** — thêm `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` vào
-`REQUIRED_ENV_KEYS`.
+**`api/src/app.module.ts`** — thêm `JWT_ACCESS_SECRET` vào `REQUIRED_ENV_KEYS`.
 
 **`api/src/common/constants/error-codes.constant.ts`**
 
 - Xóa `AUTH_004` (`Session revoked`) — không còn khái niệm session bị revoke mà FE phải xử lý riêng
 - `AUTH_005`: `Session expired` → `Access token expired`
 - Thêm `AUTH_006`: `Refresh token invalid or expired`
+- Thêm `SYS_014`: `Missing JWT_ACCESS_SECRET`
 
 **`api/src/common/exceptions/app.exception.ts`** — `mapStatusByCode`: bỏ case `AUTH_004`,
 thêm case `AUTH_006` → 401.
 
 **`api/package.json`** — thêm `@nestjs/jwt`.
 
-**`api/.env.example`** — thêm `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (bắt buộc, ghi rõ cách
-sinh: `openssl rand -base64 48`). Cập nhật chú thích cookie: giờ là 2 cookie `at`/`rt`, nói rõ
-TTL 1h/7d. `COOKIE_DOMAIN` giữ nguyên ý nghĩa.
+**`api/.env.example`** — thêm `JWT_ACCESS_SECRET` (bắt buộc, sinh bằng `openssl rand -base64 48`),
+ghi rõ RT không dùng secret. Cập nhật chú thích cookie: giờ là 2 cookie `at`/`rt`, TTL 1h/7d.
+`COOKIE_DOMAIN` giữ nguyên ý nghĩa.
 
 ## Frontend — file theo file
 
@@ -284,14 +300,20 @@ lần → `setUser(user)` → `router.replace('/')`; lỗi → `router.replace('
 ```
 
 `name: 'joytab-auth'`, `partialize` chỉ lưu `user` (không lưu `hydrated`),
-`onRehydrateStorage` set `hydrated = true`. Bỏ hẳn field `checked`.
+`onRehydrateStorage: () => () => useAuthStore.setState({ hydrated: true })`. Bỏ hẳn field
+`checked`.
 
 `clearUser` phải xóa cả bản trong localStorage — `persist` tự ghi lại khi state đổi nên
-`setUser(null)` là đủ, không cần gọi `clearStorage()` thủ công.
+`set({ user: null })` là đủ, không cần gọi `clearStorage()` thủ công.
 
-**`ui/src/components/wrapper/app-wrapper.tsx`** — không gọi `useMe` nữa. Nhiệm vụ mới: chặn
-render tới khi `hydrated` để tránh lệch SSR/CSR của `persist` (server render ra `user: null`,
-client hydrate ra user thật → mismatch). Chưa hydrate → `LoadingScreen`.
+**Bắt buộc đặt `skipHydration: true`.** Nếu để persist tự hydrate lúc import module thì
+localStorage đọc đồng bộ xong ngay, client có user ở render đầu tiên trong khi server render
+ra `null` → React báo hydration mismatch. Với `skipHydration`, `AppWrapper` gọi
+`rehydrate()` trong `useEffect` nên render đầu của client giống hệt server.
+
+**`ui/src/components/wrapper/app-wrapper.tsx`** — không gọi `useMe` nữa. Nhiệm vụ mới: gọi
+`useAuthStore.persist.rehydrate()` trong `useEffect` và chặn render tới khi `hydrated`.
+Chưa hydrate → `LoadingScreen` (dài đúng một tick, không chờ network).
 
 **`ui/src/components/wrapper/require-auth.tsx`** và **`require-guest.tsx`** — chỉ đọc `user`,
 bỏ `checked` (hydration đã do `AppWrapper` lo).
@@ -301,8 +323,10 @@ bỏ `checked` (hydration đã do `AppWrapper` lo).
 - Bỏ nhánh `AUTH_004`
 - 401 + code `AUTH_005` + request chưa từng retry + url không phải `/auth/refresh`
   → gọi refresh rồi retry request gốc (đánh dấu `config._retried = true`)
-- Single-flight: một biến `refreshPromise` ở module scope; request nào tới trong lúc đang
-  refresh thì `await` cùng promise đó, không tự gọi thêm
+- Single-flight: một biến `refreshPromise` trong closure của `createApiClient`; request nào
+  tới trong lúc đang refresh thì `await` cùng promise đó, không tự gọi thêm. **Bắt buộc**, không
+  phải tối ưu: RT xoay vòng nên hai lần refresh đồng thời thì lần thứ hai dùng RT đã bị revoke
+  → BE coi là reuse và revoke sạch token của user, đăng xuất oan.
 - Refresh fail → `useAuthStore.getState().clearUser()` + `window.location.href = '/login'`
 - 401 với code khác `AUTH_005` (tức `AUTH_001`) → không refresh, `clearUser()` + về `/login` ngay
 - 401 ở `/auth/me` và `/auth/refresh` → không tự xử lý, để caller quyết (trang callback tự
@@ -333,9 +357,9 @@ fingerprint, không còn chỗ dùng.
 |---|---|---|---|
 | Không có cookie `at`, hoặc AT sai chữ ký / sai `typ` / malformed | `AUTH_001` | 401 | clear store, về `/login` (**không** refresh) |
 | AT hết hạn | `AUTH_005` | 401 | refresh rồi retry |
-| RT thiếu / sai / hết hạn / không có row / đã revoke | `AUTH_006` | 401 | clear store, về `/login` |
+| RT thiếu / không khớp hash nào / hết hạn / đã revoke | `AUTH_006` | 401 | clear store, về `/login` |
 | Google profile không có email | `AUTH_002` | 400 | callback BE redirect `/login` |
-| Thiếu `JWT_*_SECRET` lúc boot | — | — | app không start (`REQUIRED_ENV_KEYS`) |
+| Thiếu `JWT_ACCESS_SECRET` lúc boot | `SYS_014` | — | app không start (`REQUIRED_ENV_KEYS`) |
 
 RT reuse trả cùng `AUTH_006` như các lỗi RT khác — không tiết lộ cho client rằng đã phát hiện
 reuse. Ghi log warning ở BE.
@@ -347,23 +371,27 @@ Viết spec tạm, chạy pass, rồi xóa (repo không commit spec).
 **`jwt.service`**
 
 - `signAccessToken` → `verifyAccessToken` trả đúng `sub`, `email`
-- AT hết hạn → `AUTH_005`
-- RT đem đi `verifyAccessToken` → lỗi (secret khác nhau)
-- AT đem đi `verifyRefreshToken` → `AUTH_006`
-- Token sai `typ` (tự sign bằng secret đúng nhưng `typ` sai) → bị từ chối
+- AT hết hạn → `AUTH_005` (chỉ mã này, để FE biết đường refresh)
+- AT sai chữ ký → `AUTH_001`, không phải `AUTH_005`
+- AT malformed → `AUTH_001`
+- Token sai `typ` (sign bằng secret đúng nhưng `typ` khác) → `AUTH_001`
 
 **`refresh-token.service`**
 
-- `issue` tạo row `revoked_at = null`, `expires_at ≈ now + 7d`
-- `rotate` tạo row mới và set `revoked_at` + `replaced_by` trên row cũ
+- `issue` trả raw 64 ký tự hex, row có `revoked_at = null`, `expires_at ≈ now + 7d`
+- DB lưu SHA-256 của raw, không lưu raw
+- `findByRawToken` tìm được row từ raw; raw khác → null
+- `rotate` trả raw mới khác raw cũ, tạo row mới và set `revoked_at` + `replaced_by` trên row cũ
+- `revokeByRawToken` set `revoked_at`; gọi với raw không tồn tại → no-op, không ném lỗi
 - `revokeAllForUser` set `revoked_at` cho mọi row còn sống của user, không đụng user khác
 
 **`auth.controller` — `/auth/refresh`**
 
-- RT hợp lệ → 200, cookie `at` và `rt` đều đổi, jti mới khác jti cũ
+- RT hợp lệ → 200, cookie `at` và `rt` đều đổi, raw mới khác raw cũ
 - Gọi lại bằng RT vừa bị rotate → `AUTH_006` **và** mọi RT còn sống của user đó bị revoke
 - RT trỏ tới row đã hết hạn → `AUTH_006`
-- RT có `jti` không tồn tại trong DB → `AUTH_006`
+- RT không khớp hash nào trong DB → `AUTH_006`
+- Không có cookie `rt` → `AUTH_006`
 
 **`jwt-auth.guard`**
 

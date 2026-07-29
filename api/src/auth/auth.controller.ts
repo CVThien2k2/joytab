@@ -1,33 +1,38 @@
-import { Controller, Delete, Get, Logger, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Controller, Get, Logger, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
+import { ERROR_CODES } from '../common/constants/error-codes.constant';
+import { AppException } from '../common/exceptions/app.exception';
 import { GoogleAuthGuard } from '../common/guards/google-auth.guard';
-import { SessionGuard } from '../common/guards/session.guard';
-import { isProductionEnvironment } from '../common/utils/functions';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthService } from './auth.service';
-import { buildGoogleLoginFailedRedirectUrl, buildPostLoginRedirectUrl, readCookieValue } from './auth.utils';
 import {
+  ACCESS_COOKIE_NAME,
+  ACCESS_TOKEN_TTL_MS,
   AUTH_THROTTLE_LIMIT,
   AUTH_THROTTLE_TTL_MS,
-  COOKIE_PATH,
-  DEVICE_COOKIE_MAX_AGE_MS,
-  DEVICE_COOKIE_NAME,
-  SESSION_COOKIE_NAME,
-  SESSION_TTL_MS,
+  REFRESH_COOKIE_NAME,
+  REFRESH_TOKEN_TTL_MS,
 } from './auth.constants';
+import {
+  buildAuthCookieOptions,
+  buildGoogleLoginFailedRedirectUrl,
+  buildPostLoginRedirectUrl,
+  readCookieValue,
+} from './auth.utils';
+import { AuthJwtService } from './jwt.service';
+import { RefreshTokenService } from './refresh-token.service';
 
 @Throttle({ global: { ttl: AUTH_THROTTLE_TTL_MS, limit: AUTH_THROTTLE_LIMIT } })
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  /**
-   * Input: AuthService (nghiệp vụ) + ConfigService (FRONTEND_ORIGIN, môi trường).
-   * Output: Controller cho các route xác thực.
-   */
   constructor(
     private readonly authService: AuthService,
+    private readonly authJwtService: AuthJwtService,
+    private readonly refreshTokenService: RefreshTokenService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -40,8 +45,9 @@ export class AuthController {
   loginWithGoogle(): void {}
 
   /**
-   * Input: Callback Google (profile đã validate) + cookie device_id (nếu có).
-   * Output: Tạo session, set cookie session_id + device_id, redirect thẳng về FE `/` (home).
+   * Input: Callback Google (profile đã validate).
+   * Output: Upsert user, cấp AT + RT, set 2 cookie, redirect về FE `/auth/callback` —
+   *         trang đó gọi /auth/me một lần để bơm user vào store rồi về `/`.
    */
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
@@ -55,14 +61,9 @@ export class AuthController {
         response.redirect(302, loginPageUrl);
         return;
       }
-      const deviceId = readCookieValue(request.headers.cookie, DEVICE_COOKIE_NAME);
-      const result = await this.authService.loginWithGoogle(googleUser, {
-        deviceId,
-        userAgent: request.headers['user-agent'],
-      });
-      response.cookie(SESSION_COOKIE_NAME, result.sessionTokenRaw, this.buildCookieOptions(SESSION_TTL_MS));
-      response.cookie(DEVICE_COOKIE_NAME, result.deviceId, this.buildCookieOptions(DEVICE_COOKIE_MAX_AGE_MS));
-      this.logger.log(`Session issued for ${googleUser.email}, redirecting to FE home`);
+      const { userId, user } = await this.authService.loginWithGoogle(googleUser);
+      await this.issueTokenCookies(response, { userId, email: user.email });
+      this.logger.log(`Tokens issued for ${user.email}, redirecting to FE callback`);
       response.redirect(302, buildPostLoginRedirectUrl(frontendOrigin));
     } catch (err) {
       this.logger.error(`Google callback failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -71,59 +72,91 @@ export class AuthController {
   }
 
   /**
-   * Input: cookie session_id.
-   * Output: Revoke session hiện tại + xoá cookie session_id (giữ device_id).
+   * Input: cookie `rt`.
+   * Output: Xoay vòng refresh token, cấp AT + RT mới, set lại 2 cookie, trả { userId, user }
+   *         (cùng shape với /auth/me để FE cập nhật store luôn nếu cần).
+   *
+   *         Mọi lý do từ chối đều trả AUTH_006 — không tiết lộ cho client rằng đã phát hiện
+   *         token bị dùng lại.
+   */
+  @Post('refresh')
+  async refresh(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    const rawToken = readCookieValue(request.headers.cookie, REFRESH_COOKIE_NAME);
+    if (!rawToken) throw new AppException(ERROR_CODES.AUTH_006);
+
+    const stored = await this.refreshTokenService.findByRawToken(rawToken);
+    if (!stored) throw new AppException(ERROR_CODES.AUTH_006);
+    // Check revoke ĐỨNG TRƯỚC check hết hạn có chủ ý: một RT đã bị revoke mà vẫn được đem
+    // đi refresh luôn là dấu hiệu token bị copy, kể cả khi nó cũng đã hết hạn.
+    if (stored.revoked_at) {
+      this.logger.warn(`Refresh token reuse detected for user ${stored.user_id}, revoking all tokens`);
+      await this.refreshTokenService.revokeAllForUser(stored.user_id);
+      throw new AppException(ERROR_CODES.AUTH_006);
+    }
+    if (stored.expires_at.getTime() <= Date.now()) {
+      throw new AppException(ERROR_CODES.AUTH_006);
+    }
+
+    const { userId, user } = await this.authService.getMe(stored.user_id);
+    const rotated = await this.refreshTokenService.rotate(stored.id, userId);
+    await this.setTokenCookies(response, { userId, email: user.email, refreshTokenRaw: rotated.raw });
+    return { userId, user };
+  }
+
+  /**
+   * Input: cookie `rt` (không bắt buộc).
+   * Output: Revoke refresh token hiện tại + xoá cả 2 cookie. Luôn thành công, kể cả khi
+   *         token đã hết hạn hoặc không còn hợp lệ — logout không được phép thất bại.
    */
   @Post('logout')
   async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    const rawToken = readCookieValue(request.headers.cookie, SESSION_COOKIE_NAME);
-    if (rawToken) await this.authService.logout(rawToken);
-    response.clearCookie(SESSION_COOKIE_NAME, this.buildCookieOptions(SESSION_TTL_MS));
+    const rawToken = readCookieValue(request.headers.cookie, REFRESH_COOKIE_NAME);
+    if (rawToken) await this.refreshTokenService.revokeByRawToken(rawToken);
+    this.clearTokenCookies(response);
     return { success: true };
   }
 
   /**
-   * Input: session cookie (qua SessionGuard).
+   * Input: cookie `at` (qua JwtAuthGuard).
    * Output: Thông tin user hiện tại.
    */
   @Get('me')
-  @UseGuards(SessionGuard)
+  @UseGuards(JwtAuthGuard)
   async me(@Req() request: Request & { userId: string }) {
     return this.authService.getMe(request.userId);
   }
 
   /**
-   * Input: session cookie (qua SessionGuard).
-   * Output: Danh sách thiết bị/phiên của user.
+   * Input: Response + userId/email.
+   * Output: Tạo row refresh token mới rồi set cả 2 cookie. Dùng cho luồng login.
    */
-  @Get('devices')
-  @UseGuards(SessionGuard)
-  async devices(@Req() request: Request & { userId: string }) {
-    return this.authService.listDevices(request.userId);
+  private async issueTokenCookies(response: Response, params: { userId: string; email: string }): Promise<void> {
+    const issued = await this.refreshTokenService.issue(params.userId);
+    await this.setTokenCookies(response, { ...params, refreshTokenRaw: issued.raw });
   }
 
   /**
-   * Input: session cookie (qua SessionGuard) + sessionId.
-   * Output: Revoke session từ xa nếu thuộc về user.
+   * Input: Response + userId/email + chuỗi RT thô đã có row tương ứng trong DB.
+   * Output: Sign AT rồi set cookie `at` và `rt`.
    */
-  @Delete('sessions/:id')
-  @UseGuards(SessionGuard)
-  async revokeSession(@Param('id') id: string, @Req() request: Request & { userId: string }) {
-    await this.authService.revokeSession(id, request.userId);
-    return { success: true };
+  private async setTokenCookies(
+    response: Response,
+    params: { userId: string; email: string; refreshTokenRaw: string },
+  ): Promise<void> {
+    const accessToken = await this.authJwtService.signAccessToken({
+      userId: params.userId,
+      email: params.email,
+    });
+    response.cookie(ACCESS_COOKIE_NAME, accessToken, buildAuthCookieOptions(this.configService, ACCESS_TOKEN_TTL_MS));
+    response.cookie(
+      REFRESH_COOKIE_NAME,
+      params.refreshTokenRaw,
+      buildAuthCookieOptions(this.configService, REFRESH_TOKEN_TTL_MS),
+    );
   }
 
-  private buildCookieOptions(maxAge: number) {
-    // COOKIE_DOMAIN (vd .example.com) để cookie first-party dùng chung FE + API subdomain.
-    // Không set ở dev → cookie host-only cho localhost.
-    const domain = this.configService.get<string>('COOKIE_DOMAIN')?.trim();
-    return {
-      httpOnly: true,
-      secure: isProductionEnvironment(this.configService),
-      sameSite: 'lax' as const,
-      path: COOKIE_PATH,
-      maxAge,
-      ...(domain ? { domain } : {}),
-    };
+  private clearTokenCookies(response: Response): void {
+    response.clearCookie(ACCESS_COOKIE_NAME, buildAuthCookieOptions(this.configService, ACCESS_TOKEN_TTL_MS));
+    response.clearCookie(REFRESH_COOKIE_NAME, buildAuthCookieOptions(this.configService, REFRESH_TOKEN_TTL_MS));
   }
 }

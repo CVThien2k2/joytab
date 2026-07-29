@@ -4,13 +4,15 @@ import { useAuthStore } from "@/stores/auth-store"
 import { LogoutButton } from "@/components/common/logout-button"
 
 /**
- * Input: Không nhận props; đọc user từ store (AppWrapper rehydrate + validate).
+ * Input: Không nhận props; đọc user từ store (đã rehydrate ở AppWrapper).
  * Output: Hiển thị tài khoản đang dùng + nút đăng xuất.
+ *
+ * Không cần trạng thái loading: RequireAuth chỉ render component này khi đã có user.
  */
 export function CurrentUserCard() {
   const user = useAuthStore((state) => state.user)
-  const checked = useAuthStore((state) => state.checked)
-  const isPending = !user && !checked
+
+  if (!user) return null
 
   return (
     <main className="min-h-screen bg-zinc-50 p-6">
@@ -21,17 +23,12 @@ export function CurrentUserCard() {
             <LogoutButton />
           </div>
 
-          {isPending ? (
-            <p className="mt-4 text-sm text-zinc-500">Đang tải…</p>
-          ) : user ? (
-            <div className="mt-4 space-y-1 text-sm text-zinc-800">
-              <p className="font-medium">{user.user.fullName ?? user.user.email}</p>
-              <p className="text-zinc-600">{user.user.email}</p>
-              <p className="text-xs text-zinc-500">ID: {user.userId}</p>
-            </div>
-          ) : null}
+          <div className="mt-4 space-y-1 text-sm text-zinc-800">
+            <p className="font-medium">{user.user.fullName ?? user.user.email}</p>
+            <p className="text-zinc-600">{user.user.email}</p>
+            <p className="text-xs text-zinc-500">ID: {user.userId}</p>
+          </div>
         </section>
-
       </div>
     </main>
   )

@@ -11,13 +11,18 @@ export const ERROR_CODES = {
     code: 'AUTH_003',
     message: 'Google login code invalid or expired',
   },
-  AUTH_004: {
-    code: 'AUTH_004',
-    message: 'Session revoked',
-  },
+  /**
+   * Access token hết hạn — và CHỈ hết hạn. FE dựa vào đúng mã này để gọi /auth/refresh,
+   * nên token sai chữ ký/malformed phải trả AUTH_001 chứ không phải mã này.
+   */
   AUTH_005: {
     code: 'AUTH_005',
-    message: 'Session expired',
+    message: 'Access token expired',
+  },
+  /** Refresh token thiếu/sai/hết hạn/không tồn tại/đã bị thu hồi. FE phải đăng nhập lại. */
+  AUTH_006: {
+    code: 'AUTH_006',
+    message: 'Refresh token invalid or expired',
   },
   VALIDATION_001: {
     code: 'VALIDATION_001',
@@ -78,6 +83,10 @@ export const ERROR_CODES = {
   SYS_013: {
     code: 'SYS_013',
     message: 'Database connection failed',
+  },
+  SYS_014: {
+    code: 'SYS_014',
+    message: 'Missing JWT_ACCESS_SECRET',
   },
   UNKNOWN_001: {
     code: 'UNKNOWN_001',
