@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
-import { CurrentUserCard } from "./_components/current-user-card";
+import { RoutePlanner } from "./_components/route-planner";
 
 export const metadata: Metadata = {
-  title: "Trang chủ",
-  description: "Tổng quan tài khoản Joytab của bạn.",
+  title: "Bản đồ",
+  description:
+    "Demo OpenStreetMap: chọn hai điểm, tìm kiếm địa điểm và tính khoảng cách.",
   alternates: { canonical: "/" },
+  // Khu vực sau đăng nhập: không cho index.
   robots: { index: false, follow: false },
 };
 
 /**
  * Input: Không nhận tham số.
- * Output: Trang chủ (CSR) — CurrentUserCard đọc user từ store.
+ * Output: Trang chủ — demo OpenStreetMap + Leaflet (CSR toàn bộ).
  */
 export default function HomePage() {
-  return <CurrentUserCard />;
+  return <RoutePlanner />;
 }

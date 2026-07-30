@@ -60,3 +60,14 @@
     @apply font-sans;
   }
 }
+
+/* Leaflet
+   ------------------------------------------------------------------
+   Bản đồ CỐ Ý luôn giữ tone sáng, kể cả khi app đang ở dark mode: tile OSM chỉ có
+   bản sáng, đảo màu bằng filter làm chữ và ký hiệu trên bản đồ khó đọc. Control
+   của Leaflet vì vậy cũng để nguyên màu trắng mặc định, không ăn token theme. */
+.leaflet-container {
+  /* Màu nền chuẩn của tile OSM, hiện ở vùng tile chưa load xong. */
+  background: #f2efe9;
+  font-family: var(--font-sans);
+}
