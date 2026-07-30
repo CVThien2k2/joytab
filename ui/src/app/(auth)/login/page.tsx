@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { JoytabLogo } from "@/components/common/joytab-logo";
+import { RequireGuest } from "@/components/wrapper/require-guest";
 import {
   Card,
   CardContent,
@@ -44,39 +45,42 @@ export const metadata: Metadata = {
 
 /**
  * Input: Không nhận tham số.
- * Output: Màn hình đăng nhập Google-only. Toàn bộ là markup tĩnh, chỉ
- *         GoogleLoginButton chạy ở client nên page giữ được export metadata.
+ * Output: Màn hình đăng nhập Google-only, bọc RequireGuest (đã đăng nhập → /).
+ *         Markup tĩnh, chỉ GoogleLoginButton chạy ở client nên page vẫn export
+ *         được metadata.
  */
 export default function LoginPage() {
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-12">
-      <div className="flex w-full max-w-[384px] flex-col items-center gap-8">
-        <JoytabLogo className="h-10 w-auto" />
+    <RequireGuest>
+      <main className="flex flex-1 items-center justify-center px-6 py-12">
+        <div className="flex w-full max-w-[384px] flex-col items-center gap-8">
+          <JoytabLogo className="h-10 w-auto" />
 
-        <Card className="w-full gap-7 py-9">
-          <CardHeader className="justify-items-center gap-2 px-8 text-center">
-            <CardTitle className="text-2xl font-bold tracking-tight">
-              Đăng nhập
-            </CardTitle>
-            <CardDescription className="text-pretty">
-              Quản lý thu chi và quỹ nhóm cùng Joytab
-            </CardDescription>
-          </CardHeader>
+          <Card className="w-full gap-7 py-9">
+            <CardHeader className="justify-items-center gap-2 px-8 text-center">
+              <CardTitle className="text-2xl font-bold tracking-tight">
+                Đăng nhập
+              </CardTitle>
+              <CardDescription className="text-pretty">
+                Quản lý thu chi và quỹ nhóm cùng Joytab
+              </CardDescription>
+            </CardHeader>
 
-          <CardContent className="px-8">
-            <GoogleLoginButton />
-          </CardContent>
-        </Card>
+            <CardContent className="px-8">
+              <GoogleLoginButton />
+            </CardContent>
+          </Card>
 
-        <p className="max-w-[300px] text-center text-xs leading-relaxed text-muted-foreground">
-          Khi tiếp tục, bạn đồng ý với{" "}
-          <span className="font-medium text-foreground">Điều khoản</span> và{" "}
-          <span className="font-medium text-foreground">
-            Chính sách bảo mật
-          </span>{" "}
-          của Joytab.
-        </p>
-      </div>
-    </main>
+          <p className="max-w-[300px] text-center text-xs leading-relaxed text-muted-foreground">
+            Khi tiếp tục, bạn đồng ý với{" "}
+            <span className="font-medium text-foreground">Điều khoản</span> và{" "}
+            <span className="font-medium text-foreground">
+              Chính sách bảo mật
+            </span>{" "}
+            của Joytab.
+          </p>
+        </div>
+      </main>
+    </RequireGuest>
   );
 }

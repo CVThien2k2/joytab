@@ -5,13 +5,13 @@ import { COOKIE_PATH, DEFAULT_FRONTEND_ORIGIN } from './auth.constants';
 
 /**
  * Input: FRONTEND_ORIGIN từ env (có thể rỗng).
- * Output: URL trang `/auth/callback` của FE — trang này gọi /auth/me một lần để bơm user
+ * Output: URL trang `/login/callback` của FE — trang này gọi /auth/me một lần để bơm user
  *         vào store rồi tự điều hướng về `/`. OAuth là redirect 302 nên không có body nào
  *         để trả user về, đây là chỗ bù lại.
  */
 export function buildPostLoginRedirectUrl(frontendOrigin: string | undefined): string {
   const baseUrl = normalizeFrontendOrigin(frontendOrigin);
-  return new URL('/auth/callback', `${baseUrl}/`).toString();
+  return new URL('/login/callback', `${baseUrl}/`).toString();
 }
 
 /**

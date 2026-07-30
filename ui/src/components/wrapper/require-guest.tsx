@@ -1,29 +1,30 @@
-"use client"
+"use client";
 
-import { useEffect, type ReactNode } from "react"
-import { useRouter } from "next/navigation"
-import { useAuthStore } from "@/stores/auth-store"
+import { useEffect, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/stores/auth-store";
 
 /**
- * Input: children (nội dung chỉ dành cho khách CHƯA đăng nhập, vd /login).
- * Output: Guard đọc `user` từ store:
- *  - đã đăng nhập (có user) → redirect /.
- *  - chưa đăng nhập → render children (form).
+ * Input: children (nội dung chỉ dành cho khách CHƯA đăng nhập, vd form /login).
+ * Output: Guard đọc `user` + `hydrated` từ store:
+ *  - chưa rehydrate → chưa biết gì, chưa render form để tránh nháy rồi bị đẩy đi.
+ *  - đã đăng nhập → redirect /.
+ *  - chưa đăng nhập → render children.
  *
- * Không cần lo trạng thái "chưa biết": AppWrapper đã chặn render tới khi store rehydrate xong.
+ * Chờ `hydrated` chỉ dài một tick (đọc localStorage), không phải chờ network.
  */
 export function RequireGuest({ children }: { children: ReactNode }) {
-  const router = useRouter()
-  const user = useAuthStore((state) => state.user)
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const hydrated = useAuthStore((state) => state.hydrated);
 
   useEffect(() => {
-    if (user) {
-      router.replace("/")
+    if (hydrated && user) {
+      router.replace("/");
     }
-  }, [user, router])
+  }, [hydrated, user, router]);
 
-  if (user) {
-    return null
-  }
-  return <>{children}</>
+  if (!hydrated || user) return null;
+
+  return <>{children}</>;
 }

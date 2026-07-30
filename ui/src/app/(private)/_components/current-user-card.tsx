@@ -4,7 +4,7 @@ import { useAuthStore } from "@/stores/auth-store"
 import { LogoutButton } from "@/components/common/logout-button"
 
 /**
- * Input: Không nhận props; đọc user từ store (đã rehydrate ở AppWrapper).
+ * Input: Không nhận props; đọc user từ store (RequireAuth đã đảm bảo có user).
  * Output: Hiển thị tài khoản đang dùng + nút đăng xuất.
  *
  * Không cần trạng thái loading: RequireAuth chỉ render component này khi đã có user.

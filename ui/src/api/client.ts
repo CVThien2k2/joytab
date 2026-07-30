@@ -21,7 +21,7 @@ type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean }
  * Xử lý 401:
  *  - code AUTH_005 (AT hết hạn) → gọi /auth/refresh rồi retry đúng request đó một lần.
  *  - code khác (AUTH_001 token rác/thiếu, AUTH_006 RT chết) → clear store, về /login.
- *  - Riêng /auth/me và /auth/refresh: để caller tự quyết (trang /auth/callback tự điều hướng).
+ *  - Riêng /auth/me và /auth/refresh: để caller tự quyết (trang /login/callback tự điều hướng).
  */
 function createApiClient(): AxiosInstance {
   const instance = axios.create({

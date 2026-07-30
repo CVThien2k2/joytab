@@ -3,7 +3,8 @@ import { JoytabLogo } from "@/components/common/joytab-logo";
 /**
  * Input: Không nhận props.
  * Output: Màn loading dùng chung — logo Joytab ở giữa, nhấp nháy (animate-pulse).
- *         Dùng khi store chưa rehydrate xong, hoặc trang /auth/callback đang lấy user.
+ *         Dùng cho trang /login/callback trong lúc gọi /auth/me — chỗ đó là chờ
+ *         network thật. Rehydrate store thì KHÔNG dùng màn này (chỉ một tick).
  */
 export function LoadingScreen() {
   return (

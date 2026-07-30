@@ -5,7 +5,6 @@ export const metadata: Metadata = {
   title: "Trang chủ",
   description: "Tổng quan tài khoản Joytab của bạn.",
   alternates: { canonical: "/" },
-  // Khu vực sau đăng nhập: không cho index.
   robots: { index: false, follow: false },
 };
 

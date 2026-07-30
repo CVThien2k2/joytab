@@ -12,7 +12,7 @@ export async function logout(): Promise<void> {
 
 /**
  * Input: Không nhận tham số; dùng cookie `at`.
- * Output: Thông tin user hiện tại. Chỉ gọi ở trang /auth/callback ngay sau khi login.
+ * Output: Thông tin user hiện tại. Chỉ gọi ở trang /login/callback ngay sau khi login.
  */
 export async function fetchMe(): Promise<CurrentUser> {
   const response = await apiClient.get("/auth/me")
