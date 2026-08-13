@@ -7,7 +7,7 @@ import { ApiSuccessResponse } from '../utils/types';
 export class ResponseInterceptor implements NestInterceptor {
   /**
    * Input: Execution context và luồng dữ liệu response từ handler hiện tại.
-   * Output: Chuẩn hóa success response về format chung nếu handler chưa tự wrap.
+   * Output: Bọc data về envelope chuẩn { success, message, data } nếu handler chưa tự wrap.
    */
   intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
