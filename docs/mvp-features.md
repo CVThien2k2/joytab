@@ -16,36 +16,49 @@
 
 ## 3. Mời thành viên
 
-- Mời qua email.
-- Mời qua link.
+- MVP chỉ mời qua link. Không làm mời qua email.
 - Link có thể có thời gian hết hạn.
 - Link có thể giới hạn số lượt sử dụng.
 - Admin có thể thu hồi link.
 - Người dùng đăng nhập Google và chấp nhận lời mời để tham gia tổ
   chức.
 
+Bảng invite vẫn giữ cột `type` (`EMAIL`, `LINK`) và `email` để bật mời
+qua email sau này mà không phải migrate; MVP luôn tạo invite `LINK`.
+
 ## 4. Lịch chơi mặc định
 
 Admin tạo lịch đánh cầu định kỳ với: - Tên lịch. - Thứ trong tuần. - Giờ
-bắt đầu/kết thúc. - Tên và địa chỉ sân. - Tọa độ sân. - Giá sân mặc
-định. - Số người tối đa. - Thời gian khóa vote trước trận. - Trạng thái
-hoạt động.
+bắt đầu/kết thúc. - Tên và địa chỉ sân. - Giá sân mặc định. - Số người
+tối đa. - Thời gian khóa vote trước trận. - Trạng thái hoạt động.
 
 Hệ thống dùng lịch mặc định để sinh các trận thực tế. Sau khi sinh, mỗi
 trận hoạt động độc lập.
+
+Toàn hệ thống dùng một múi giờ cố định `Asia/Ho_Chi_Minh`, offset hằng
+số `+07:00` (Việt Nam không có DST từ 1975). Thứ trong tuần và giờ bắt
+đầu/kết thúc của lịch được hiểu theo múi giờ này rồi đổi sang UTC khi
+sinh trận.
 
 ## 5. Quản lý trận
 
 Admin có thể tạo, chỉnh sửa, hủy và hoàn tất trận.
 
-Mỗi trận gồm: - Tên trận. - Ngày giờ bắt đầu/kết thúc. - Tên, địa chỉ và
-tọa độ sân. - Giá sân. - Số người tối đa. - Thời điểm khóa vote. - Chi
-phí phát sinh. - Trạng thái: `OPEN`, `COMPLETED`, `CANCELLED`.
+Mỗi trận gồm: - Tên trận. - Ngày giờ bắt đầu/kết thúc. - Tên và địa chỉ
+sân. - Giá sân. - Số người tối đa. - Thời điểm khóa vote. - Chi phí phát
+sinh. - Trạng thái: `OPEN`, `COMPLETED`, `CANCELLED`.
+
+Trận sinh từ lịch định kỳ có thêm `source_template_id` và
+`occurrence_date`. Hai trường này chỉ để cron sinh trận không đẻ trùng
+(idempotency), không có nghiệp vụ nào đọc ngược từ trận về lịch.
 
 ## 6. Vote tham gia
 
 Thành viên có thể chọn: - `GOING`: tham gia. - `NOT_GOING`: không tham
-gia. - `WAITLIST`: danh sách chờ khi đã đủ người.
+gia.
+
+Không có danh sách chờ. Trận đã đủ người thì không vote `GOING` được
+nữa; ai bỏ vote thì slot trống ra ngay cho người khác vote vào.
 
 Một thành viên chỉ có một trạng thái vote trong một trận.
 
@@ -58,8 +71,14 @@ Ví dụ:
 ```text
 12 / 12 GOING
 → trận full
-→ người đăng ký tiếp theo vào WAITLIST
+→ người tiếp theo không vote GOING được nữa
+
+Một người đổi sang NOT_GOING
+→ 11 / 12 GOING
+→ slot trống ra ngay, ai vote trước thì được
 ```
+
+Không có hàng đợi, không auto-promote.
 
 Backend phải đảm bảo nhiều người đăng ký cùng lúc không làm số `GOING`
 vượt giới hạn.
@@ -112,6 +131,10 @@ Tổng:
 total_cost = court_cost + SUM(extra_costs.amount)
 ```
 
+Mọi cột tiền là số nguyên `Int`, đơn vị VND (đồng). Trần khoảng 2,147 tỷ
+mỗi dòng là quá đủ cho một buổi cầu, đổi lại tránh được kiểu `BigInt`
+của Prisma vốn không `JSON.stringify` được.
+
 ## 11. Hoàn tất và chia tiền
 
 Sau trận admin: 1. Xác nhận người thực sự tham gia. 2. Kiểm tra giá sân. 3. Nhập chi phí phát sinh. 4. Kiểm tra tổng tiền. 5. Kiểm tra số tiền
@@ -124,6 +147,31 @@ Tổng:       450.000đ
 Người chơi: 5
 Mỗi người:   90.000đ
 ```
+
+Khi tổng tiền không chia hết, hệ thống chia theo largest-remainder:
+
+```text
+base      = floor(total / n)
+remainder = total % n
+```
+
+`remainder` người đầu tiên (sắp theo `attendances.created_at`, rồi
+`user_id` cho tất định) trả `base + 1`, còn lại trả `base`.
+
+```text
+Tổng:       451.000đ
+Người chơi: 5
+→ base = 90.200, remainder = 0
+```
+
+```text
+Tổng:       450.002đ
+Người chơi: 5
+→ 2 người trả 90.001đ, 3 người trả 90.000đ
+```
+
+Bất biến: tổng các settlement luôn khớp tổng chi phí tuyệt đối — không
+làm tròn nghìn, không dư đồng nào.
 
 Hệ thống tạo settlement cho từng người để lưu số tiền phải trả.
 
@@ -190,7 +238,7 @@ Google Login
     ↓
 Organization
     ↓
-Members / Invite
+Members / Invite link
     ↓
 Event Template
     ↓
@@ -198,7 +246,7 @@ Event
     ↓
 Vote
     ↓
-Full / Waitlist / Lock vote
+Full / Lock vote
     ↓
 Trận diễn ra
     ↓

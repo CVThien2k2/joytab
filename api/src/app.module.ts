@@ -1,11 +1,15 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
+import { BillingModule } from './billing/billing.module';
 import { AppLogger } from './common/loggers/app.logger';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
+import { EventsModule } from './events/events.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 
 const REQUIRED_ENV_KEYS = [
   'DB_HOST',
@@ -45,8 +49,14 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
     ThrottlerModule.forRoot({
       throttlers: [{ name: 'global', ttl: 60000, limit: 60 }],
     }),
+    // Cron sinh event từ template. Chạy nhiều instance API thì cron chạy nhiều lần — vô hại
+    // nhờ skipDuplicates trên UNIQUE (source_template_id, occurrence_date).
+    ScheduleModule.forRoot(),
     DatabaseModule,
     AuthModule,
+    OrganizationsModule,
+    BillingModule,
+    EventsModule,
   ],
   controllers: [],
   providers: [AppLogger, { provide: APP_GUARD, useClass: ThrottlerGuard }],

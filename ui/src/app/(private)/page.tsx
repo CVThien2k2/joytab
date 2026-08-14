@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { CurrentUserCard } from "./_components/current-user-card";
+import { OrganizationList } from "./_components/organization-list";
 
 export const metadata: Metadata = {
-  title: "Trang chủ",
-  description: "Tổng quan tài khoản Joytab của bạn.",
+  title: "Nhóm của tôi",
+  description: "Các nhóm cầu lông bạn đang tham gia.",
   alternates: { canonical: "/" },
   robots: { index: false, follow: false },
 };
 
 /**
  * Input: Không nhận tham số.
- * Output: Trang chủ (CSR) — CurrentUserCard đọc user từ store.
+ * Output: Trang chủ sau đăng nhập — danh sách nhóm + lối tạo nhóm mới.
  */
 export default function HomePage() {
-  return <CurrentUserCard />;
+  return <OrganizationList />;
 }

@@ -1,4 +1,5 @@
 import { ERROR_CODES, ErrorCodeItem } from '../constants/error-codes.constant';
+import { MemberRole } from '../../generated/prisma/enums';
 
 export type { ErrorCodeItem };
 
@@ -26,6 +27,13 @@ export type ApiErrorResponse = {
 
 /** Một response API bất kỳ: thành công hoặc lỗi. */
 export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
+
+/** Tư cách thành viên của user hiện tại trong org trên URL — do OrgMemberGuard gắn vào request. */
+export type RequestMembership = {
+  organizationId: string;
+  userId: string;
+  role: MemberRole;
+};
 
 export type GoogleUser = {
   provider: 'google';
