@@ -25,6 +25,17 @@ export const ERROR_CODES = {
   /** Refresh token thiếu/sai/hết hạn/không tồn tại/đã bị thu hồi. FE phải đăng nhập lại. */
   AUTH_006: { code: 'AUTH_006', status: 401, message: 'Refresh token invalid or expired' },
 
+  /** Tổ chức không tồn tại, hoặc user không phải thành viên nên coi như không tồn tại. */
+  ORG_001: { code: 'ORG_001', status: 404, message: 'Organization not found' },
+  /**
+   * Mã tham gia không dùng được. Gộp CỐ Ý hai trường hợp "mã không tồn tại" và "mã đúng
+   * nhưng tổ chức đang không cho vào bằng mã": tách ra thì người ngoài dò được mã nào có
+   * thật chỉ bằng cách đọc mã lỗi.
+   */
+  ORG_002: { code: 'ORG_002', status: 404, message: 'Join code invalid or joining is closed' },
+  /** Đã là thành viên của tổ chức đó. */
+  ORG_003: { code: 'ORG_003', status: 409, message: 'Already a member of this organization' },
+
   VALIDATION_001: { code: 'VALIDATION_001', status: 400, message: 'Bad request' },
 
   SYS_001: { code: 'SYS_001', status: 500, message: 'Internal server error' },

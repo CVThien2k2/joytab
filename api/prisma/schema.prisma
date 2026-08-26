@@ -10,25 +10,26 @@ datasource db {
 }
 
 model User {
-  id               String         @id @default(uuid()) @db.Uuid
-  provider         String         @default("google") @db.VarChar(30)
-  provider_user_id String         @unique @db.VarChar(255)
-  email            String         @unique @db.VarChar(255)
-  full_name        String?        @db.VarChar(255)
+  id               String               @id @default(uuid()) @db.Uuid
+  provider         String               @default("google") @db.VarChar(30)
+  provider_user_id String               @unique @db.VarChar(255)
+  email            String               @unique @db.VarChar(255)
+  full_name        String?              @db.VarChar(255)
   avatar_url       String?
   /// Tuổi user tự khai ở bước onboarding (13..120) — không suy ra từ ngày sinh nên không tự già đi.
-  age              Int?           @db.SmallInt
+  age              Int?                 @db.SmallInt
   /// 'male' | 'female' | 'other'. Để VarChar chứ không enum: thêm giá trị mới không cần migrate type.
-  gender           String?        @db.VarChar(10)
+  gender           String?              @db.VarChar(10)
   /// SĐT di động Việt Nam đã chuẩn hoá về dạng 10 số bắt đầu bằng 0 (vd 0912345678).
-  phone            String?        @db.VarChar(15)
+  phone            String?              @db.VarChar(15)
   /// false cho tới khi user xác nhận xong tên/tuổi/giới tính/SĐT. Cửa duy nhất quyết định
   /// user được vào app hay bị đẩy về /onboarding — BE set cookie `onb` theo cờ này.
-  onboarded        Boolean        @default(false)
-  last_login_at    DateTime?      @db.Timestamptz(6)
-  status           String         @default("active") @db.VarChar(30)
-  created_at       DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime       @updatedAt @db.Timestamptz(6)
+  onboarded        Boolean              @default(false)
+  last_login_at    DateTime?            @db.Timestamptz(6)
+  status           String               @default("active") @db.VarChar(30)
+  created_at       DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime             @updatedAt @db.Timestamptz(6)
+  memberships      OrganizationMember[]
   refresh_tokens   RefreshToken[]
 
   @@unique([provider, provider_user_id])
@@ -51,4 +52,72 @@ model RefreshToken {
 
   @@index([user_id, revoked_at])
   @@map("refresh_tokens")
+}
+
+/// Một tổ chức = một không gian làm việc chung. User tham gia được nhiều tổ chức, mỗi tổ
+/// chức nhiều thành viên — quan hệ n-n nằm ở organization_members.
+model Organization {
+  id                   String                   @id @default(uuid()) @db.Uuid
+  name                 String                   @db.VarChar(100)
+  /// Mã 8 ký tự để người khác tự nhập vào tham gia. Lưu PLAINTEXT (khác refresh_token) vì
+  /// owner phải đọc được để chia sẻ. An toàn nằm ở chỗ khác: mã chỉ có tác dụng khi
+  /// join_by_code_enabled = true, và owner xoay được mã bất cứ lúc nào.
+  join_code            String                   @unique @db.VarChar(12)
+  /// Công tắc "ai có mã cũng vào được". Mặc định TẮT — tổ chức mới tạo là kín.
+  join_by_code_enabled Boolean                  @default(false)
+  /// Chỉ để truy vết ai tạo. KHÔNG dùng để kiểm quyền — quyền đọc ở organization_members.role.
+  created_by           String                   @db.Uuid
+  created_at           DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime                 @updatedAt @db.Timestamptz(6)
+  invitations          OrganizationInvitation[]
+  members              OrganizationMember[]
+
+  @@map("organizations")
+}
+
+/// Một row = một người trong một tổ chức. Đây là nguồn sự thật duy nhất cho câu hỏi
+/// "ai thuộc tổ chức nào, với quyền gì" — cố tình KHÔNG có cột owner_id trên organizations.
+model OrganizationMember {
+  id              String       @id @default(uuid()) @db.Uuid
+  organization_id String       @db.Uuid
+  user_id         String       @db.Uuid
+  /// 'owner' | 'member'. VarChar chứ không enum: thêm mức quyền sau không cần migrate type.
+  role            String       @default("member") @db.VarChar(20)
+  joined_at       DateTime     @default(now()) @db.Timestamptz(6)
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  /// Một user chỉ có một hàng trong một tổ chức — chặn double-join ở tầng DB, không tin service.
+  @@unique([organization_id, user_id])
+  /// Truy vấn nóng nhất: "user này ở những tổ chức nào" (chạy mỗi lần vào app).
+  @@index([user_id])
+  @@map("organization_members")
+}
+
+/// Lời mời tham gia tổ chức, gửi qua email. Gắn vào EMAIL chứ không phải user_id nên mời
+/// được cả người chưa có tài khoản Joytab: họ đăng nhập Google bằng đúng email đó là nhận được.
+model OrganizationInvitation {
+  id              String       @id @default(uuid()) @db.Uuid
+  organization_id String       @db.Uuid
+  email           String       @db.VarChar(255)
+  invited_by      String       @db.Uuid
+  /// SHA-256 của token trong link email, cùng cách làm với refresh_tokens: DB bị lộ cũng
+  /// không dựng lại được link để nhận lời mời hộ người khác.
+  token_hash      String       @unique
+  /// 'pending' | 'accepted' | 'revoked'. Cố tình KHÔNG có 'expired': hết hạn suy ra từ
+  /// expires_at, khỏi cần job đi sửa row.
+  status          String       @default("pending") @db.VarChar(20)
+  expires_at      DateTime     @db.Timestamptz(6)
+  accepted_at     DateTime?    @db.Timestamptz(6)
+  /// User thật đã bấm nhận — có thể là tài khoản vừa tạo bằng chính email được mời.
+  accepted_by     String?      @db.Uuid
+  created_at      DateTime     @default(now()) @db.Timestamptz(6)
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  /// Partial unique: mỗi (tổ chức, email) chỉ được có MỘT lời mời đang chờ. Mời lại sau khi
+  /// đã accepted/revoked thì vẫn được.
+  @@unique([organization_id, email], where: { status: "pending" })
+  /// "Tôi có lời mời nào đang chờ" — dùng ở màn nhận lời mời.
+  @@index([email, status])
+  @@map("organization_invitations")
 }

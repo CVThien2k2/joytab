@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { AppLogger } from './common/loggers/app.logger';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 
 const REQUIRED_ENV_KEYS = [
   'DB_HOST',
@@ -47,6 +48,7 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
     }),
     DatabaseModule,
     AuthModule,
+    OrganizationsModule,
   ],
   controllers: [],
   providers: [AppLogger, { provide: APP_GUARD, useClass: ThrottlerGuard }],

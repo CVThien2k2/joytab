@@ -53,3 +53,22 @@ export type UserProfile = GoogleUser & {
   phone: string | null;
   onboarded: boolean;
 };
+
+/** Vai trò của một user trong một tổ chức. Nguồn giá trị: ORGANIZATION_ROLES. */
+export type OrganizationRole = 'owner' | 'member';
+
+/**
+ * Một tổ chức nhìn từ góc độ user đang hỏi — nên có cả `role` và `joinCode` (chỉ owner thấy).
+ * Cùng shape cho GET /organizations, POST /organizations và POST /organizations/join.
+ */
+export type OrganizationSummary = {
+  id: string;
+  name: string;
+  role: OrganizationRole;
+  /** null với member: chỉ owner cần mã để chia sẻ. */
+  joinCode: string | null;
+  joinByCodeEnabled: boolean;
+  memberCount: number;
+  /** ISO 8601 — thời điểm user đang hỏi vào tổ chức này. */
+  joinedAt: string;
+};
