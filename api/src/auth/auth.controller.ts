@@ -1,4 +1,4 @@
-import { Controller, Get, Logger, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
@@ -12,16 +12,20 @@ import {
   ACCESS_TOKEN_TTL_MS,
   AUTH_THROTTLE_LIMIT,
   AUTH_THROTTLE_TTL_MS,
+  ONBOARDING_COOKIE_NAME,
+  ONBOARDING_PENDING_VALUE,
   REFRESH_COOKIE_NAME,
   REFRESH_TOKEN_TTL_MS,
 } from './auth.constants';
 import {
   buildAuthCookieOptions,
   buildGoogleLoginFailedRedirectUrl,
+  buildOnboardingRedirectUrl,
   buildPostLoginRedirectUrl,
   readCookieValue,
 } from './auth.utils';
 import { AuthJwtService } from './jwt.service';
+import { CompleteOnboardingDto } from './onboarding.dto';
 import { RefreshTokenService } from './refresh-token.service';
 
 @Throttle({ global: { ttl: AUTH_THROTTLE_TTL_MS, limit: AUTH_THROTTLE_LIMIT } })
@@ -46,7 +50,10 @@ export class AuthController {
 
   /**
    * Input: Callback Google (profile đã validate).
-   * Output: Upsert user, cấp AT + RT, set 2 cookie rồi redirect thẳng về `/` của FE.
+   * Output: Upsert user, cấp AT + RT, set cookie rồi redirect về FE.
+   *
+   *         Đây là chỗ BE kiểm tra user đã onboarding chưa: chưa xong thì kèm cookie `onb`
+   *         và đẩy thẳng về /onboarding; xong rồi thì xoá cookie đó và về `/`.
    */
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
@@ -61,9 +68,12 @@ export class AuthController {
         return;
       }
       const { userId, user } = await this.authService.loginWithGoogle(googleUser);
-      await this.issueTokenCookies(response, { userId, email: user.email });
-      this.logger.log(`Tokens issued for ${user.email}, redirecting to FE callback`);
-      response.redirect(302, buildPostLoginRedirectUrl(frontendOrigin));
+      await this.issueTokenCookies(response, { userId, email: user.email, onboarded: user.onboarded });
+      const redirectUrl = user.onboarded
+        ? buildPostLoginRedirectUrl(frontendOrigin)
+        : buildOnboardingRedirectUrl(frontendOrigin);
+      this.logger.log(`Tokens issued for ${user.email} (onboarded=${user.onboarded}), redirecting to ${redirectUrl}`);
+      response.redirect(302, redirectUrl);
     } catch (err) {
       this.logger.error(`Google callback failed: ${err instanceof Error ? err.message : String(err)}`);
       response.redirect(302, loginPageUrl);
@@ -72,7 +82,7 @@ export class AuthController {
 
   /**
    * Input: cookie `rt`.
-   * Output: Xoay vòng refresh token, cấp AT + RT mới, set lại 2 cookie, trả { userId, user }
+   * Output: Xoay vòng refresh token, cấp AT + RT mới, set lại cookie, trả { userId, user }
    *         (cùng shape với /auth/me để FE cập nhật store luôn nếu cần).
    *
    *         Mọi lý do từ chối đều trả AUTH_006 — không tiết lộ cho client rằng đã phát hiện
@@ -98,21 +108,34 @@ export class AuthController {
 
     const { userId, user } = await this.authService.getMe(stored.user_id);
     const rotated = await this.refreshTokenService.rotate(stored.id, userId);
-    await this.setTokenCookies(response, { userId, email: user.email, refreshTokenRaw: rotated.raw });
+    await this.setTokenCookies(response, {
+      userId,
+      email: user.email,
+      onboarded: user.onboarded,
+      refreshTokenRaw: rotated.raw,
+    });
     return { userId, user };
   }
 
   /**
-   * Input: cookie `rt` (không bắt buộc).
-   * Output: Revoke refresh token hiện tại + xoá cả 2 cookie. Luôn thành công, kể cả khi
-   *         token đã hết hạn hoặc không còn hợp lệ — logout không được phép thất bại.
+   * Input: cookie `at` (qua JwtAuthGuard) + body 4 field bắt buộc.
+   * Output: Lưu tên/tuổi/giới tính/SĐT, bật cờ onboarded, XOÁ cookie `onb` rồi trả user mới
+   *         (cùng shape /auth/me) để FE cập nhật store mà không cần gọi lại /auth/me.
+   *
+   *         Chỉ user đã đăng nhập vào được: userId lấy từ access token chứ không nhận từ
+   *         body, nên không ai onboarding hộ người khác.
    */
-  @Post('logout')
-  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    const rawToken = readCookieValue(request.headers.cookie, REFRESH_COOKIE_NAME);
-    if (rawToken) await this.refreshTokenService.revokeByRawToken(rawToken);
-    this.clearTokenCookies(response);
-    return { success: true };
+  @Post('onboarding')
+  @UseGuards(JwtAuthGuard)
+  async completeOnboarding(
+    @Req() request: Request & { userId: string },
+    @Res({ passthrough: true }) response: Response,
+    @Body() dto: CompleteOnboardingDto,
+  ) {
+    const { userId, user } = await this.authService.completeOnboarding(request.userId, dto);
+    this.syncOnboardingCookie(response, user.onboarded);
+    this.logger.log(`Onboarding completed for ${user.email}`);
+    return { userId, user };
   }
 
   /**
@@ -126,21 +149,37 @@ export class AuthController {
   }
 
   /**
-   * Input: Response + userId/email.
-   * Output: Tạo row refresh token mới rồi set cả 2 cookie. Dùng cho luồng login.
+   * Input: cookie `rt` (không bắt buộc).
+   * Output: Revoke refresh token hiện tại + xoá cookie. Luôn thành công, kể cả khi
+   *         token đã hết hạn hoặc không còn hợp lệ — logout không được phép thất bại.
    */
-  private async issueTokenCookies(response: Response, params: { userId: string; email: string }): Promise<void> {
+  @Post('logout')
+  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    const rawToken = readCookieValue(request.headers.cookie, REFRESH_COOKIE_NAME);
+    if (rawToken) await this.refreshTokenService.revokeByRawToken(rawToken);
+    this.clearTokenCookies(response);
+    return { success: true };
+  }
+
+  /**
+   * Input: Response + userId/email/onboarded.
+   * Output: Tạo row refresh token mới rồi set cookie. Dùng cho luồng login.
+   */
+  private async issueTokenCookies(
+    response: Response,
+    params: { userId: string; email: string; onboarded: boolean },
+  ): Promise<void> {
     const issued = await this.refreshTokenService.issue(params.userId);
     await this.setTokenCookies(response, { ...params, refreshTokenRaw: issued.raw });
   }
 
   /**
-   * Input: Response + userId/email + chuỗi RT thô đã có row tương ứng trong DB.
-   * Output: Sign AT rồi set cookie `at` và `rt`.
+   * Input: Response + userId/email/onboarded + chuỗi RT thô đã có row tương ứng trong DB.
+   * Output: Sign AT rồi set cookie `at`, `rt` và đồng bộ cookie `onb`.
    */
   private async setTokenCookies(
     response: Response,
-    params: { userId: string; email: string; refreshTokenRaw: string },
+    params: { userId: string; email: string; onboarded: boolean; refreshTokenRaw: string },
   ): Promise<void> {
     const accessToken = await this.authJwtService.signAccessToken({
       userId: params.userId,
@@ -152,10 +191,29 @@ export class AuthController {
       params.refreshTokenRaw,
       buildAuthCookieOptions(this.configService, REFRESH_TOKEN_TTL_MS),
     );
+    this.syncOnboardingCookie(response, params.onboarded);
+  }
+
+  /**
+   * Input: Response + cờ onboarded hiện tại của user.
+   * Output: Set cookie `onb` khi còn thiếu thông tin, xoá khi đã xong.
+   *
+   *         Luôn ghi rõ một trong hai chiều (không "để nguyên nếu đã xong") để cookie cũ còn
+   *         sót từ phiên trước không giam user ở /onboarding mãi.
+   *         Tuổi cookie bằng RT: hết phiên là hết ý nghĩa.
+   */
+  private syncOnboardingCookie(response: Response, onboarded: boolean): void {
+    const options = buildAuthCookieOptions(this.configService, REFRESH_TOKEN_TTL_MS);
+    if (onboarded) {
+      response.clearCookie(ONBOARDING_COOKIE_NAME, options);
+      return;
+    }
+    response.cookie(ONBOARDING_COOKIE_NAME, ONBOARDING_PENDING_VALUE, options);
   }
 
   private clearTokenCookies(response: Response): void {
     response.clearCookie(ACCESS_COOKIE_NAME, buildAuthCookieOptions(this.configService, ACCESS_TOKEN_TTL_MS));
     response.clearCookie(REFRESH_COOKIE_NAME, buildAuthCookieOptions(this.configService, REFRESH_TOKEN_TTL_MS));
+    response.clearCookie(ONBOARDING_COOKIE_NAME, buildAuthCookieOptions(this.configService, REFRESH_TOKEN_TTL_MS));
   }
 }

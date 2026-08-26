@@ -16,6 +16,16 @@ export function buildPostLoginRedirectUrl(frontendOrigin: string | undefined): s
 
 /**
  * Input: FRONTEND_ORIGIN từ env (có thể rỗng).
+ * Output: URL trang onboarding FE. Dùng khi login xong mà user chưa khai đủ thông tin —
+ *         redirect thẳng tới đây thay vì để `/` rồi proxy đá lại một nhịp nữa.
+ */
+export function buildOnboardingRedirectUrl(frontendOrigin: string | undefined): string {
+  const baseUrl = normalizeFrontendOrigin(frontendOrigin);
+  return new URL('/onboarding', `${baseUrl}/`).toString();
+}
+
+/**
+ * Input: FRONTEND_ORIGIN từ env (có thể rỗng).
  * Output: URL login FE cố định để fallback khi callback Google thất bại.
  */
 export function buildGoogleLoginFailedRedirectUrl(frontendOrigin: string | undefined): string {

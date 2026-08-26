@@ -16,6 +16,15 @@ model User {
   email            String         @unique @db.VarChar(255)
   full_name        String?        @db.VarChar(255)
   avatar_url       String?
+  /// Tuổi user tự khai ở bước onboarding (13..120) — không suy ra từ ngày sinh nên không tự già đi.
+  age              Int?           @db.SmallInt
+  /// 'male' | 'female' | 'other'. Để VarChar chứ không enum: thêm giá trị mới không cần migrate type.
+  gender           String?        @db.VarChar(10)
+  /// SĐT di động Việt Nam đã chuẩn hoá về dạng 10 số bắt đầu bằng 0 (vd 0912345678).
+  phone            String?        @db.VarChar(15)
+  /// false cho tới khi user xác nhận xong tên/tuổi/giới tính/SĐT. Cửa duy nhất quyết định
+  /// user được vào app hay bị đẩy về /onboarding — BE set cookie `onb` theo cờ này.
+  onboarded        Boolean        @default(false)
   last_login_at    DateTime?      @db.Timestamptz(6)
   status           String         @default("active") @db.VarChar(30)
   created_at       DateTime       @default(now()) @db.Timestamptz(6)
