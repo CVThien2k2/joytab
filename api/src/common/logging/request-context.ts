@@ -6,7 +6,7 @@ import { randomBytes } from 'crypto';
  * sau khi JwtAuthGuard verify xong nên các dòng log trước đó (vd access log của request
  * chưa đăng nhập) chỉ có `id`.
  */
-export type RequestContext = { id: string; user?: string };
+export type RequestContext = { id: string; email?: string; userId?: string };
 
 const storage = new AsyncLocalStorage<RequestContext>();
 
@@ -32,17 +32,24 @@ export function runWithRequestContext<T>(context: RequestContext, callback: () =
  */
 export function tagCurrentUser(email: string, userId: string): void {
   const context = storage.getStore();
-  if (context) context.user = `${email}_${userId}`;
+  if (!context) return;
+  context.email = email;
+  context.userId = userId;
 }
 
 /**
  * Input: Không nhận tham số.
- * Output: Tag `[id]` hoặc `[id email_userId]` để chèn vào đầu dòng log; rỗng khi ngoài request.
+ * Output: Tag dạng `[req=<id>]`, có user thì `[req=<id> email=<email> id=<userId>]`;
+ *         rỗng khi ngoài request. Mỗi trường có nhãn để grep theo đúng khoá
+ *         (`grep 'email=a@b.com'`) chứ không phải đoán theo vị trí.
  *         PHẢI gọi đồng bộ tại thời điểm log — AppLogger ghi trễ qua queue nên nếu đọc ở lúc
  *         ghi thì context đã mất.
  */
 export function currentLogTag(): string {
   const context = storage.getStore();
   if (!context) return '';
-  return context.user ? `[${context.id} ${context.user}]` : `[${context.id}]`;
+  const parts = [`req=${context.id}`];
+  if (context.email) parts.push(`email=${context.email}`);
+  if (context.userId) parts.push(`id=${context.userId}`);
+  return `[${parts.join(' ')}]`;
 }

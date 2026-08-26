@@ -1,23 +1,23 @@
-"use client";
+"use client"
 
-import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Moon, Sun } from "lucide-react"
+import { useTheme } from "next-themes"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 type ThemeModeButtonProps = {
-  className?: string;
+  className?: string
   /** Kích thước nút, map sang size icon của Button. Mặc định "sm" (size-8). */
-  size?: "sm" | "default" | "lg";
+  size?: "sm" | "default" | "lg"
   /** Variant của Button, mặc định "outline". */
-  variant?: React.ComponentProps<typeof Button>["variant"];
-};
+  variant?: React.ComponentProps<typeof Button>["variant"]
+}
 
 const ICON_SIZE = {
   sm: "icon-sm",
   default: "icon",
   lg: "icon-lg",
-} as const;
+} as const
 
 /**
  * Input: className để định vị, size/variant để khớp ngữ cảnh đặt nút.
@@ -31,7 +31,7 @@ export function ThemeModeButton({
   size = "sm",
   variant = "outline",
 }: ThemeModeButtonProps) {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme()
 
   return (
     <Button
@@ -43,14 +43,14 @@ export function ThemeModeButton({
       aria-label="Đổi giao diện sáng/tối"
     >
       <Sun
-        className="size-4 rotate-0 scale-100 transition-transform duration-500 dark:-rotate-90 dark:scale-0"
+        className="size-4 scale-100 rotate-0 transition-transform duration-500 dark:scale-0 dark:-rotate-90"
         aria-hidden="true"
       />
       <Moon
-        className="absolute size-4 rotate-90 scale-0 transition-transform duration-500 dark:rotate-0 dark:scale-100"
+        className="absolute size-4 scale-0 rotate-90 transition-transform duration-500 dark:scale-100 dark:rotate-0"
         aria-hidden="true"
       />
       <span className="sr-only">Đổi giao diện sáng/tối</span>
     </Button>
-  );
+  )
 }

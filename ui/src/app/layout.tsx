@@ -1,30 +1,30 @@
-import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
-import "./globals.css";
-import { cn } from "@/lib/utils";
-import { QueryProvider } from "@/providers/query-provider";
-import { ThemeProvider } from "@/providers/theme-provider";
-import { Toaster } from "@/components/ui/sonner";
+import type { Metadata, Viewport } from "next"
+import { Geist, Geist_Mono, Inter } from "next/font/google"
+import "./globals.css"
+import { cn } from "@/lib/utils"
+import { QueryProvider } from "@/providers/query-provider"
+import { ThemeProvider } from "@/providers/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
-});
+})
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-});
+})
 
 /** Gốc để Next resolve các URL tương đối trong metadata (OG image, canonical). */
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3005";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3005"
 
-const APP_NAME = "Joytab";
-const APP_TAGLINE = "Quản lý thu chi & quỹ nhóm";
+const APP_NAME = "Joytab"
+const APP_TAGLINE = "Quản lý thu chi & quỹ nhóm"
 const APP_DESCRIPTION =
-  "Joytab giúp bạn ghi thu chi, quản lý quỹ nhóm và theo dõi báo cáo dòng tiền ở cùng một nơi.";
+  "Joytab giúp bạn ghi thu chi, quản lý quỹ nhóm và theo dõi báo cáo dòng tiền ở cùng một nơi."
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -34,13 +34,7 @@ export const metadata: Metadata = {
   },
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
-  keywords: [
-    "Joytab",
-    "quản lý thu chi",
-    "sổ thu chi",
-    "quỹ nhóm",
-    "báo cáo dòng tiền",
-  ],
+  keywords: ["Joytab", "quản lý thu chi", "sổ thu chi", "quỹ nhóm", "báo cáo dòng tiền"],
   authors: [{ name: APP_NAME }],
   creator: APP_NAME,
   publisher: APP_NAME,
@@ -80,7 +74,7 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, "max-image-preview": "large" },
   },
-};
+}
 
 export const viewport: Viewport = {
   colorScheme: "light dark",
@@ -88,17 +82,17 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#0d1113" },
   ],
-};
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
     <html
       lang="vi"
-      data-theme="blue"
+      data-theme="yellow"
       suppressHydrationWarning
       className={cn(
         "h-full",
@@ -119,5 +113,5 @@ export default function RootLayout({
         </ThemeProvider>
       </body>
     </html>
-  );
+  )
 }

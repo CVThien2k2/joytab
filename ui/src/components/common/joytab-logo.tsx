@@ -14,11 +14,7 @@ type JoytabLogoProps = ComponentProps<"svg"> & {
  * Mặc định `text-primary`; muốn màu khác chỉ cần override class màu chữ
  * (vd `className="text-foreground"`). Các node mạch để rỗng bằng `--card`.
  */
-export function JoytabLogo({
-  className,
-  iconOnly = false,
-  ...props
-}: JoytabLogoProps) {
+export function JoytabLogo({ className, iconOnly = false, ...props }: JoytabLogoProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -32,10 +28,7 @@ export function JoytabLogo({
       <title>Joytab</title>
 
       {/* Icon group */}
-      <g
-        transform={iconOnly ? "translate(58 9)" : "translate(85 56)"}
-        stroke="currentColor"
-      >
+      <g transform={iconOnly ? "translate(58 9)" : "translate(85 56)"} stroke="currentColor">
         {/* cashflow J / growth arrow */}
         <path
           d="M238 32 L290 92 H258 V188 C258 260 205 310 132 310 C75 310 29 278 12 229"

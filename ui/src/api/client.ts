@@ -1,8 +1,7 @@
 import axios from "axios"
 import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios"
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
 
 /** Endpoint refresh — không bao giờ được tự refresh lại chính nó (vòng lặp vô hạn). */
 const REFRESH_URL = "/auth/refresh"
