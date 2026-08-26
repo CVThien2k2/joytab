@@ -5,7 +5,6 @@ export const userSchema = z.object({
   provider: z.literal("google"),
   providerUserId: z.string(),
   email: z.string(),
-  emailVerified: z.boolean(),
   fullName: z.string().nullable(),
   avatarUrl: z.string().nullable(),
 })

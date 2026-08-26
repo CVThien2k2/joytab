@@ -31,7 +31,6 @@ export type GoogleUser = {
   provider: 'google';
   providerUserId: string;
   email: string;
-  emailVerified: boolean;
   fullName: string | null;
   avatarUrl: string | null;
 };

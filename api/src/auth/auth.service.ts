@@ -38,7 +38,6 @@ export class AuthService {
   private toGoogleUser(user: {
     provider_user_id: string;
     email: string;
-    email_verified: boolean;
     full_name: string | null;
     avatar_url: string | null;
   }): GoogleUser {
@@ -46,7 +45,6 @@ export class AuthService {
       provider: 'google',
       providerUserId: user.provider_user_id,
       email: user.email,
-      emailVerified: user.email_verified,
       fullName: user.full_name,
       avatarUrl: user.avatar_url,
     };
@@ -63,20 +61,15 @@ export class AuthService {
       update: {
         provider: googleUser.provider,
         email: googleUser.email,
-        email_verified: googleUser.emailVerified,
         full_name: googleUser.fullName,
         avatar_url: googleUser.avatarUrl,
         status: 'active',
         last_login_at: now,
-        is_deleted: false,
-        deleted_by: null,
-        deleted_at: null,
       },
       create: {
         provider: googleUser.provider,
         provider_user_id: googleUser.providerUserId,
         email: googleUser.email,
-        email_verified: googleUser.emailVerified,
         full_name: googleUser.fullName,
         avatar_url: googleUser.avatarUrl,
         status: 'active',

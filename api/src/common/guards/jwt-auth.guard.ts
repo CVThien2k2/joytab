@@ -5,6 +5,7 @@ import { readCookieValue } from '../../auth/auth.utils';
 import { AuthJwtService } from '../../auth/jwt.service';
 import { ERROR_CODES } from '../constants/error-codes.constant';
 import { AppException } from '../exceptions/app.exception';
+import { tagCurrentUser } from '../logging/request-context';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -29,6 +30,7 @@ export class JwtAuthGuard implements CanActivate {
     const payload = await this.authJwtService.verifyAccessToken(accessToken);
     request.userId = payload.sub;
     request.userEmail = payload.email;
+    tagCurrentUser(payload.email, payload.sub);
     return true;
   }
 }

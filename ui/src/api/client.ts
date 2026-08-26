@@ -1,6 +1,5 @@
 import axios from "axios"
 import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios"
-import { useAuthStore } from "@/stores/auth-store"
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
@@ -21,7 +20,7 @@ type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean }
  * Xử lý 401:
  *  - code AUTH_005 (AT hết hạn) → gọi /auth/refresh rồi retry đúng request đó một lần.
  *  - code khác (AUTH_001 token rác/thiếu, AUTH_006 RT chết) → clear store, về /login.
- *  - Riêng /auth/me và /auth/refresh: để caller tự quyết (trang /login/callback tự điều hướng).
+ *  - Riêng /auth/refresh: refresh fail thì không có gì để thử lại, caller tự quyết.
  */
 function createApiClient(): AxiosInstance {
   const instance = axios.create({
@@ -56,10 +55,12 @@ function createApiClient(): AxiosInstance {
 
   /**
    * Input: Không nhận tham số.
-   * Output: Xoá user khỏi store (kèm localStorage) và đưa browser về /login.
+   * Output: Đưa browser về /login bằng full page load.
+   *
+   * Không xoá store ở đây: store giờ tạo theo request qua context (không còn instance toàn
+   * cục để với tới từ ngoài React), và full page load thì cũng dựng lại store từ đầu.
    */
   function forceLogin(): void {
-    useAuthStore.getState().clearUser()
     if (typeof window !== "undefined") {
       window.location.href = "/login"
     }
@@ -75,8 +76,9 @@ function createApiClient(): AxiosInstance {
       const config = error.config as RetriableConfig | undefined
       const url = config?.url ?? ""
 
-      // /auth/refresh và /auth/me tự chịu trách nhiệm: refresh thất bại thì không có gì
-      // để thử lại, còn /auth/me chỉ được gọi ở trang callback và trang đó tự điều hướng.
+      // /auth/refresh tự chịu trách nhiệm: refresh thất bại thì không có gì để thử lại.
+      // /auth/me giờ chỉ do Next server gọi (không qua axios), giữ trong danh sách này để
+      // nếu sau có ai gọi từ client thì cũng không kéo nhau vào vòng refresh.
       if (url.includes(REFRESH_URL) || url.includes("/auth/me")) {
         return Promise.reject(error)
       }

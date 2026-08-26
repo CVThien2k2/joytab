@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { AppWrapper } from "@/components/wrapper/app-wrapper";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -20,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 /** Gốc để Next resolve các URL tương đối trong metadata (OG image, canonical). */
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3005";
 
 const APP_NAME = "Joytab";
 const APP_TAGLINE = "Quản lý thu chi & quỹ nhóm";
@@ -115,9 +114,7 @@ export default function RootLayout({
             `transition: none !important` lên mọi element khi đổi theme, làm mất
             luôn hiệu ứng sun/moon của ThemeModeButton. */}
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <QueryProvider>
-            <AppWrapper>{children}</AppWrapper>
-          </QueryProvider>
+          <QueryProvider>{children}</QueryProvider>
           <Toaster />
         </ThemeProvider>
       </body>

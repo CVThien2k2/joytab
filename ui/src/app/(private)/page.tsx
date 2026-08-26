@@ -1,17 +1,17 @@
-import type { Metadata } from "next";
-import { CurrentUserCard } from "./_components/current-user-card";
+"use client"
 
-export const metadata: Metadata = {
-  title: "Trang chủ",
-  description: "Tổng quan tài khoản Joytab của bạn.",
-  alternates: { canonical: "/" },
-  robots: { index: false, follow: false },
-};
+import { useAuthStore } from "@/providers/auth-store-provider"
 
 /**
- * Input: Không nhận tham số.
- * Output: Trang chủ (CSR) — CurrentUserCard đọc user từ store.
+ * Input: Không nhận props; đọc user từ store (layout đã bơm vào).
+ * Output: In nguyên JSON user. Cố tình không dựng UI gì thêm.
  */
 export default function HomePage() {
-  return <CurrentUserCard />;
+  const user = useAuthStore((state) => state.user)
+
+  return (
+    <main className="p-6">
+      <pre className="overflow-x-auto text-xs leading-relaxed">{JSON.stringify(user, null, 2)}</pre>
+    </main>
+  )
 }

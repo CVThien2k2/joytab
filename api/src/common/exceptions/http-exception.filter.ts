@@ -85,6 +85,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
   /**
    * Input: Request gốc, status/code đã xác định và exception thực tế.
    * Output: Ghi log lỗi 5xx; dev in stack, production chỉ in message.
+   *         Chỉ log path, CẮT query string — `/auth/google/callback?code=...` mang
+   *         authorization code của Google, không được rơi vào file log.
    */
   private logError(request: Request, status: number, code: string, exception: unknown): void {
     const isProduction = process.env.NODE_ENV?.trim().toLowerCase() === 'production';
@@ -93,6 +95,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? ((isProduction ? exception.message : exception.stack) ?? exception.message)
         : String(exception);
 
-    this.logger.error(`${request.method} ${request.originalUrl} -> ${status} ${code}: ${detail}`);
+    const path = request.originalUrl.split('?')[0];
+    this.logger.error(`${request.method} ${path} -> ${status} ${code}: ${detail}`);
   }
 }

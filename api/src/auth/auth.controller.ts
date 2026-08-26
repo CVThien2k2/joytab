@@ -46,8 +46,7 @@ export class AuthController {
 
   /**
    * Input: Callback Google (profile đã validate).
-   * Output: Upsert user, cấp AT + RT, set 2 cookie, redirect về FE `/login/callback` —
-   *         trang đó gọi /auth/me một lần để bơm user vào store rồi về `/`.
+   * Output: Upsert user, cấp AT + RT, set 2 cookie rồi redirect thẳng về `/` của FE.
    */
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)

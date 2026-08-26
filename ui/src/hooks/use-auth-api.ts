@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { logout } from "@/api/auth"
-import { useAuthStore } from "@/stores/auth-store"
+import { useAuthStore } from "@/providers/auth-store-provider"
 
 /**
  * Input: Không nhận tham số.

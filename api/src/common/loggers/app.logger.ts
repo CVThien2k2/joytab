@@ -2,6 +2,7 @@ import { ConsoleLogger, Injectable, LogLevel } from '@nestjs/common';
 import { appendFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { AppException } from '../exceptions/app.exception';
+import { currentLogTag } from '../logging/request-context';
 
 type LogTask = () => void;
 type LogLevelName = 'log' | 'error' | 'warn' | 'debug' | 'verbose' | 'fatal';
@@ -17,9 +18,10 @@ export class AppLogger extends ConsoleLogger {
    * Output: Đưa log vào hàng đợi bất đồng bộ để giảm block request path.
    */
   override log(message: unknown, ...optionalParams: unknown[]): void {
+    const tagged = AppLogger.withTag(message);
     this.enqueue(() => {
-      super.log(message, ...optionalParams);
-      void this.writeFileLog('log', message, optionalParams);
+      super.log(tagged, ...optionalParams);
+      void this.writeFileLog('log', tagged, optionalParams);
     });
   }
 
@@ -28,7 +30,7 @@ export class AppLogger extends ConsoleLogger {
    * Output: Đưa log lỗi rút gọn vào hàng đợi bất đồng bộ, ưu tiên hiển thị code/message thay vì stack trace dài.
    */
   override error(message: unknown, ...optionalParams: unknown[]): void {
-    const compactMessage = this.buildCompactErrorMessage(message);
+    const compactMessage = AppLogger.withTag(this.buildCompactErrorMessage(message)) as string;
     const context = this.extractContext(optionalParams);
     this.enqueue(() => {
       super.error(compactMessage, undefined, context);
@@ -41,9 +43,10 @@ export class AppLogger extends ConsoleLogger {
    * Output: Đưa warning log vào hàng đợi bất đồng bộ.
    */
   override warn(message: unknown, ...optionalParams: unknown[]): void {
+    const tagged = AppLogger.withTag(message);
     this.enqueue(() => {
-      super.warn(message, ...optionalParams);
-      void this.writeFileLog('warn', message, optionalParams);
+      super.warn(tagged, ...optionalParams);
+      void this.writeFileLog('warn', tagged, optionalParams);
     });
   }
 
@@ -52,9 +55,10 @@ export class AppLogger extends ConsoleLogger {
    * Output: Đưa debug log vào hàng đợi bất đồng bộ.
    */
   override debug(message: unknown, ...optionalParams: unknown[]): void {
+    const tagged = AppLogger.withTag(message);
     this.enqueue(() => {
-      super.debug(message, ...optionalParams);
-      void this.writeFileLog('debug', message, optionalParams);
+      super.debug(tagged, ...optionalParams);
+      void this.writeFileLog('debug', tagged, optionalParams);
     });
   }
 
@@ -63,9 +67,10 @@ export class AppLogger extends ConsoleLogger {
    * Output: Đưa verbose log vào hàng đợi bất đồng bộ.
    */
   override verbose(message: unknown, ...optionalParams: unknown[]): void {
+    const tagged = AppLogger.withTag(message);
     this.enqueue(() => {
-      super.verbose(message, ...optionalParams);
-      void this.writeFileLog('verbose', message, optionalParams);
+      super.verbose(tagged, ...optionalParams);
+      void this.writeFileLog('verbose', tagged, optionalParams);
     });
   }
 
@@ -74,10 +79,23 @@ export class AppLogger extends ConsoleLogger {
    * Output: Đưa fatal log vào hàng đợi bất đồng bộ.
    */
   override fatal(message: unknown, ...optionalParams: unknown[]): void {
+    const tagged = AppLogger.withTag(message);
     this.enqueue(() => {
-      super.fatal(message, ...optionalParams);
-      void this.writeFileLog('fatal', message, optionalParams);
+      super.fatal(tagged, ...optionalParams);
+      void this.writeFileLog('fatal', tagged, optionalParams);
     });
+  }
+
+  /**
+   * Input: message gốc từ NestJS.
+   * Output: Chèn tag phiên `[reqId email_userId]` vào đầu message nếu đang trong request.
+   *         Đọc context NGAY tại đây (đồng bộ) vì queue ghi log trễ, lúc drain thì
+   *         AsyncLocalStorage đã rời context. Message không phải string thì để nguyên.
+   */
+  private static withTag(message: unknown): unknown {
+    const tag = currentLogTag();
+    if (!tag || typeof message !== 'string') return message;
+    return `${tag} ${message}`;
   }
 
   /**
