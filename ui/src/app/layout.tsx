@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono, Inter } from "next/font/google"
+import { Geist, Geist_Mono, Inter, Nunito_Sans } from "next/font/google"
 import "./globals.css"
 import { cn } from "@/lib/utils"
 import { QueryProvider } from "@/providers/query-provider"
 import { ThemeProvider } from "@/providers/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
+const nunitoSans = Nunito_Sans({subsets:['latin'],variable:'--font-sans'})
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -100,7 +100,7 @@ export default function RootLayout({
         geistSans.variable,
         geistMono.variable,
         "font-sans",
-        inter.variable,
+        nunitoSans.variable,
       )}
     >
       <body className="flex min-h-full flex-col">

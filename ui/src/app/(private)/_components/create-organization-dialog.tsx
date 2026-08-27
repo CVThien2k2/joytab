@@ -54,7 +54,7 @@ export function CreateOrganizationDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="lg" className="w-full sm:w-auto">
+        <Button>
           <Plus aria-hidden="true" />
           Tạo tổ chức
         </Button>

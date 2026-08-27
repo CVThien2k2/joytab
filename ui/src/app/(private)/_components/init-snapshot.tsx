@@ -17,7 +17,7 @@ export function InitSnapshot({ organizations }: { organizations: Organization[] 
   const currentOrganization = organizations[0]
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
       <p className="text-sm">
         Tổ chức đang xem: <span className="font-semibold">{currentOrganization.name}</span>{" "}
         <span className="text-muted-foreground">

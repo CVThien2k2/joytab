@@ -56,7 +56,7 @@ export function JoinOrganizationDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="lg" variant="outline" className="w-full sm:w-auto">
+        <Button variant="outline">
           <KeyRound aria-hidden="true" />
           Tham gia bằng mã
         </Button>

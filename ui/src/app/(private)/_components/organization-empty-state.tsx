@@ -17,17 +17,16 @@ export function OrganizationEmptyState() {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-md text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <Building2 className="size-7" aria-hidden="true" />
+        <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Building2 className="size-6" aria-hidden="true" />
         </div>
 
-        <h1 className="mt-5 text-xl font-bold tracking-tight">Bạn chưa thuộc tổ chức nào</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Tham gia tổ chức có sẵn bằng mã được chia sẻ, hoặc tạo tổ chức mới và mời người khác
-          vào.
+        <h1 className="mt-4 text-base font-semibold tracking-tight">Bạn chưa thuộc tổ chức nào</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Tham gia tổ chức có sẵn bằng mã được chia sẻ, hoặc tạo tổ chức mới và mời người khác vào.
         </p>
 
-        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
           <JoinOrganizationDialog />
           <CreateOrganizationDialog />
         </div>
