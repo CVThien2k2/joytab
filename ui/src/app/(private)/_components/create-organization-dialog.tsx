@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Spinner } from "@/components/ui/spinner"
+import { LoadingOverlay } from "@/components/common/loading-overlay"
 import { useCreateOrganization } from "@/hooks/use-organizations-api"
 import { MAX_ORGANIZATION_NAME_LENGTH, createOrganizationFormSchema } from "@/schema/organization"
 import type { CreateOrganizationPayload } from "@/types/organization"
@@ -34,7 +34,12 @@ export function CreateOrganizationDialog() {
 
   const form = useForm<CreateOrganizationPayload>({
     resolver: zodResolver(createOrganizationFormSchema),
-    mode: "onTouched",
+    // KHÔNG dùng "onTouched": blur khỏi ô trống (vd bấm nút X) sẽ bung lỗi, dialog cao
+    // thêm một dòng, và vì dialog canh giữa nên nó tự dịch lên — nút đang bấm chạy khỏi
+    // con trỏ, mouseup rơi ra ngoài nên click không bao giờ thành. Báo lỗi khi submit,
+    // rồi mới bám theo từng ký tự.
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: { name: "" },
   })
 
@@ -60,6 +65,7 @@ export function CreateOrganizationDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
+        {mutation.isPending ? <LoadingOverlay label="Đang tạo tổ chức" /> : null}
         <form onSubmit={form.handleSubmit((payload) => mutation.mutate(payload))} noValidate>
           <fieldset disabled={mutation.isPending} className="contents">
             <DialogHeader>
@@ -84,8 +90,8 @@ export function CreateOrganizationDialog() {
 
             <DialogFooter>
               <Button type="submit">
-                {mutation.isPending ? <Spinner className="size-4" /> : null}
-                {mutation.isPending ? "Đang tạo" : "Tạo tổ chức"}
+                <Plus aria-hidden="true" />
+                Tạo tổ chức
               </Button>
             </DialogFooter>
           </fieldset>

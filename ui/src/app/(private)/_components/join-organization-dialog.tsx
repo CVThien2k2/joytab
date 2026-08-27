@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { KeyRound } from "lucide-react"
+import { KeyRound, LogIn } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Spinner } from "@/components/ui/spinner"
+import { LoadingOverlay } from "@/components/common/loading-overlay"
 import { useJoinOrganization } from "@/hooks/use-organizations-api"
 import { JOIN_CODE_LENGTH, joinOrganizationFormSchema } from "@/schema/organization"
 import type { JoinOrganizationFormValues, JoinOrganizationPayload } from "@/types/organization"
@@ -37,7 +37,12 @@ export function JoinOrganizationDialog() {
 
   const form = useForm<JoinOrganizationFormValues, unknown, JoinOrganizationPayload>({
     resolver: zodResolver(joinOrganizationFormSchema),
-    mode: "onTouched",
+    // KHÔNG dùng "onTouched": blur khỏi ô trống (vd bấm nút X) sẽ bung lỗi, dialog cao
+    // thêm một dòng, và vì dialog canh giữa nên nó tự dịch lên — nút đang bấm chạy khỏi
+    // con trỏ, mouseup rơi ra ngoài nên click không bao giờ thành. Báo lỗi khi submit,
+    // rồi mới bám theo từng ký tự.
+    mode: "onSubmit",
+    reValidateMode: "onChange",
     defaultValues: { joinCode: "" },
   })
 
@@ -62,6 +67,7 @@ export function JoinOrganizationDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
+        {mutation.isPending ? <LoadingOverlay label="Đang tham gia" /> : null}
         <form onSubmit={form.handleSubmit((payload) => mutation.mutate(payload))} noValidate>
           <fieldset disabled={mutation.isPending} className="contents">
             <DialogHeader>
@@ -96,8 +102,8 @@ export function JoinOrganizationDialog() {
 
             <DialogFooter>
               <Button type="submit">
-                {mutation.isPending ? <Spinner className="size-4" /> : null}
-                {mutation.isPending ? "Đang tham gia" : "Tham gia"}
+                <LogIn aria-hidden="true" />
+                Tham gia
               </Button>
             </DialogFooter>
           </fieldset>
