@@ -1,8 +1,22 @@
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsString, IsUUID, Length, Matches } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import {
   JOIN_CODE_REGEX,
   MAX_ORGANIZATION_NAME_LENGTH,
+  MEMBER_SEARCH_MAX_LENGTH,
+  MEMBERS_DEFAULT_PAGE_SIZE,
+  MEMBERS_MAX_PAGE_SIZE,
   MIN_ORGANIZATION_NAME_LENGTH,
 } from './organizations.constants';
 import { normalizeJoinCode, normalizeOrganizationName } from './organizations.utils';
@@ -57,4 +71,51 @@ export class OrganizationIdParamDto {
   // là để một lần đổi default sang v7 làm hỏng mọi request mà không ai ngờ tới.
   @IsUUID(undefined, { message: 'Id tổ chức không hợp lệ' })
   id: string;
+}
+
+/**
+ * Query của GET /organizations/:id/members.
+ *
+ * `@Type(() => Number)` là bắt buộc: query string luôn là chuỗi, không convert thì @IsInt
+ * trượt với mọi giá trị. ValidationPipe đã bật `transform: true` nên decorator này ăn.
+ *
+ * `page` đếm từ 1 (không phải 0): hợp đồng này đọc bằng mắt trên URL nhiều hơn là đưa vào
+ * thư viện bảng, nên 1-based khớp với con số người dùng thấy trên nút phân trang.
+ */
+export class ListMembersQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Số trang không hợp lệ' })
+  @Min(1, { message: 'Số trang phải từ 1' })
+  page: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Số dòng mỗi trang không hợp lệ' })
+  @Min(1, { message: 'Số dòng mỗi trang phải từ 1' })
+  @Max(MEMBERS_MAX_PAGE_SIZE, {
+    message: `Số dòng mỗi trang tối đa ${MEMBERS_MAX_PAGE_SIZE}`,
+  })
+  pageSize: number = MEMBERS_DEFAULT_PAGE_SIZE;
+
+  /** Tìm theo tên hoặc email. Chuỗi rỗng sau khi trim = không tìm gì. */
+  @IsOptional()
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
+  @IsString({ message: 'Từ khoá tìm kiếm không hợp lệ' })
+  @MaxLength(MEMBER_SEARCH_MAX_LENGTH, {
+    message: `Từ khoá tìm kiếm tối đa ${MEMBER_SEARCH_MAX_LENGTH} ký tự`,
+  })
+  q?: string;
+}
+
+/**
+ * Param của DELETE /organizations/:id/members/:userId. Cả hai đều phải validate: id không
+ * phải UUID mà đưa thẳng xuống Prisma thì driver ném lỗi → 500, trong khi đây là lỗi client.
+ */
+export class OrganizationMemberParamDto {
+  @IsUUID(undefined, { message: 'Id tổ chức không hợp lệ' })
+  id: string;
+
+  @IsUUID(undefined, { message: 'Id thành viên không hợp lệ' })
+  userId: string;
 }

@@ -61,9 +61,7 @@ export const organizationPreviewResponseSchema = envelope(
 )
 
 /** POST /organizations và POST /organizations/join dùng chung shape này. */
-export const organizationResponseSchema = envelope(
-  z.object({ organization: organizationSchema }),
-)
+export const organizationResponseSchema = envelope(z.object({ organization: organizationSchema }))
 
 /**
  * Một thành viên trong danh sách thành viên. `userId` là id user (không phải id row
@@ -78,9 +76,23 @@ export const organizationMemberSchema = z.object({
   joinedAt: z.string(),
 })
 
-/** GET /organizations/:id/members */
+/**
+ * Meta phân trang của BE (common/utils/types.ts) — `page` đếm từ 1, `totalPages` tối thiểu 1
+ * kể cả khi không tìm ra ai, nên FE luôn có một trang để hiện.
+ */
+export const paginationSchema = z.object({
+  page: z.number(),
+  pageSize: z.number(),
+  totalItems: z.number(),
+  totalPages: z.number(),
+})
+
+/** GET /organizations/:id/members?page&pageSize&q */
 export const organizationMemberListResponseSchema = envelope(
-  z.object({ members: z.array(organizationMemberSchema) }),
+  z.object({
+    members: z.array(organizationMemberSchema),
+    pagination: paginationSchema,
+  }),
 )
 
 /** Form tạo tổ chức. */

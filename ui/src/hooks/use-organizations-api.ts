@@ -1,18 +1,134 @@
 "use client"
 
-import { useMutation } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getApiErrorMessage } from "@/api/error"
 import {
   createOrganization,
+  deleteOrganization,
+  fetchOrganizationMembers,
   joinOrganizationByCode,
+  removeOrganizationMember,
   updateJoinByCodeEnabled,
+  type MemberListParams,
 } from "@/api/organizations"
 import type { Organization } from "@/types/organization"
 
 /** Router của Next — chỉ cần đúng hàm refresh nên khai hẹp lại cho dễ đọc. */
 type RefreshableRouter = { refresh: () => void }
+
+/**
+ * Khoá cache của danh sách thành viên. Khai một chỗ để mutation invalidate đúng thứ mà query
+ * đang giữ — hai chỗ tự viết tay mảng khoá là hai chỗ có thể lệch nhau.
+ *
+ * Không có `q`/`page` ở khoá gốc: `invalidateQueries` khớp theo tiền tố nên xoá một người sẽ
+ * làm mới MỌI trang và MỌI từ khoá của tổ chức đó, không chỉ trang đang xem.
+ */
+export const memberQueryKeys = {
+  all: (organizationId: string) => ["organizations", organizationId, "members"] as const,
+  page: (params: MemberListParams) =>
+    [
+      ...memberQueryKeys.all(params.organizationId),
+      params.page,
+      params.pageSize,
+      params.q ?? "",
+    ] as const,
+}
+
+/**
+ * Input: id tổ chức + trang + từ khoá.
+ * Output: Query một trang thành viên.
+ *
+ *         Đây là dữ liệu DUY NHẤT của khu vực tổ chức fetch từ client — user (/auth/me) và
+ *         danh sách tổ chức (/organizations) vẫn do server component lấy để lần render đầu đã
+ *         có sẵn. Riêng danh sách thành viên nằm sau một tab và còn phân trang/tìm kiếm, nên để
+ *         React Query giữ cache: quay lại trang cũ trong 30 giây là hiện ngay.
+ *
+ *         `keepPreviousData`: đổi trang thì giữ dữ liệu trang cũ trên màn hình cho tới khi
+ *         trang mới về — không có nó thì bảng rỗng một nhịp và cả khung co lại rồi giãn ra.
+ *
+ *         `staleTime` 30 giây chứ không 0: danh sách thành viên đổi khi có người vào/ra, tính
+ *         theo phút chứ không theo giây, nên refetch mỗi lần bấm tab là tốn công vô ích.
+ */
+export function useOrganizationMembers(params: MemberListParams) {
+  return useQuery({
+    queryKey: memberQueryKeys.page(params),
+    queryFn: () => fetchOrganizationMembers(params),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  })
+}
+
+/**
+ * Input: id tổ chức + callback đóng dialog (tuỳ chọn).
+ * Output: Mutation xoá một người khỏi tổ chức — owner đuổi thành viên.
+ *
+ *         Làm mới HAI nơi vì cùng một hành động đổi hai loại dữ liệu: `invalidateQueries` cho
+ *         danh sách thành viên (React Query giữ), và `router.refresh()` cho `memberCount` trong
+ *         danh sách tổ chức (server component giữ, hiện ở sidebar và trang Thông tin tổ chức).
+ */
+export function useRemoveOrganizationMember(organizationId: string, onSuccess?: () => void) {
+  const router = useRouter()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (userId: string) => removeOrganizationMember({ organizationId, userId }),
+    onSuccess: () => {
+      toast.success("Đã xoá thành viên khỏi tổ chức")
+      onSuccess?.()
+      void queryClient.invalidateQueries({ queryKey: memberQueryKeys.all(organizationId) })
+      router.refresh()
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không xoá được thành viên. Vui lòng thử lại."))
+    },
+  })
+}
+
+/**
+ * Input: Tổ chức đang xem (cần cả tên để viết toast).
+ * Output: Mutation rời tổ chức — người gọi tự xoá mình. Owner gọi sẽ ăn ORG_005 từ BE.
+ *
+ *         Xong thì `replace("/")` chứ không `push`: tổ chức vừa rời không còn là chỗ để bấm
+ *         Back quay lại — vào lại chỉ ăn notFound. `/` tự chọn tổ chức khác, hoặc hiện màn hình
+ *         "chưa thuộc tổ chức nào".
+ */
+export function useLeaveOrganization(organization: { id: string; name: string }, userId: string) {
+  const router = useRouter()
+
+  return useMutation({
+    mutationFn: () => removeOrganizationMember({ organizationId: organization.id, userId }),
+    onSuccess: () => {
+      toast.success(`Đã rời "${organization.name}"`)
+      router.replace("/")
+      router.refresh()
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không rời được tổ chức. Vui lòng thử lại."))
+    },
+  })
+}
+
+/**
+ * Input: Tổ chức đang xem.
+ * Output: Mutation xoá cả tổ chức (chỉ owner). Cũng `replace("/")` vì lý do như rời tổ chức.
+ */
+export function useDeleteOrganization(organization: { id: string; name: string }) {
+  const router = useRouter()
+
+  return useMutation({
+    mutationFn: () => deleteOrganization(organization.id),
+    onSuccess: () => {
+      toast.success(`Đã xoá tổ chức "${organization.name}"`)
+      router.replace("/")
+      router.refresh()
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không xoá được tổ chức. Vui lòng thử lại."))
+    },
+  })
+}
 
 /**
  * Input: Callback đóng dialog sau khi thành công (tuỳ chọn).
@@ -62,8 +178,8 @@ export function useToggleJoinByCode() {
     onSuccess: (organization) => {
       toast.success(
         organization.joinByCodeEnabled
-          ? `Đã mở cửa vào "${organization.name}" bằng mã/link`
-          : `Đã đóng cửa vào "${organization.name}"`,
+          ? `Đã mở cửa "${organization.name}" — mã mới: ${organization.joinCode}`
+          : `Đã đóng cửa "${organization.name}" — mã cũ hết hiệu lực`,
       )
       router.refresh()
     },

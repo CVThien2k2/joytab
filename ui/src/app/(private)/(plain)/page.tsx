@@ -7,7 +7,7 @@ import { OrganizationEmptyState } from "../_components/organization-empty-state"
  * Output: Ngã ba của lối vào app, không tự vẽ UI tổ chức:
  *  - Không gọi được BE → hiện thẳng lý do, không error boundary.
  *  - Chưa thuộc tổ chức nào → hai nút tham gia bằng mã / tạo tổ chức.
- *  - Đã có tổ chức → đá sang `/orgs/<id>/overview`.
+ *  - Đã có tổ chức → đá sang `/orgs/<id>`.
  *
  *         Mảng rỗng KHÁC lỗi: `organizations: []` là trạng thái hợp lệ của user mới, nên phải
  *         kiểm tra `null` (lỗi) trước rồi mới xét `length`.
@@ -37,5 +37,5 @@ export default async function HomePage() {
     result.organizations.find((organization) => organization.id === rememberedId) ??
     result.organizations[0]
 
-  redirect(`/orgs/${target.id}/overview`)
+  redirect(`/orgs/${target.id}`)
 }

@@ -102,3 +102,14 @@ export type OrganizationMemberSummary = {
   /** ISO 8601 — thời điểm người này vào tổ chức. */
   joinedAt: string;
 };
+
+/**
+ * Meta phân trang chuẩn — cùng shape với `Pagination` của hub để FE hai app đọc như một.
+ * `page` đếm từ 1.
+ */
+export type Pagination = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};

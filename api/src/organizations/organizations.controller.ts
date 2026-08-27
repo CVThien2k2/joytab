@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -10,7 +21,9 @@ import {
   CreateOrganizationDto,
   JoinCodeParamDto,
   JoinOrganizationDto,
+  ListMembersQueryDto,
   OrganizationIdParamDto,
+  OrganizationMemberParamDto,
   UpdateOrganizationDto,
 } from './organizations.dto';
 import { OrganizationsService } from './organizations.service';
@@ -64,8 +77,8 @@ export class OrganizationsController {
   }
 
   /**
-   * Input: cookie `at` + id tổ chức trên URL.
-   * Output: { members } — mọi thành viên của tổ chức, owner trước rồi theo thứ tự vào.
+   * Input: cookie `at` + id tổ chức trên URL + ?page&pageSize&q.
+   * Output: { members, pagination } — một trang thành viên, owner trước rồi theo thứ tự vào.
    *
    *         Đặt SAU 'by-code/:code' nhưng trước hay sau cũng không đổi nghĩa: ':id/members'
    *         có hai đoạn nên không đụng route một đoạn nào.
@@ -74,10 +87,40 @@ export class OrganizationsController {
   async listMembers(
     @Req() request: Request & { userId: string },
     @Param() params: OrganizationIdParamDto,
+    @Query() query: ListMembersQueryDto,
   ) {
-    return {
-      members: await this.organizationsService.listMembers(request.userId, params.id),
-    };
+    return this.organizationsService.listMembers(request.userId, params.id, query);
+  }
+
+  /**
+   * Input: cookie `at` + id tổ chức + userId người bị xoá.
+   * Output: Envelope rỗng (`data` không có gì để trả).
+   *
+   *         MỘT route cho hai việc vì cùng một thay đổi dữ liệu: userId là chính mình = rời tổ
+   *         chức (chỉ member), userId người khác = owner đuổi thành viên. Owner không rời được
+   *         (ORG_005) — muốn dừng thì xoá cả tổ chức.
+   */
+  @Delete(':id/members/:userId')
+  async removeMember(
+    @Req() request: Request & { userId: string },
+    @Param() params: OrganizationMemberParamDto,
+  ) {
+    await this.organizationsService.removeMember(request.userId, params.id, params.userId);
+  }
+
+  /**
+   * Input: cookie `at` + id tổ chức.
+   * Output: Envelope rỗng. Chỉ owner gọi được; thành viên và dữ liệu của tổ chức đi theo.
+   *
+   *         Không dùng 204: mọi route trong API này đi qua ResponseInterceptor và trả cùng một
+   *         envelope, giữ nếp đó thì FE không phải có nhánh riêng cho hai route xoá.
+   */
+  @Delete(':id')
+  async remove(
+    @Req() request: Request & { userId: string },
+    @Param() params: OrganizationIdParamDto,
+  ) {
+    await this.organizationsService.remove(request.userId, params.id);
   }
 
   /**

@@ -38,3 +38,13 @@ export const ORGANIZATION_ROLES = ['owner', 'member'] as const;
  */
 export const JOIN_CODE_THROTTLE_TTL_MS = 60_000;
 export const JOIN_CODE_THROTTLE_LIMIT = 10;
+
+/**
+ * Phân trang của danh sách thành viên. `pageSize` có TRẦN vì đây là tham số client tự đặt:
+ * không chặn thì một request `pageSize=100000` kéo cả bảng users ra khỏi DB.
+ */
+export const MEMBERS_DEFAULT_PAGE_SIZE = 20;
+export const MEMBERS_MAX_PAGE_SIZE = 100;
+
+/** Từ khoá tìm kiếm thành viên — dài hơn thế thì không còn là tên hay email nữa. */
+export const MEMBER_SEARCH_MAX_LENGTH = 100;

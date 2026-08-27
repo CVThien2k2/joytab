@@ -49,7 +49,7 @@ const THEME_OPTIONS = [
 /**
  * Input: Tên/email của user (có thể null).
  * Output: 1–2 ký tự viết tắt cho avatar khi không tải được ảnh. Cùng thuật toán với UserMenu và
- *         MemberList — ba chỗ vẽ avatar phải rơi về cùng chữ cái cho cùng một người.
+ *         MembersTable — ba chỗ vẽ avatar phải rơi về cùng chữ cái cho cùng một người.
  */
 function initialsOf(fullName: string | null, email: string): string {
   const source = fullName?.trim() || email
@@ -114,7 +114,7 @@ export function SidebarProfileMenu({
     if (organizationId === activeId) return
     startSwitching(async () => {
       await setActiveOrganization(organizationId)
-      router.push(`/orgs/${organizationId}/overview`)
+      router.push(`/orgs/${organizationId}`)
       onNavigate?.()
     })
   }
@@ -148,7 +148,7 @@ export function SidebarProfileMenu({
           </DropdownMenuTrigger>
         </RailTooltip>
 
-        <DropdownMenuContent side="top" align="start" className="w-64">
+        <DropdownMenuContent side="top" align="start" className="w-72">
           {/* Hàng đầu là tổ chức ĐANG xem, không phải cả danh sách: đa số người chỉ thuộc một
               tổ chức, mà menu mở ra đã thấy một danh sách dài thì việc thường ngày (đổi giao
               diện, đăng xuất) bị đẩy xuống dưới. Danh sách nằm trong submenu — hover mới bung.
@@ -163,7 +163,10 @@ export function SidebarProfileMenu({
               <span className="min-w-0 flex-1 truncate font-medium">{active.name}</span>
             </DropdownMenuSubTrigger>
 
-            <DropdownMenuSubContent className="w-64">
+            {/* align="end" = bám mép DƯỚI của item, nên submenu trải LÊN. Menu tài khoản nằm
+                ở đáy sidebar; mặc định của Radix là bám mép trên (trải xuống), tức là trải
+                thẳng ra ngoài đáy màn hình rồi bị Radix lật ngược lại — một nhịp nhảy. */}
+            <DropdownMenuSubContent align="end" className="w-72">
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                 Tổ chức của bạn
               </DropdownMenuLabel>
@@ -203,7 +206,7 @@ export function SidebarProfileMenu({
               <Moon className="hidden dark:block" aria-hidden="true" />
               Giao diện
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-44">
+            <DropdownMenuSubContent align="end" className="w-48">
               <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
                 {THEME_OPTIONS.map((option) => {
                   const Icon = option.icon

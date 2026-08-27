@@ -16,7 +16,6 @@ const SEED_EMAIL_DOMAIN = 'joytab.dev';
 
 /** Mã tham gia của org seed. Chỉ dùng ký tự Crockford base32 (không có I L O U). */
 const DEMO_JOIN_CODE = 'SEED0001';
-const CLASS_FUND_JOIN_CODE = 'SEED0002';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({
@@ -61,23 +60,35 @@ async function upsertSeedUser(handle: string, fullName: string) {
 }
 
 /**
- * Input: Tên tổ chức, mã tham gia, công tắc cho phép vào bằng mã, id người tạo.
- * Output: Tổ chức đã upsert theo `join_code` (unique) — mã seed là hằng số nên chạy lại
- *         không sinh thêm tổ chức.
+ * Input: Tên tổ chức, mã tham gia (null = tổ chức kín), id người tạo.
+ * Output: Tổ chức đã upsert theo cặp (tên, người tạo).
+ *
+ *         KHÔNG upsert theo `join_code` nữa: mã giờ là null khi tổ chức kín, mà null thì không
+ *         định danh được gì — chạy seed lần hai sẽ sinh thêm một tổ chức nữa. Cặp (tên, người
+ *         tạo) không có unique index nên phải tự tìm rồi mới ghi; seed chạy tuần tự một mình
+ *         nên không có race để lo.
  */
 async function upsertSeedOrganization(params: {
   name: string;
-  joinCode: string;
-  joinByCodeEnabled: boolean;
+  joinCode: string | null;
   createdBy: string;
 }) {
-  return prisma.organization.upsert({
-    where: { join_code: params.joinCode },
-    update: { name: params.name, join_by_code_enabled: params.joinByCodeEnabled },
-    create: {
+  const existing = await prisma.organization.findFirst({
+    where: { name: params.name, created_by: params.createdBy },
+    select: { id: true },
+  });
+
+  if (existing) {
+    return prisma.organization.update({
+      where: { id: existing.id },
+      data: { join_code: params.joinCode },
+    });
+  }
+
+  return prisma.organization.create({
+    data: {
       name: params.name,
       join_code: params.joinCode,
-      join_by_code_enabled: params.joinByCodeEnabled,
       created_by: params.createdBy,
     },
   });
@@ -100,19 +111,17 @@ async function main(): Promise<void> {
   const member = await upsertSeedUser('member', 'Seed Member');
   const guest = await upsertSeedUser('guest', 'Seed Guest');
 
-  // Org 1: mở cửa bằng mã — dùng để test luồng "tham gia bằng mã".
+  // Org 1: mở cửa (có mã) — dùng để test luồng "tham gia bằng mã".
   const demo = await upsertSeedOrganization({
     name: 'Joytab Demo',
     joinCode: DEMO_JOIN_CODE,
-    joinByCodeEnabled: true,
     createdBy: owner.id,
   });
-  // Org 2: đóng cửa — nhập đúng mã vẫn phải bị từ chối. `member` là OWNER ở đây trong khi chỉ
-  // là member ở org 1: đó là cả điểm của thiết kế n-n, vai trò thuộc về cặp (org, user).
+  // Org 2: kín — mã là null nên không mã nào vào được. `member` là OWNER ở đây trong khi chỉ là
+  // member ở org 1: đó là cả điểm của thiết kế n-n, vai trò thuộc về cặp (org, user).
   const classFund = await upsertSeedOrganization({
     name: 'Quỹ lớp 12A',
-    joinCode: CLASS_FUND_JOIN_CODE,
-    joinByCodeEnabled: false,
+    joinCode: null,
     createdBy: member.id,
   });
 
@@ -122,7 +131,9 @@ async function main(): Promise<void> {
 
   console.log('Seed xong:');
   console.log(`  ${owner.email} — owner của "${demo.name}" (mã ${DEMO_JOIN_CODE}, mở cửa)`);
-  console.log(`  ${member.email} — member của "${demo.name}", owner của "${classFund.name}" (mã ${CLASS_FUND_JOIN_CODE}, đóng)`);
+  console.log(
+    `  ${member.email} — member của "${demo.name}", owner của "${classFund.name}" (đang kín, chưa có mã)`,
+  );
   console.log(`  ${guest.email} — chưa vào tổ chức nào (dùng để xem UI 2 nút)`);
 }
 

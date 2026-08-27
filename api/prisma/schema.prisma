@@ -59,12 +59,18 @@ model RefreshToken {
 model Organization {
   id                   String                   @id @default(uuid()) @db.Uuid
   name                 String                   @db.VarChar(100)
-  /// Mã 8 ký tự để người khác tự nhập vào tham gia. Lưu PLAINTEXT (khác refresh_token) vì
-  /// owner phải đọc được để chia sẻ. An toàn nằm ở chỗ khác: mã chỉ có tác dụng khi
-  /// join_by_code_enabled = true, và owner xoay được mã bất cứ lúc nào.
-  join_code            String                   @unique @db.VarChar(12)
-  /// Công tắc "ai có mã cũng vào được". Mặc định TẮT — tổ chức mới tạo là kín.
-  join_by_code_enabled Boolean                  @default(false)
+  /// Mã 8 ký tự để người khác tự nhập vào tham gia, hoặc NULL khi tổ chức đang kín.
+  ///
+  /// NULL CHÍNH LÀ công tắc: không có cột `join_by_code_enabled` riêng, vì hai nguồn sự thật
+  /// cho cùng một câu hỏi sẽ có lúc lệch nhau (enabled = true mà mã rỗng thì nghĩa là gì?).
+  /// Tổ chức mới tạo là NULL — kín cho tới khi owner tự mở.
+  ///
+  /// Mỗi lần mở cửa là một mã MỚI, không dùng lại mã cũ: nhờ vậy đóng cửa là mọi liên kết đã
+  /// chia sẻ chết hẳn, mở lại không hồi sinh chúng.
+  ///
+  /// Lưu PLAINTEXT (khác refresh_token) vì owner phải đọc được để chia sẻ. `unique` vẫn dùng
+  /// được với cột nullable: Postgres cho phép nhiều NULL trong unique index.
+  join_code            String?                  @unique @db.VarChar(12)
   /// Chỉ để truy vết ai tạo. KHÔNG dùng để kiểm quyền — quyền đọc ở organization_members.role.
   created_by           String                   @db.Uuid
   created_at           DateTime                 @default(now()) @db.Timestamptz(6)

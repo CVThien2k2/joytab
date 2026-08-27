@@ -3,6 +3,7 @@ import {
   createOrganizationFormSchema,
   joinOrganizationFormSchema,
   organizationMemberSchema,
+  paginationSchema,
   organizationPreviewSchema,
   organizationSchema,
 } from "@/schema/organization"
@@ -13,6 +14,8 @@ export type OrganizationRole = Organization["role"]
 export type OrganizationPreview = z.infer<typeof organizationPreviewSchema>
 
 export type OrganizationMember = z.infer<typeof organizationMemberSchema>
+
+export type Pagination = z.infer<typeof paginationSchema>
 
 export type CreateOrganizationPayload = z.infer<typeof createOrganizationFormSchema>
 

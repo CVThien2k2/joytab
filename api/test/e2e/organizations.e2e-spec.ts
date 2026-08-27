@@ -107,7 +107,7 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
     await api().post('/organizations').set(asUser('owner')).send({ name: 'A' }).expect(400);
   });
 
-  it('tạo tổ chức: người tạo là owner, có mã, và mặc định ĐÓNG cửa', async () => {
+  it('tạo tổ chức: người tạo là owner, và tổ chức ĐANG KÍN (chưa có mã)', async () => {
     const res = await api()
       .post('/organizations')
       .set(asUser('owner'))
@@ -119,26 +119,11 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
     expect(org.name).toBe(`E2E Quỹ ${RUN_ID}`);
     expect(org.role).toBe('owner');
     expect(org.memberCount).toBe(1);
+    // Mã tồn tại đồng nghĩa cửa đang mở, nên tổ chức mới tạo KHÔNG có mã.
     expect(org.joinByCodeEnabled).toBe(false);
-    expect(org.joinCode).toMatch(/^[0-9A-HJKMNP-TV-Z]{8}$/);
+    expect(org.joinCode).toBeNull();
 
     organizationId = org.id;
-    joinCode = org.joinCode;
-  });
-
-  it('tổ chức mới tạo là kín: có mã cũng không xem và không vào được', async () => {
-    const preview = await api()
-      .get(`/organizations/by-code/${joinCode}`)
-      .set(asUser('joiner'))
-      .expect(404);
-    expect(preview.body.code).toBe('ORG_002');
-
-    const join = await api()
-      .post('/organizations/join')
-      .set(asUser('joiner'))
-      .send({ joinCode })
-      .expect(404);
-    expect(join.body.code).toBe('ORG_002');
   });
 
   it('chỉ owner mở được cửa — member/người ngoài/id rác đều bị chặn', async () => {
@@ -167,7 +152,11 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
       .set(asUser('owner'))
       .send({ joinByCodeEnabled: true })
       .expect(200);
+    // Mở cửa là lúc mã được sinh ra.
     expect(opened.body.data.organization.joinByCodeEnabled).toBe(true);
+    expect(opened.body.data.organization.joinCode).toMatch(/^[0-9A-HJKMNP-TV-Z]{8}$/);
+
+    joinCode = opened.body.data.organization.joinCode;
   });
 
   it('cửa đã mở: xem trước thấy tên + số thành viên, chưa phải thành viên', async () => {
@@ -233,12 +222,14 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
     expect(res.body.code).toBe('ORG_004');
   });
 
-  it('owner đóng cửa: chính mã đó lập tức hết dùng được', async () => {
-    await api()
+  it('owner đóng cửa: mã về null và chính mã đó lập tức hết dùng được', async () => {
+    const closed = await api()
       .patch(`/organizations/${organizationId}`)
       .set(asUser('owner'))
       .send({ joinByCodeEnabled: false })
       .expect(200);
+    expect(closed.body.data.organization.joinByCodeEnabled).toBe(false);
+    expect(closed.body.data.organization.joinCode).toBeNull();
 
     const preview = await api()
       .get(`/organizations/by-code/${joinCode}`)
@@ -252,6 +243,30 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
       .send({ joinCode })
       .expect(404);
     expect(join.body.code).toBe('ORG_002');
+  });
+
+  it('mở lại sinh mã KHÁC, và bật lại lần nữa cũng xoay ra mã khác', async () => {
+    const reopened = await api()
+      .patch(`/organizations/${organizationId}`)
+      .set(asUser('owner'))
+      .send({ joinByCodeEnabled: true })
+      .expect(200);
+
+    const newCode = reopened.body.data.organization.joinCode as string;
+    expect(newCode).toMatch(/^[0-9A-HJKMNP-TV-Z]{8}$/);
+    // Mã cũ không hồi sinh: mở lại là một mã hoàn toàn khác, nên mọi liên kết đã chia sẻ trước
+    // khi đóng cửa đều chết vĩnh viễn. (Mã cũ hết dùng được đã kiểm ở test đóng cửa phía trên.)
+    expect(newCode).not.toBe(joinCode);
+
+    // Bật lại lần nữa trong lúc đang mở cũng xoay ra mã khác — đó là đường xoay mã của owner.
+    const rotated = await api()
+      .patch(`/organizations/${organizationId}`)
+      .set(asUser('owner'))
+      .send({ joinByCodeEnabled: true })
+      .expect(200);
+    expect(rotated.body.data.organization.joinCode).not.toBe(newCode);
+
+    joinCode = rotated.body.data.organization.joinCode;
   });
 
   it('mã sai định dạng → 400; mã đúng định dạng nhưng không tồn tại → ORG_002', async () => {

@@ -37,6 +37,16 @@ export const ERROR_CODES = {
   ORG_003: { code: 'ORG_003', status: 409, message: 'Bạn đã là thành viên của tổ chức này.' },
   /** Là thành viên nhưng không phải owner — đổi cấu hình tổ chức chỉ owner được làm. */
   ORG_004: { code: 'ORG_004', status: 403, message: 'Chỉ chủ tổ chức mới làm được việc này.' },
+  /**
+   * Thao tác nhắm vào chủ tổ chức: owner tự rời, hoặc owner khác bị xoá. Chặn vì chưa có
+   * chuyển quyền sở hữu — mất owner là để lại một tổ chức không ai vào sửa được. Owner muốn
+   * dừng thì xoá cả tổ chức (DELETE /organizations/:id).
+   */
+  ORG_005: {
+    code: 'ORG_005',
+    status: 409,
+    message: 'Chủ tổ chức không thể rời tổ chức. Hãy xoá tổ chức nếu không dùng nữa.',
+  },
 
   VALIDATION_001: { code: 'VALIDATION_001', status: 400, message: 'Dữ liệu gửi lên không hợp lệ.' },
 
