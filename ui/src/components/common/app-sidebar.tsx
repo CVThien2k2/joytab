@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, PanelLeft } from "lucide-react"
+import { Building2, PanelLeft, UserRound } from "lucide-react"
 import { JoytabLogo } from "@/components/common/joytab-logo"
 import { RailTooltip } from "@/components/common/rail-tooltip"
 import { SidebarProfileMenu } from "@/components/common/sidebar-profile-menu"
@@ -18,6 +18,26 @@ import { cn } from "@/lib/utils"
  * `segment` rỗng = chính `/orgs/<id>`.
  */
 const NAV_ITEMS = [{ segment: "", label: "Tổ chức", icon: Building2 }] as const
+
+/**
+ * Input: Mục này có đang mở hay không.
+ * Output: Class của một hàng nav.
+ *
+ *         Tách ra hàm vì có hai nhóm nav dùng nó (nav tổ chức và nav "Thông tin cá nhân" ở đáy):
+ *         hai chỗ tự viết class là hai chỗ sẽ trôi mỗi cái một kiểu.
+ *
+ *         Mọi hàng cùng chiều cao và cùng độ đậm, kể cả hàng đang mở: đổi `font-weight` theo
+ *         trạng thái làm chữ nở ra, hai nav cạnh nhau trông lệch nhau như hai cấp khác nhau.
+ *         Trạng thái nói bằng nền + độ tương phản của chữ.
+ */
+function navRowClass(isActive: boolean): string {
+  return cn(
+    "flex h-10 items-center gap-3 overflow-hidden rounded-lg px-[13px] text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+    isActive
+      ? "bg-muted text-foreground"
+      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+  )
+}
 
 /**
  * Input: `onNavigate` — gọi sau khi bấm vào một nav (bản mobile dùng để đóng tấm trượt).
@@ -107,15 +127,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
                 href={href}
                 onClick={onNavigate}
                 aria-current={isActive ? "page" : undefined}
-                className={cn(
-                  // Mọi item cùng chiều cao và cùng độ đậm, kể cả item đang mở: đổi
-                  // `font-weight` theo trạng thái làm chữ nở ra, hai nav cạnh nhau trông lệch
-                  // nhau như hai cấp khác nhau. Trạng thái nói bằng nền + độ tương phản chữ.
-                  "flex h-10 items-center gap-3 overflow-hidden rounded-lg px-[13px] text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                  isActive
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                )}
+                className={navRowClass(isActive)}
               >
                 <Icon
                   className={cn("size-5 shrink-0", isActive ? "text-primary" : "text-current")}
@@ -135,7 +147,40 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className={cn("shrink-0 border-t py-2", collapsed ? "px-3 md:px-2.5" : "px-3")}>
+      <div
+        className={cn(
+          "flex shrink-0 flex-col gap-1 border-t py-2",
+          collapsed ? "px-3 md:px-2.5" : "px-3",
+        )}
+      >
+        {/* Nằm ở đáy cạnh nút tài khoản chứ không trong nav tổ chức phía trên: đây là thứ "về
+            tôi", không phải một mục của tổ chức đang xem — và cũng là chỗ mắt tìm tới khi muốn
+            sửa thông tin của mình. */}
+        <RailTooltip label="Thông tin cá nhân" enabled={collapsed}>
+          <Link
+            href="/me"
+            onClick={onNavigate}
+            aria-current={pathname === "/me" ? "page" : undefined}
+            className={navRowClass(pathname === "/me")}
+          >
+            <UserRound
+              className={cn(
+                "size-5 shrink-0",
+                pathname === "/me" ? "text-primary" : "text-current",
+              )}
+              aria-hidden="true"
+            />
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-left transition-opacity duration-150",
+                collapsed && "md:opacity-0",
+              )}
+            >
+              Thông tin cá nhân
+            </span>
+          </Link>
+        </RailTooltip>
+
         <SidebarProfileMenu collapsed={collapsed} onNavigate={onNavigate} />
       </div>
     </div>

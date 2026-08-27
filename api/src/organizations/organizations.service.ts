@@ -9,7 +9,11 @@ import {
   Pagination,
 } from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
-import { CreateOrganizationDto, ListMembersQueryDto } from './organizations.dto';
+import {
+  CreateOrganizationDto,
+  ListMembersQueryDto,
+  UpdateOrganizationDto,
+} from './organizations.dto';
 import { JOIN_CODE_MAX_ATTEMPTS, ORGANIZATION_ROLES } from './organizations.constants';
 import { generateJoinCode } from './organizations.utils';
 
@@ -264,14 +268,17 @@ export class OrganizationsService {
   }
 
   /**
-   * Input: userId, id tổ chức, trạng thái công tắc mới.
+   * Input: userId, id tổ chức, các field cần đổi (tên và/hoặc công tắc, đều tuỳ chọn).
    * Output: Tổ chức sau khi đổi, dưới góc nhìn của chính owner đó.
    *
-   *         Công tắc này CHÍNH LÀ hành vi duyệt thành viên: mở là ai cầm mã/link cũng vào thẳng
-   *         được, nên chỉ owner được chạm.
+   *         Chỉ owner được chạm: công tắc CHÍNH LÀ hành vi duyệt thành viên, và tên tổ chức là
+   *         thứ mọi thành viên nhìn thấy.
    *
-   *         MỞ luôn sinh mã MỚI, kể cả khi đang mở sẵn — không dùng lại mã cũ. Nhờ vậy đóng cửa
-   *         là mọi liên kết đã chia sẻ chết vĩnh viễn: mở lại không hồi sinh chúng, và owner
+   *         Hai field độc lập: gửi `name` mà không gửi `joinByCodeEnabled` thì mã KHÔNG bị xoay
+   *         — đổi tên không được phép làm chết các liên kết mời đang lưu hành.
+   *
+   *         MỞ cửa luôn sinh mã MỚI, kể cả khi đang mở sẵn — không dùng lại mã cũ. Nhờ vậy đóng
+   *         cửa là mọi liên kết đã chia sẻ chết vĩnh viễn: mở lại không hồi sinh chúng, và owner
    *         cũng có sẵn đường xoay mã khi mã cũ lọt ra ngoài.
    *         ĐÓNG là set null — không giữ mã "để dành", vì mã còn trong DB là mã còn có thể lọt.
    *
@@ -279,10 +286,10 @@ export class OrganizationsService {
    *         người ngoài không cần biết id đó có thật hay không. Là member nhưng không phải
    *         owner mới trả ORG_004 — người trong nhà thì nói thẳng là không đủ quyền.
    */
-  async setJoinByCodeEnabled(
+  async update(
     userId: string,
     organizationId: string,
-    enabled: boolean,
+    dto: UpdateOrganizationDto,
   ): Promise<OrganizationSummary> {
     const membership = await this.databaseService.organizationMember.findFirst({
       where: { organization_id: organizationId, user_id: userId },
@@ -290,17 +297,29 @@ export class OrganizationsService {
     if (!membership) throw new AppException(ERROR_CODES.ORG_001);
     if (this.toRole(membership.role) !== 'owner') throw new AppException(ERROR_CODES.ORG_004);
 
-    const organization = enabled
-      ? await this.updateWithNewJoinCode(organizationId)
-      : await this.databaseService.organization.update({
-          where: { id: organizationId },
-          data: { join_code: null },
-          include: { _count: { select: { members: true } } },
-        });
+    // Xoay mã đứng riêng một query vì nó phải thử lại khi trùng mã; tên thì ghi thẳng.
+    if (dto.joinByCodeEnabled === true) {
+      await this.updateWithNewJoinCode(organizationId);
+    }
 
-    this.logger.log(
-      `Organization ${organizationId} ${enabled ? 'opened with a new join code' : 'closed'} by ${userId}`,
-    );
+    const organization = await this.databaseService.organization.update({
+      where: { id: organizationId },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.joinByCodeEnabled === false ? { join_code: null } : {}),
+      },
+      include: { _count: { select: { members: true } } },
+    });
+
+    const changes = [
+      dto.name !== undefined ? `renamed to "${dto.name}"` : null,
+      dto.joinByCodeEnabled === true ? 'opened with a new join code' : null,
+      dto.joinByCodeEnabled === false ? 'closed' : null,
+    ].filter(Boolean);
+    if (changes.length > 0) {
+      this.logger.log(`Organization ${organizationId} ${changes.join(', ')} by ${userId}`);
+    }
+
     return this.toSummary(organization, 'owner', membership.joined_at);
   }
 

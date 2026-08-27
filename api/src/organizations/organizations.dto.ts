@@ -54,12 +54,25 @@ export class JoinCodeParamDto {
 }
 
 /**
- * Body của PATCH /organizations/:id. Hiện chỉ có đúng một công tắc: mở/đóng cửa vào bằng mã.
- * Không gộp đổi tên vào đây — đổi tên là hành vi khác, khi nào cần thì thêm trường riêng.
+ * Body của PATCH /organizations/:id. Hai field, đều TUỲ CHỌN và độc lập: gửi field nào thì đổi
+ * field đó, không gửi thì giữ nguyên. Nhờ vậy popup đổi tên không phải gửi kèm trạng thái công
+ * tắc (và vô tình xoay mã tham gia).
+ *
+ * `whitelist: true` của ValidationPipe loại field lạ, nhưng body RỖNG vẫn hợp lệ — service coi
+ * đó là không có gì để đổi.
  */
 export class UpdateOrganizationDto {
+  @IsOptional()
+  @Transform(({ value }): unknown => normalizeOrganizationName(value))
+  @IsString({ message: 'Tên tổ chức không hợp lệ' })
+  @Length(MIN_ORGANIZATION_NAME_LENGTH, MAX_ORGANIZATION_NAME_LENGTH, {
+    message: `Tên tổ chức phải từ ${MIN_ORGANIZATION_NAME_LENGTH} đến ${MAX_ORGANIZATION_NAME_LENGTH} ký tự`,
+  })
+  name?: string;
+
+  @IsOptional()
   @IsBoolean({ message: 'Giá trị bật/tắt không hợp lệ' })
-  joinByCodeEnabled: boolean;
+  joinByCodeEnabled?: boolean;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Logger, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
@@ -14,6 +14,8 @@ import {
   AUTH_THROTTLE_TTL_MS,
   ONBOARDING_COOKIE_NAME,
   ONBOARDING_PENDING_VALUE,
+  PROFILE_UPDATE_THROTTLE_LIMIT,
+  PROFILE_UPDATE_THROTTLE_TTL_MS,
   REFRESH_COOKIE_NAME,
   REFRESH_TOKEN_TTL_MS,
 } from './auth.constants';
@@ -27,7 +29,7 @@ import {
   readCookieValue,
 } from './auth.utils';
 import { AuthJwtService } from './jwt.service';
-import { CompleteOnboardingDto } from './onboarding.dto';
+import { CompleteOnboardingDto, UpdateProfileDto } from './onboarding.dto';
 import { RefreshTokenService } from './refresh-token.service';
 
 @Throttle({ global: { ttl: AUTH_THROTTLE_TTL_MS, limit: AUTH_THROTTLE_LIMIT } })
@@ -153,6 +155,28 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async me(@Req() request: Request & { userId: string }) {
     return this.authService.getMe(request.userId);
+  }
+
+  /**
+   * Input: cookie `at` + các field cần đổi (đều tuỳ chọn).
+   * Output: User sau khi cập nhật, cùng shape /auth/me để FE thay thẳng vào store.
+   *
+   *         `avatarUrl` là URL S3 trả về sau khi client upload xong, hoặc `null` để xoá ảnh.
+   *         Không nhận file ở đây: file đi trực tiếp lên S3 bằng presigned POST (xem
+   *         upload.controller.ts), API chỉ lưu địa chỉ.
+   */
+  @Throttle({
+    global: { ttl: PROFILE_UPDATE_THROTTLE_TTL_MS, limit: PROFILE_UPDATE_THROTTLE_LIMIT },
+  })
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(
+    @Req() request: Request & { userId: string },
+    @Body() dto: UpdateProfileDto,
+  ) {
+    const result = await this.authService.updateProfile(request.userId, dto);
+    this.logger.log(`Profile updated for ${result.user.email}`);
+    return result;
   }
 
   /**

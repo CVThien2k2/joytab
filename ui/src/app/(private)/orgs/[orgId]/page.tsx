@@ -1,12 +1,10 @@
 "use client"
 
-import { CalendarDays, Users } from "lucide-react"
 import { OrganizationAccessCard } from "@/app/(private)/_components/organization-access-card"
-import { Badge } from "@/components/ui/badge"
-import { formatDate } from "@/lib/format"
 import { useActiveOrganization } from "@/providers/organization-store-provider"
 import { MembersTable } from "./_components/members-table"
 import { OrganizationDangerZone } from "./_components/organization-danger-zone"
+import { OrganizationInfoCard } from "./_components/organization-info-card"
 
 /**
  * Input: Không nhận props — tổ chức đang xem lấy từ store (layout đã fetch và khớp với URL).
@@ -29,26 +27,12 @@ export default function OrganizationPage() {
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
-      <h1 className="text-lg font-semibold tracking-tight">{organization.name}</h1>
+      {/* MỘT thẻ cho ba khối, cách nhau bằng đường kẻ trong thẻ (`divide-y`) chứ không tách
+          thành nhiều thẻ rời: đều là thông tin và cấu hình của cùng một tổ chức. Vì vậy từng
+          khối bên dưới chỉ có padding, khung và viền do đây lo. */}
+      <div className="divide-y overflow-hidden rounded-xl border bg-card">
+        <OrganizationInfoCard organization={organization} />
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Badge variant={isOwner ? "default" : "secondary"}>
-          {isOwner ? "Chủ tổ chức" : "Thành viên"}
-        </Badge>
-        <Badge variant="outline">
-          <Users aria-hidden="true" />
-          {organization.memberCount} thành viên
-        </Badge>
-        <Badge variant="outline">
-          <CalendarDays aria-hidden="true" />
-          Bạn vào ngày {formatDate(organization.joinedAt)}
-        </Badge>
-      </div>
-
-      {/* MỘT thẻ cho hai khối, cách nhau bằng đường kẻ trong thẻ (`divide-y`) chứ không tách
-          thành nhiều thẻ rời: đều là cấu hình của cùng một tổ chức. Vì vậy từng khối bên dưới
-          chỉ có padding, khung và viền do đây lo. */}
-      <div className="mt-6 divide-y overflow-hidden rounded-xl border bg-card">
         {isOwner ? (
           <OrganizationAccessCard organization={organization} />
         ) : (

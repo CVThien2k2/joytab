@@ -63,3 +63,12 @@ export const AUTH_THROTTLE_LIMIT = 10;
 
 // ===== FE origin fallback khi thiếu env FRONTEND_ORIGIN =====
 export const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:3000';
+
+/**
+ * Giới hạn riêng cho PATCH /auth/me. Rộng hơn ngưỡng chung của AuthController (10/phút) vì
+ * ngưỡng đó được đặt cho các route ĐOÁN được: login, refresh. Sửa thông tin cá nhân thì người
+ * dùng thật cũng bấm nhiều lần trong một phút (đổi tên, đổi avatar, đổi SĐT), mà kẻ tấn công
+ * chẳng dò ra được gì từ việc gọi nó nhiều lần — nó chỉ ghi lên dữ liệu của chính họ.
+ */
+export const PROFILE_UPDATE_THROTTLE_TTL_MS = 60_000;
+export const PROFILE_UPDATE_THROTTLE_LIMIT = 30;

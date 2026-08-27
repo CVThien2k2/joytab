@@ -11,6 +11,7 @@ import {
   joinOrganizationByCode,
   removeOrganizationMember,
   updateJoinByCodeEnabled,
+  updateOrganization,
   type MemberListParams,
 } from "@/api/organizations"
 import type { Organization } from "@/types/organization"
@@ -57,6 +58,32 @@ export function useOrganizationMembers(params: MemberListParams) {
     queryFn: () => fetchOrganizationMembers(params),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+  })
+}
+
+/**
+ * Input: Callback đóng dialog sau khi thành công (tuỳ chọn).
+ * Output: Mutation đổi tên tổ chức.
+ *
+ *         Chỉ gửi `name`, KHÔNG gửi kèm `joinByCodeEnabled`: BE coi mỗi field là một ý định
+ *         riêng, gửi kèm công tắc là vô tình xoay mã tham gia và làm chết mọi liên kết mời.
+ *
+ *         Làm mới bằng `router.refresh()`: danh sách tổ chức do server component fetch rồi bơm
+ *         vào store, không nằm trong cache react-query.
+ */
+export function useUpdateOrganization(onSuccess?: () => void) {
+  const router = useRouter()
+
+  return useMutation({
+    mutationFn: updateOrganization,
+    onSuccess: (organization) => {
+      toast.success(`Đã đổi tên tổ chức thành "${organization.name}"`)
+      onSuccess?.()
+      router.refresh()
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không lưu được thông tin tổ chức. Vui lòng thử lại."))
+    },
   })
 }
 

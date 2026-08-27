@@ -124,8 +124,9 @@ export class OrganizationsController {
   }
 
   /**
-   * Input: cookie `at` + id tổ chức + { joinByCodeEnabled }.
-   * Output: { organization } — tổ chức sau khi bật/tắt cửa vào bằng mã. Chỉ owner gọi được.
+   * Input: cookie `at` + id tổ chức + { name?, joinByCodeEnabled? }.
+   * Output: { organization } — tổ chức sau khi đổi tên và/hoặc bật/tắt cửa vào bằng mã. Chỉ
+   *         owner gọi được. Hai field độc lập: gửi field nào đổi field đó.
    */
   @Patch(':id')
   async update(
@@ -134,11 +135,7 @@ export class OrganizationsController {
     @Body() dto: UpdateOrganizationDto,
   ) {
     return {
-      organization: await this.organizationsService.setJoinByCodeEnabled(
-        request.userId,
-        params.id,
-        dto.joinByCodeEnabled,
-      ),
+      organization: await this.organizationsService.update(request.userId, params.id, dto),
     };
   }
 

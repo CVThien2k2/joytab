@@ -39,6 +39,8 @@ export async function joinOrganizationByCode(
 /**
  * Input: id tổ chức + trạng thái công tắc mới.
  * Output: Tổ chức sau khi đổi. Chỉ owner gọi được — member gọi sẽ ăn ORG_004 từ BE.
+ *
+ *         Bật = BE sinh mã MỚI (mã cũ chết hẳn), tắt = BE set mã về null.
  */
 export async function updateJoinByCodeEnabled(payload: {
   organizationId: string
@@ -46,6 +48,23 @@ export async function updateJoinByCodeEnabled(payload: {
 }): Promise<Organization> {
   const response = await apiClient.patch(`/organizations/${payload.organizationId}`, {
     joinByCodeEnabled: payload.joinByCodeEnabled,
+  })
+  return organizationResponseSchema.parse(response.data).data.organization
+}
+
+/**
+ * Input: id tổ chức + tên mới.
+ * Output: Tổ chức sau khi đổi tên. Chỉ owner gọi được.
+ *
+ *         Gửi ĐÚNG field `name`: BE coi mỗi field là một ý định riêng, gửi kèm
+ *         `joinByCodeEnabled` là vô tình xoay mã tham gia.
+ */
+export async function updateOrganization(payload: {
+  organizationId: string
+  name: string
+}): Promise<Organization> {
+  const response = await apiClient.patch(`/organizations/${payload.organizationId}`, {
+    name: payload.name,
   })
   return organizationResponseSchema.parse(response.data).data.organization
 }

@@ -1,4 +1,7 @@
 import { apiClient } from "@/api/client"
+import { meResponseSchema } from "@/schema/auth"
+import type { CurrentUser } from "@/types/auth"
+import type { UpdateProfilePayload } from "@/types/profile"
 
 /**
  * Input: Không nhận tham số; dùng cookie `rt` hiện tại.
@@ -9,4 +12,16 @@ import { apiClient } from "@/api/client"
  */
 export async function logout(): Promise<void> {
   await apiClient.post("/auth/logout")
+}
+
+/**
+ * Input: Các field cần đổi. Field không gửi = giữ nguyên; `avatarUrl: null` = xoá ảnh.
+ * Output: User sau khi cập nhật, cùng shape /auth/me nên gọi xong bơm thẳng vào store được.
+ *
+ *         KHÔNG gửi file ở đây: ảnh đi trực tiếp lên S3 bằng presigned POST (lib/upload.ts),
+ *         hàm này chỉ lưu địa chỉ ảnh.
+ */
+export async function updateProfile(payload: UpdateProfilePayload): Promise<CurrentUser> {
+  const response = await apiClient.patch("/auth/me", payload)
+  return meResponseSchema.parse(response.data).data
 }

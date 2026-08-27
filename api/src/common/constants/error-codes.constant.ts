@@ -48,6 +48,16 @@ export const ERROR_CODES = {
     message: 'Chủ tổ chức không thể rời tổ chức. Hãy xoá tổ chức nếu không dùng nữa.',
   },
 
+  /**
+   * Kho ảnh (S3) chưa được cấu hình trên môi trường này. Là lỗi cấu hình nên 500, nhưng CỐ TÌNH
+   * không kiểm lúc bootstrap: thiếu env thì chỉ luồng upload chết, không chặn cả API lên.
+   */
+  UPLOAD_001: {
+    code: 'UPLOAD_001',
+    status: 500,
+    message: 'Chức năng tải ảnh chưa được cấu hình. Vui lòng liên hệ quản trị viên.',
+  },
+
   VALIDATION_001: { code: 'VALIDATION_001', status: 400, message: 'Dữ liệu gửi lên không hợp lệ.' },
 
   SYS_001: { code: 'SYS_001', status: 500, message: 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.' },

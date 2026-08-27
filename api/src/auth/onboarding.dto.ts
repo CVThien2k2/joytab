@@ -1,5 +1,16 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsInt, IsString, Length, Matches, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  Max,
+  Min,
+  ValidateBy,
+  ValidationOptions,
+} from 'class-validator';
 import { Gender, GENDERS } from '../common/utils/types';
 import {
   MAX_FULL_NAME_LENGTH,
@@ -49,6 +60,35 @@ export function normalizeVietnamPhone(value: unknown): unknown {
 }
 
 /**
+ * Input: Tuỳ chọn message của validator.
+ * Output: Decorator nhận `null` HOẶC một URL http/https.
+ *
+ * Tự viết vì @IsUrl của class-validator từ chối null, còn @IsOptional lại bỏ qua cả null —
+ * mà null ở đây có nghĩa riêng: "xoá ảnh". Chỉ nhận http/https để không lưu được `javascript:`
+ * hay `data:` vào DB rồi FE nhét thẳng vào `src`.
+ */
+function IsUrlOrNull(options?: ValidationOptions) {
+  return ValidateBy(
+    {
+      name: 'isUrlOrNull',
+      validator: {
+        validate: (value: unknown): boolean => {
+          if (value === null) return true;
+          if (typeof value !== 'string') return false;
+          try {
+            const url = new URL(value);
+            return url.protocol === 'http:' || url.protocol === 'https:';
+          } catch {
+            return false;
+          }
+        },
+      },
+    },
+    options,
+  );
+}
+
+/**
  * Body của POST /auth/onboarding. Cả 4 field đều BẮT BUỘC — onboarding là bước xác nhận
  * thông tin, không phải form tuỳ chọn.
  *
@@ -78,4 +118,45 @@ export class CompleteOnboardingDto {
     message: 'Số điện thoại phải là số di động Việt Nam (vd 0912345678)',
   })
   phone: string;
+}
+
+/**
+ * Body của PATCH /auth/me. Cùng luật validate với onboarding, nhưng MỌI field đều tuỳ chọn:
+ * người dùng vào sửa avatar thì không có lý gì phải gửi lại cả tên/tuổi/SĐT.
+ *
+ * `avatarUrl` nhận `null` để XOÁ ảnh (về chữ viết tắt) — khác hẳn với "không gửi field này",
+ * nghĩa là giữ nguyên. Vì vậy dùng @IsOptional (bỏ qua khi undefined) chứ không @ValidateIf.
+ */
+export class UpdateProfileDto {
+  @IsOptional()
+  @Transform(({ value }): unknown => normalizeFullName(value))
+  @IsString({ message: 'Họ tên không hợp lệ' })
+  @Length(MIN_FULL_NAME_LENGTH, MAX_FULL_NAME_LENGTH, {
+    message: `Họ tên phải từ ${MIN_FULL_NAME_LENGTH} đến ${MAX_FULL_NAME_LENGTH} ký tự`,
+  })
+  fullName?: string;
+
+  @IsOptional()
+  @Transform(({ value }): unknown => normalizeAge(value))
+  @IsInt({ message: 'Tuổi phải là số nguyên' })
+  @Min(MIN_USER_AGE, { message: `Tuổi phải từ ${MIN_USER_AGE} đến ${MAX_USER_AGE}` })
+  @Max(MAX_USER_AGE, { message: `Tuổi phải từ ${MIN_USER_AGE} đến ${MAX_USER_AGE}` })
+  age?: number;
+
+  @IsOptional()
+  @IsIn(GENDERS, { message: 'Giới tính không hợp lệ' })
+  gender?: Gender;
+
+  @IsOptional()
+  @Transform(({ value }): unknown => normalizeVietnamPhone(value))
+  @IsString({ message: 'Số điện thoại không hợp lệ' })
+  @Matches(VN_MOBILE_PHONE_REGEX, {
+    message: 'Số điện thoại phải là số di động Việt Nam (vd 0912345678)',
+  })
+  phone?: string;
+
+  /** URL ảnh do S3 trả về sau khi upload, hoặc `null` để xoá ảnh hiện tại. */
+  @IsOptional()
+  @IsUrlOrNull({ message: 'Đường dẫn ảnh không hợp lệ' })
+  avatarUrl?: string | null;
 }
