@@ -61,6 +61,17 @@ export type OrganizationRole = 'owner' | 'member';
  * Một tổ chức nhìn từ góc độ user đang hỏi — nên có cả `role` và `joinCode` (chỉ owner thấy).
  * Cùng shape cho GET /organizations, POST /organizations và POST /organizations/join.
  */
+/**
+ * Thông tin tối thiểu để dựng màn hình "bạn được mời vào tổ chức này" TRƯỚC khi user bấm
+ * tham gia. Cố tình KHÔNG có `joinCode`/`id`: người xem chưa phải thành viên.
+ */
+export type OrganizationPreview = {
+  name: string;
+  memberCount: number;
+  /** true = user đang hỏi đã ở trong tổ chức này rồi, FE hiện lối vào thay vì nút tham gia. */
+  alreadyMember: boolean;
+};
+
 export type OrganizationSummary = {
   id: string;
   name: string;

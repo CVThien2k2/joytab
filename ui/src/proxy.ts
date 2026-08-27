@@ -7,6 +7,8 @@ const REFRESH_COOKIE = "rt"
 const ONBOARDING_COOKIE = "onb"
 
 const LOGIN_PATH = "/login"
+/** Tên query mang đích cần quay lại sau khi đăng nhập / khai xong thông tin. */
+const NEXT_PARAM = "next"
 const ONBOARDING_PATH = "/onboarding"
 const HOME_PATH = "/"
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:9000"
@@ -39,7 +41,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const isLoginPage = request.nextUrl.pathname === LOGIN_PATH
 
   if (!refreshToken) {
-    return isLoginPage ? NextResponse.next() : redirectTo(request, LOGIN_PATH)
+    return isLoginPage ? NextResponse.next() : redirectTo(request, LOGIN_PATH, request.nextUrl.pathname)
   }
   if (!request.cookies.get(ACCESS_COOKIE)) {
     return refreshAtProxy(request, refreshToken)
@@ -68,7 +70,9 @@ function routeByOnboarding(
   if (needsOnboarding) {
     return isOnboardingPage
       ? (response ?? NextResponse.next())
-      : redirectTo(request, ONBOARDING_PATH)
+      // Giữ đích qua bước khai thông tin: user bấm link mời khi chưa onboarding thì khai
+      // xong phải về đúng link đó, không rơi về `/`.
+      : redirectTo(request, ONBOARDING_PATH, pathname)
   }
   if (isOnboardingPage || isLoginPage) {
     return redirectTo(request, HOME_PATH)
@@ -156,12 +160,19 @@ function mergeCookieHeader(currentCookie: string | null, setCookies: string[]): 
 }
 
 /**
- * Input: Request hiện tại và path đích.
+ * Input: Request hiện tại, path đích, và (tuỳ chọn) path người dùng đang muốn tới.
  * Output: Redirect 307 tới path đó, bỏ query của request cũ.
+ *
+ *         `returnTo` chỉ gắn khi nó là một trang thật đáng quay lại — `/` là mặc định sau
+ *         đăng nhập rồi nên gắn vào chỉ tổ làm URL dài. Giá trị đi tiếp tới /auth/google và
+ *         quay về qua Google, BE lọc lại lần nữa trước khi redirect (sanitizeReturnToPath).
  */
-function redirectTo(request: NextRequest, pathname: string): NextResponse {
+function redirectTo(request: NextRequest, pathname: string, returnTo?: string): NextResponse {
   const url = request.nextUrl.clone()
   url.pathname = pathname
   url.search = ""
+  if (returnTo && returnTo !== HOME_PATH && returnTo !== pathname) {
+    url.searchParams.set(NEXT_PARAM, returnTo)
+  }
   return NextResponse.redirect(url)
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Badge } from "@/components/ui/badge"
 import { AuthCard } from "@/components/common/auth-card"
+import { isSafeInternalPath } from "@/lib/redirect"
 import { GoogleLoginButton } from "../_components/google-login-button"
 
 const PAGE_DESCRIPTION =
@@ -23,13 +24,13 @@ export const metadata: Metadata = {
     siteName: "Joytab",
     locale: "vi_VN",
     url: "/login",
-    title: "Đăng nhập Joytab",
+    title: "Đăng nhập | Joytab",
     description: PAGE_DESCRIPTION,
     images: [{ url: "/icon_tile.png", width: 1024, height: 1024, alt: "Logo Joytab" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Đăng nhập Joytab",
+    title: "Đăng nhập | Joytab",
     description: PAGE_DESCRIPTION,
     images: ["/icon_tile.png"],
   },
@@ -43,14 +44,32 @@ export const metadata: Metadata = {
  *         Markup tĩnh, chỉ GoogleLoginButton chạy ở client nên page vẫn export
  *         được metadata.
  */
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>
+}) {
+  // `next` do proxy gắn vào khi đá người chưa đăng nhập khỏi một trang cần quyền (vd link
+  // mời). BE còn lọc lại lần nữa, nhưng chặn ngay từ đây thì URL trên thanh địa chỉ cũng
+  // không bao giờ mang địa chỉ ngoài.
+  const { next } = await searchParams
+  const returnTo = isSafeInternalPath(next) ? next : null
+  // Người bấm link mời mà chưa đăng nhập thì đang bị hỏi một câu không đầu không cuối —
+  // nói rõ đăng nhập xong sẽ được đưa đi đâu. Cố tình KHÔNG hiện tên tổ chức: lúc này chưa
+  // đăng nhập, mà tên tổ chức chỉ dành cho người đã đăng nhập và cầm đúng mã.
+  const isInviteReturn = returnTo?.startsWith("/join/") ?? false
+
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-12">
       <AuthCard eyebrow="Quản lý thu chi & quỹ nhóm" brand="Joytab">
         <h1 className="text-xl font-bold tracking-tight">Đăng nhập</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Dùng tài khoản Google của bạn.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {isInviteReturn
+            ? "Đăng nhập để tiếp tục tới lời mời tham gia tổ chức."
+            : "Dùng tài khoản Google của bạn."}
+        </p>
 
-        <GoogleLoginButton className="mt-5" />
+        <GoogleLoginButton className="mt-5" returnTo={returnTo} />
 
         <p className="mt-3 text-xs text-muted-foreground">
           Lần đầu đăng nhập, Joytab tự tạo tài khoản cho bạn.

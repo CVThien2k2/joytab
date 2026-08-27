@@ -16,7 +16,14 @@ import { redirectToGoogleLogin } from "@/lib/google-login"
  *         thì user tưởng nút hỏng và bấm lại. Nên khoá nút + hiện Spinner ngay, và KHÔNG
  *         cần tắt lại: trang này sắp bị thay hoàn toàn.
  */
-export function GoogleLoginButton({ className }: { className?: string }) {
+export function GoogleLoginButton({
+  className,
+  returnTo,
+}: {
+  className?: string
+  /** Path quay lại sau khi đăng nhập, do trang login đọc từ query `next`. */
+  returnTo?: string | null
+}) {
   const [redirecting, setRedirecting] = useState(false)
 
   return (
@@ -27,7 +34,7 @@ export function GoogleLoginButton({ className }: { className?: string }) {
       className={cn("w-full gap-2.5 rounded-xl text-sm font-semibold", className)}
       onClick={() => {
         setRedirecting(true)
-        redirectToGoogleLogin({ selectAccount: true })
+        redirectToGoogleLogin({ selectAccount: true, returnTo })
       }}
     >
       {redirecting ? (

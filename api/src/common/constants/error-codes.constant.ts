@@ -35,6 +35,8 @@ export const ERROR_CODES = {
   ORG_002: { code: 'ORG_002', status: 404, message: 'Join code invalid or joining is closed' },
   /** Đã là thành viên của tổ chức đó. */
   ORG_003: { code: 'ORG_003', status: 409, message: 'Already a member of this organization' },
+  /** Là thành viên nhưng không phải owner — đổi cấu hình tổ chức chỉ owner được làm. */
+  ORG_004: { code: 'ORG_004', status: 403, message: 'Only the organization owner can do this' },
 
   VALIDATION_001: { code: 'VALIDATION_001', status: 400, message: 'Bad request' },
 

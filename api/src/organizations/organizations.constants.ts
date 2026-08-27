@@ -29,3 +29,12 @@ export const MAX_ORGANIZATION_NAME_LENGTH = 100;
 
 /** Vai trò trong tổ chức. Lưu VarChar nên đây là nơi duy nhất liệt kê giá trị hợp lệ. */
 export const ORGANIZATION_ROLES = ['owner', 'member'] as const;
+
+/**
+ * Giới hạn riêng cho các route NHẬN mã tham gia (xem trước bằng link, và vào bằng mã):
+ * chúng trả lời được câu "mã này có thật không", nên là chỗ duy nhất trong module đáng để
+ * dò tìm. Cùng ngưỡng với luồng đăng nhập (auth.constants.ts) — 60 req/phút mặc định của
+ * ThrottlerModule là rộng cho mục đích đó.
+ */
+export const JOIN_CODE_THROTTLE_TTL_MS = 60_000;
+export const JOIN_CODE_THROTTLE_LIMIT = 10;

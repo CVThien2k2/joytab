@@ -4,7 +4,11 @@ import { useMutation } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getApiErrorMessage } from "@/api/error"
-import { createOrganization, joinOrganizationByCode } from "@/api/organizations"
+import {
+  createOrganization,
+  joinOrganizationByCode,
+  updateJoinByCodeEnabled,
+} from "@/api/organizations"
 import type { Organization } from "@/types/organization"
 
 /** Router của Next — chỉ cần đúng hàm refresh nên khai hẹp lại cho dễ đọc. */
@@ -41,6 +45,31 @@ export function useJoinOrganization(onSuccess?: () => void) {
       fallbackError: "Tham gia tổ chức thất bại. Vui lòng thử lại.",
       onSuccess,
     }),
+  })
+}
+
+/**
+ * Input: Không nhận tham số.
+ * Output: Mutation bật/tắt cửa vào bằng mã của một tổ chức (chỉ owner gọi được).
+ *
+ *         Không dùng buildHandlers: hai mutation kia báo "đã vào tổ chức X", còn cái này phải
+ *         nói rõ vừa mở hay vừa đóng — thông tin đó nằm ở payload gửi đi chứ không ở kết quả.
+ */
+export function useToggleJoinByCode() {
+  const router = useRouter()
+  return useMutation({
+    mutationFn: updateJoinByCodeEnabled,
+    onSuccess: (organization) => {
+      toast.success(
+        organization.joinByCodeEnabled
+          ? `Đã mở cửa vào "${organization.name}" bằng mã/link`
+          : `Đã đóng cửa vào "${organization.name}"`,
+      )
+      router.refresh()
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không đổi được trạng thái. Vui lòng thử lại."))
+    },
   })
 }
 

@@ -29,8 +29,8 @@ const APP_DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: `${APP_NAME} — ${APP_TAGLINE}`,
-    template: `%s · ${APP_NAME}`,
+    default: `${APP_NAME} | ${APP_TAGLINE}`,
+    template: `%s | ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     siteName: APP_NAME,
     locale: "vi_VN",
     url: "/",
-    title: `${APP_NAME} — ${APP_TAGLINE}`,
+    title: `${APP_NAME} | ${APP_TAGLINE}`,
     description: APP_DESCRIPTION,
     images: [
       {
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: `${APP_NAME} — ${APP_TAGLINE}`,
+    title: `${APP_NAME} | ${APP_TAGLINE}`,
     description: APP_DESCRIPTION,
     images: ["/icon_tile.png"],
   },

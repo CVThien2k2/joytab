@@ -20,8 +20,10 @@ import {
 import {
   buildAuthCookieOptions,
   buildGoogleLoginFailedRedirectUrl,
+  buildFrontendUrl,
   buildOnboardingRedirectUrl,
   buildPostLoginRedirectUrl,
+  sanitizeReturnToPath,
   readCookieValue,
 } from './auth.utils';
 import { AuthJwtService } from './jwt.service';
@@ -69,9 +71,14 @@ export class AuthController {
       }
       const { userId, user } = await this.authService.loginWithGoogle(googleUser);
       await this.issueTokenCookies(response, { userId, email: user.email, onboarded: user.onboarded });
+      // `state` là đích FE muốn quay lại (vd /join/ABCD1234) — Google trả nguyên xi giá trị
+      // ta gửi đi, nhưng vẫn lọc lại: cái quay về không nhất thiết là cái đã gửi.
+      const returnTo = sanitizeReturnToPath(request.query?.state);
       const redirectUrl = user.onboarded
-        ? buildPostLoginRedirectUrl(frontendOrigin)
-        : buildOnboardingRedirectUrl(frontendOrigin);
+        ? returnTo
+          ? buildFrontendUrl(frontendOrigin, returnTo)
+          : buildPostLoginRedirectUrl(frontendOrigin)
+        : buildOnboardingRedirectUrl(frontendOrigin, returnTo);
       this.logger.log(`Tokens issued for ${user.email} (onboarded=${user.onboarded}), redirecting to ${redirectUrl}`);
       response.redirect(302, redirectUrl);
     } catch (err) {

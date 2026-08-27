@@ -15,13 +15,45 @@ export function buildPostLoginRedirectUrl(frontendOrigin: string | undefined): s
 }
 
 /**
+ * Input: Giá trị `returnTo`/`state` do FE gửi lên (có thể là bất cứ thứ gì).
+ * Output: Path tương đối an toàn để redirect về, hoặc null nếu không dùng được.
+ *
+ *         Đây là hàng rào chống open-redirect: giá trị này đi vòng qua Google rồi mới quay
+ *         lại nên coi như dữ liệu từ người ngoài. Chỉ nhận path bắt đầu bằng MỘT dấu `/`
+ *         — `//evil.com` và `/\evil.com` đều bị browser hiểu là host khác, còn
+ *         `https://evil.com` thì khỏi bàn. Ký tự cho phép đủ dùng cho path + query.
+ */
+export function sanitizeReturnToPath(rawValue: unknown): string | null {
+  if (typeof rawValue !== 'string') return null;
+  const value = rawValue.trim();
+  if (!value.startsWith('/') || value.startsWith('//')) return null;
+  if (value.includes('\\') || value.includes('://')) return null;
+  return /^\/[A-Za-z0-9\-._~!$&'()*+,;=:@%/?]*$/.test(value) ? value : null;
+}
+
+/**
+ * Input: FRONTEND_ORIGIN + path tương đối ĐÃ qua sanitizeReturnToPath.
+ * Output: URL tuyệt đối trên chính origin của FE.
+ */
+export function buildFrontendUrl(frontendOrigin: string | undefined, path: string): string {
+  const baseUrl = normalizeFrontendOrigin(frontendOrigin);
+  return new URL(path, `${baseUrl}/`).toString();
+}
+
+/**
  * Input: FRONTEND_ORIGIN từ env (có thể rỗng).
  * Output: URL trang onboarding FE. Dùng khi login xong mà user chưa khai đủ thông tin —
  *         redirect thẳng tới đây thay vì để `/` rồi proxy đá lại một nhịp nữa.
  */
-export function buildOnboardingRedirectUrl(frontendOrigin: string | undefined): string {
+export function buildOnboardingRedirectUrl(
+  frontendOrigin: string | undefined,
+  returnTo?: string | null,
+): string {
   const baseUrl = normalizeFrontendOrigin(frontendOrigin);
-  return new URL('/onboarding', `${baseUrl}/`).toString();
+  const url = new URL('/onboarding', `${baseUrl}/`);
+  // Giữ đích cuối qua bước khai thông tin: khai xong FE tự đi tiếp tới đây, không rơi về `/`.
+  if (returnTo) url.searchParams.set('next', returnTo);
+  return url.toString();
 }
 
 /**

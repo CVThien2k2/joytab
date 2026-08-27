@@ -30,3 +30,17 @@ export async function joinOrganizationByCode(
   const response = await apiClient.post("/organizations/join", payload)
   return organizationResponseSchema.parse(response.data).data.organization
 }
+
+/**
+ * Input: id tổ chức + trạng thái công tắc mới.
+ * Output: Tổ chức sau khi đổi. Chỉ owner gọi được — member gọi sẽ ăn ORG_004 từ BE.
+ */
+export async function updateJoinByCodeEnabled(payload: {
+  organizationId: string
+  joinByCodeEnabled: boolean
+}): Promise<Organization> {
+  const response = await apiClient.patch(`/organizations/${payload.organizationId}`, {
+    joinByCodeEnabled: payload.joinByCodeEnabled,
+  })
+  return organizationResponseSchema.parse(response.data).data.organization
+}

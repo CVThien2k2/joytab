@@ -2,11 +2,14 @@ import { z } from "zod"
 import {
   createOrganizationFormSchema,
   joinOrganizationFormSchema,
+  organizationPreviewSchema,
   organizationSchema,
 } from "@/schema/organization"
 
 export type Organization = z.infer<typeof organizationSchema>
 export type OrganizationRole = Organization["role"]
+
+export type OrganizationPreview = z.infer<typeof organizationPreviewSchema>
 
 export type CreateOrganizationPayload = z.infer<typeof createOrganizationFormSchema>
 

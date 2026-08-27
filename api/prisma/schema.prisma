@@ -69,7 +69,6 @@ model Organization {
   created_by           String                   @db.Uuid
   created_at           DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at           DateTime                 @updatedAt @db.Timestamptz(6)
-  invitations          OrganizationInvitation[]
   members              OrganizationMember[]
 
   @@map("organizations")
@@ -94,30 +93,3 @@ model OrganizationMember {
   @@map("organization_members")
 }
 
-/// Lời mời tham gia tổ chức, gửi qua email. Gắn vào EMAIL chứ không phải user_id nên mời
-/// được cả người chưa có tài khoản Joytab: họ đăng nhập Google bằng đúng email đó là nhận được.
-model OrganizationInvitation {
-  id              String       @id @default(uuid()) @db.Uuid
-  organization_id String       @db.Uuid
-  email           String       @db.VarChar(255)
-  invited_by      String       @db.Uuid
-  /// SHA-256 của token trong link email, cùng cách làm với refresh_tokens: DB bị lộ cũng
-  /// không dựng lại được link để nhận lời mời hộ người khác.
-  token_hash      String       @unique
-  /// 'pending' | 'accepted' | 'revoked'. Cố tình KHÔNG có 'expired': hết hạn suy ra từ
-  /// expires_at, khỏi cần job đi sửa row.
-  status          String       @default("pending") @db.VarChar(20)
-  expires_at      DateTime     @db.Timestamptz(6)
-  accepted_at     DateTime?    @db.Timestamptz(6)
-  /// User thật đã bấm nhận — có thể là tài khoản vừa tạo bằng chính email được mời.
-  accepted_by     String?      @db.Uuid
-  created_at      DateTime     @default(now()) @db.Timestamptz(6)
-  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-
-  /// Partial unique: mỗi (tổ chức, email) chỉ được có MỘT lời mời đang chờ. Mời lại sau khi
-  /// đã accepted/revoked thì vẫn được.
-  @@unique([organization_id, email], where: { status: "pending" })
-  /// "Tôi có lời mời nào đang chờ" — dùng ở màn nhận lời mời.
-  @@index([email, status])
-  @@map("organization_invitations")
-}

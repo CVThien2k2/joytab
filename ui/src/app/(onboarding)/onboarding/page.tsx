@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { fetchCurrentUser } from "@/api/auth.server"
 import { AuthCard } from "@/components/common/auth-card"
+import { isSafeInternalPath } from "@/lib/redirect"
 import { AuthStoreProvider } from "@/providers/auth-store-provider"
 import { OnboardingForm } from "../_components/onboarding-form"
 import { OnboardingIdentity } from "../_components/onboarding-identity"
@@ -26,7 +27,15 @@ export const metadata: Metadata = {
  *
  *         Dùng chung AuthCard với /login, chỉ rộng hơn (max-w-md) cho vừa 4 field.
  */
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>
+}) {
+  // `next` do proxy (hoặc BE sau khi login) gắn vào: khai xong đi thẳng tới đó thay vì `/`.
+  const { next } = await searchParams
+  const nextPath = isSafeInternalPath(next) ? next : null
+
   // Không destructure: narrowing của union chỉ chạy khi kiểm tra trực tiếp trên property.
   const result = await fetchCurrentUser()
 
@@ -54,7 +63,7 @@ export default async function OnboardingPage() {
           <OnboardingIdentity />
 
           <div className="mt-6 border-t pt-6">
-            <OnboardingForm />
+            <OnboardingForm nextPath={nextPath} />
           </div>
 
           <p className="mt-4 text-xs text-muted-foreground">

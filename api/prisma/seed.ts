@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { createHash } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { buildPostgresUrl } from '../src/common/utils/database-url';
 import { PrismaClient } from '../src/generated/prisma/client';
@@ -19,14 +18,6 @@ const SEED_EMAIL_DOMAIN = 'joytab.dev';
 const DEMO_JOIN_CODE = 'SEED0001';
 const CLASS_FUND_JOIN_CODE = 'SEED0002';
 
-/**
- * Token thô của lời mời đang chờ — in ra cuối seed để test nhận lời mời bằng link.
- * DB chỉ lưu SHA-256 của nó, giống refresh_tokens.
- */
-const PENDING_INVITE_TOKEN = 'seed-pending-invitation-token';
-
-const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
 const prisma = new PrismaClient({
   adapter: new PrismaPg({
     connectionString: buildPostgresUrl({
@@ -39,15 +30,6 @@ const prisma = new PrismaClient({
     }),
   }),
 });
-
-/**
- * Input: Token thô của lời mời.
- * Output: SHA-256 hex — đúng thuật toán RefreshTokenService dùng, để service thật verify được
- *         token do seed tạo ra.
- */
-function hashToken(rawToken: string): string {
-  return createHash('sha256').update(rawToken).digest('hex');
-}
 
 /**
  * Input: Tên đăng nhập ngắn (vd 'owner') + họ tên hiển thị.
@@ -138,47 +120,10 @@ async function main(): Promise<void> {
   await upsertSeedMember(demo.id, member.id, 'member');
   await upsertSeedMember(classFund.id, member.id, 'owner');
 
-  // Lời mời đang chờ tới một email CHƯA có tài khoản — chứng minh lời mời gắn vào email
-  // chứ không phải user_id.
-  const pendingEmail = `seed.newcomer@${SEED_EMAIL_DOMAIN}`;
-  await prisma.organizationInvitation.upsert({
-    where: { token_hash: hashToken(PENDING_INVITE_TOKEN) },
-    update: {
-      organization_id: demo.id,
-      email: pendingEmail,
-      status: 'pending',
-      expires_at: new Date(Date.now() + INVITATION_TTL_MS),
-    },
-    create: {
-      organization_id: demo.id,
-      email: pendingEmail,
-      invited_by: owner.id,
-      token_hash: hashToken(PENDING_INVITE_TOKEN),
-      status: 'pending',
-      expires_at: new Date(Date.now() + INVITATION_TTL_MS),
-    },
-  });
-
-  // Một lời mời đã bị thu hồi cho cùng tổ chức: partial unique index chỉ chặn TRÙNG PENDING,
-  // nên row này tồn tại song song với row pending ở trên mà không vi phạm gì.
-  await prisma.organizationInvitation.upsert({
-    where: { token_hash: hashToken('seed-revoked-invitation-token') },
-    update: { organization_id: demo.id, email: guest.email, status: 'revoked' },
-    create: {
-      organization_id: demo.id,
-      email: guest.email,
-      invited_by: owner.id,
-      token_hash: hashToken('seed-revoked-invitation-token'),
-      status: 'revoked',
-      expires_at: new Date(Date.now() - INVITATION_TTL_MS),
-    },
-  });
-
   console.log('Seed xong:');
   console.log(`  ${owner.email} — owner của "${demo.name}" (mã ${DEMO_JOIN_CODE}, mở cửa)`);
   console.log(`  ${member.email} — member của "${demo.name}", owner của "${classFund.name}" (mã ${CLASS_FUND_JOIN_CODE}, đóng)`);
   console.log(`  ${guest.email} — chưa vào tổ chức nào (dùng để xem UI 2 nút)`);
-  console.log(`  Lời mời đang chờ: ${pendingEmail} — token thô: ${PENDING_INVITE_TOKEN}`);
 }
 
 main()

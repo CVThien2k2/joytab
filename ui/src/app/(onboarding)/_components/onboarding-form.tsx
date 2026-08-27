@@ -36,10 +36,10 @@ const GENDER_OPTIONS: ReadonlyArray<{ value: Gender; label: string }> = [
  * `mode: "onTouched"` thay vì "onChange": báo lỗi ngay ký tự đầu tiên khi user còn đang gõ là
  * quấy rầy vô ích; rời field mới báo, sau đó thì cập nhật theo từng lần gõ.
  */
-export function OnboardingForm() {
+export function OnboardingForm({ nextPath }: { nextPath?: string | null }) {
   // Store giữ cả envelope { userId, user }; ở đây chỉ cần phần profile để điền sẵn form.
   const profile = useAuthStore((state) => state.user?.user)
-  const mutation = useCompleteOnboarding()
+  const mutation = useCompleteOnboarding(nextPath)
 
   // Dùng cho CẢ useForm và attribute `defaultValue` của từng input. `register` không trả về
   // value/defaultValue nên nếu chỉ đưa vào useForm thì HTML do server sinh ra là input rỗng,

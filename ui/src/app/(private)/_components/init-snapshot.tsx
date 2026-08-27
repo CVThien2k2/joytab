@@ -1,6 +1,7 @@
 "use client"
 
 import { useAuthStore } from "@/providers/auth-store-provider"
+import { OrganizationAccessCard } from "./organization-access-card"
 import type { Organization } from "@/types/organization"
 
 /**
@@ -25,6 +26,12 @@ export function InitSnapshot({ organizations }: { organizations: Organization[] 
           {currentOrganization.memberCount} thành viên)
         </span>
       </p>
+
+      {currentOrganization.role === "owner" ? (
+        <div className="mt-4">
+          <OrganizationAccessCard organization={currentOrganization} />
+        </div>
+      ) : null}
 
       <pre className="mt-4 overflow-x-auto text-xs leading-relaxed">
         {JSON.stringify({ user, organizations }, null, 2)}

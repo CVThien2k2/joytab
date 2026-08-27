@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
-import { OrganizationRole, OrganizationSummary } from '../common/utils/types';
+import { OrganizationPreview, OrganizationRole, OrganizationSummary } from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
 import { CreateOrganizationDto } from './organizations.dto';
 import { JOIN_CODE_MAX_ATTEMPTS, ORGANIZATION_ROLES } from './organizations.constants';
@@ -60,6 +60,69 @@ export class OrganizationsService {
     const organization = await this.createWithUniqueJoinCode(userId, dto.name);
     this.logger.log(`Organization "${organization.name}" created by ${userId}`);
     return this.toSummary(organization, 'owner', new Date());
+  }
+
+  /**
+   * Input: userId + mã tham gia đã chuẩn hoá (lấy từ link mời).
+   * Output: Tên + số thành viên của tổ chức, để dựng màn hình xác nhận TRƯỚC khi vào.
+   *
+   *         Cùng luật với joinByCode: mã sai và mã đúng-nhưng-đang-đóng đều trả ORG_002, để
+   *         màn hình xem trước không trở thành công cụ dò xem mã nào có thật.
+   *
+   *         `alreadyMember` để FE hiện lối vào thay vì nút tham gia — hỏi trước ở đây rẻ hơn
+   *         là để user bấm rồi ăn 409.
+   */
+  async previewByCode(userId: string, joinCode: string): Promise<OrganizationPreview> {
+    const organization = await this.databaseService.organization.findUnique({
+      where: { join_code: joinCode },
+      include: {
+        _count: { select: { members: true } },
+        members: { where: { user_id: userId }, select: { id: true }, take: 1 },
+      },
+    });
+    if (!organization || !organization.join_by_code_enabled) {
+      throw new AppException(ERROR_CODES.ORG_002);
+    }
+
+    return {
+      name: organization.name,
+      memberCount: organization._count.members,
+      alreadyMember: organization.members.length > 0,
+    };
+  }
+
+  /**
+   * Input: userId, id tổ chức, trạng thái công tắc mới.
+   * Output: Tổ chức sau khi đổi, dưới góc nhìn của chính owner đó.
+   *
+   *         Công tắc này CHÍNH LÀ hành vi duyệt thành viên: bật là ai cầm mã/link cũng vào
+   *         thẳng được, nên chỉ owner được chạm.
+   *
+   *         Không phải thành viên thì trả ORG_001 (không tồn tại) chứ không phải ORG_004:
+   *         người ngoài không cần biết id đó có thật hay không. Là member nhưng không phải
+   *         owner mới trả ORG_004 — người trong nhà thì nói thẳng là không đủ quyền.
+   */
+  async setJoinByCodeEnabled(
+    userId: string,
+    organizationId: string,
+    enabled: boolean,
+  ): Promise<OrganizationSummary> {
+    const membership = await this.databaseService.organizationMember.findFirst({
+      where: { organization_id: organizationId, user_id: userId },
+    });
+    if (!membership) throw new AppException(ERROR_CODES.ORG_001);
+    if (this.toRole(membership.role) !== 'owner') throw new AppException(ERROR_CODES.ORG_004);
+
+    const organization = await this.databaseService.organization.update({
+      where: { id: organizationId },
+      data: { join_by_code_enabled: enabled },
+      include: { _count: { select: { members: true } } },
+    });
+
+    this.logger.log(
+      `Organization ${organizationId} join-by-code ${enabled ? 'opened' : 'closed'} by ${userId}`,
+    );
+    return this.toSummary(organization, 'owner', membership.joined_at);
   }
 
   /**

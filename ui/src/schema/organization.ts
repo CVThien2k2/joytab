@@ -46,6 +46,20 @@ export const organizationListResponseSchema = envelope(
   z.object({ organizations: z.array(organizationSchema) }),
 )
 
+/**
+ * GET /organizations/by-code/:code — thông tin tối thiểu để dựng màn hình link mời. Không có
+ * `id` lẫn `joinCode`: người đang xem chưa phải thành viên.
+ */
+export const organizationPreviewSchema = z.object({
+  name: z.string(),
+  memberCount: z.number(),
+  alreadyMember: z.boolean(),
+})
+
+export const organizationPreviewResponseSchema = envelope(
+  z.object({ organization: organizationPreviewSchema }),
+)
+
 /** POST /organizations và POST /organizations/join dùng chung shape này. */
 export const organizationResponseSchema = envelope(
   z.object({ organization: organizationSchema }),
