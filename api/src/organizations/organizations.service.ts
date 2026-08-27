@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
-import { OrganizationPreview, OrganizationRole, OrganizationSummary } from '../common/utils/types';
+import {
+  OrganizationMemberSummary,
+  OrganizationPreview,
+  OrganizationRole,
+  OrganizationSummary,
+} from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
 import { CreateOrganizationDto } from './organizations.dto';
 import { JOIN_CODE_MAX_ATTEMPTS, ORGANIZATION_ROLES } from './organizations.constants';
@@ -47,6 +52,43 @@ export class OrganizationsService {
     return memberships.map((membership) =>
       this.toSummary(membership.organization, this.toRole(membership.role), membership.joined_at),
     );
+  }
+
+  /**
+   * Input: userId người hỏi + id tổ chức.
+   * Output: Toàn bộ thành viên của tổ chức: owner trước, rồi theo thứ tự vào.
+   *
+   *         Người hỏi phải là thành viên, nếu không thì ORG_001 (không tồn tại) — CÙNG lý do
+   *         với setJoinByCodeEnabled: người ngoài không cần biết id đó có thật hay không.
+   *         Ở đây còn quan trọng hơn vì cái rò ra sẽ là email của người khác.
+   *
+   *         Sắp owner lên đầu bằng `role: 'desc'` ('owner' > 'member' theo thứ tự chữ) chứ
+   *         không sắp trong JS: danh sách này sẽ dài ra, để DB làm thì sau này thêm phân
+   *         trang không phải đổi cách sắp.
+   */
+  async listMembers(userId: string, organizationId: string): Promise<OrganizationMemberSummary[]> {
+    const viewer = await this.databaseService.organizationMember.findFirst({
+      where: { organization_id: organizationId, user_id: userId },
+      select: { id: true },
+    });
+    if (!viewer) throw new AppException(ERROR_CODES.ORG_001);
+
+    const members = await this.databaseService.organizationMember.findMany({
+      where: { organization_id: organizationId },
+      orderBy: [{ role: 'desc' }, { joined_at: 'asc' }, { id: 'asc' }],
+      include: {
+        user: { select: { id: true, full_name: true, email: true, avatar_url: true } },
+      },
+    });
+
+    return members.map((member) => ({
+      userId: member.user.id,
+      fullName: member.user.full_name,
+      email: member.user.email,
+      avatarUrl: member.user.avatar_url,
+      role: this.toRole(member.role),
+      joinedAt: member.joined_at.toISOString(),
+    }));
   }
 
   /**

@@ -83,3 +83,22 @@ export type OrganizationSummary = {
   /** ISO 8601 — thời điểm user đang hỏi vào tổ chức này. */
   joinedAt: string;
 };
+
+/**
+ * Một thành viên trong danh sách thành viên của tổ chức (GET /organizations/:id/members).
+ *
+ * Có `email` vì đây là danh bạ nội bộ của một tổ chức: người trong cùng tổ chức cần nhận ra
+ * nhau, và ai vào được danh sách này thì đã là thành viên (service kiểm trước khi đọc).
+ * KHÔNG có `age`/`gender`/`phone`: đó là dữ liệu onboarding của cá nhân, không phải thứ
+ * người cùng tổ chức cần thấy.
+ */
+export type OrganizationMemberSummary = {
+  /** id của user, không phải id row organization_members — FE dùng để so với chính mình. */
+  userId: string;
+  fullName: string | null;
+  email: string;
+  avatarUrl: string | null;
+  role: OrganizationRole;
+  /** ISO 8601 — thời điểm người này vào tổ chức. */
+  joinedAt: string;
+};

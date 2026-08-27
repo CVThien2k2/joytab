@@ -50,21 +50,38 @@ function DialogOverlay({
   )
 }
 
+/**
+ * "center" là hộp thoại thường (mặc định). "left" là tấm trượt ra từ mép trái — dùng cho
+ * sidebar trên mobile, nơi cần đúng thứ Dialog vốn đã cho: khoá focus, Esc để đóng, chặn cuộn
+ * nền. Đặt biến thể ở primitive chứ không nhồi className lúc gọi: `-translate-x-1/2` và
+ * `zoom-in-95` không phải thứ tailwind-merge ghi đè đúng được, ghi đè tay thì hai lớp
+ * animation đánh nhau.
+ */
+const dialogContentVariants = {
+  center:
+    "top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl p-4 sm:max-w-sm data-open:zoom-in-95 data-closed:zoom-out-95",
+  left: "top-0 left-0 flex h-full w-68 max-w-[85%] flex-col border-r data-open:slide-in-from-left data-closed:slide-out-to-left",
+} as const
+
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  side = "center",
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  side?: keyof typeof dialogContentVariants
 }) {
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        data-side={side}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-200 ease-out data-closed:duration-150 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed z-50 bg-popover text-sm text-popover-foreground ring-1 ring-foreground/10 duration-200 ease-out data-closed:duration-150 outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+          dialogContentVariants[side],
           className
         )}
         {...props}

@@ -64,6 +64,23 @@ export class OrganizationsController {
   }
 
   /**
+   * Input: cookie `at` + id tổ chức trên URL.
+   * Output: { members } — mọi thành viên của tổ chức, owner trước rồi theo thứ tự vào.
+   *
+   *         Đặt SAU 'by-code/:code' nhưng trước hay sau cũng không đổi nghĩa: ':id/members'
+   *         có hai đoạn nên không đụng route một đoạn nào.
+   */
+  @Get(':id/members')
+  async listMembers(
+    @Req() request: Request & { userId: string },
+    @Param() params: OrganizationIdParamDto,
+  ) {
+    return {
+      members: await this.organizationsService.listMembers(request.userId, params.id),
+    };
+  }
+
+  /**
    * Input: cookie `at` + id tổ chức + { joinByCodeEnabled }.
    * Output: { organization } — tổ chức sau khi bật/tắt cửa vào bằng mã. Chỉ owner gọi được.
    */

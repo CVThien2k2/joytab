@@ -1,9 +1,14 @@
 import { cookies } from "next/headers"
 import {
   organizationListResponseSchema,
+  organizationMemberListResponseSchema,
   organizationPreviewResponseSchema,
 } from "@/schema/organization"
-import type { Organization, OrganizationPreview } from "@/types/organization"
+import type {
+  Organization,
+  OrganizationMember,
+  OrganizationPreview,
+} from "@/types/organization"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:9000"
 
@@ -34,6 +39,60 @@ export async function fetchOrganizations(): Promise<OrganizationListResult> {
   } catch (err) {
     return { organizations: null, error: describeError(err) }
   }
+}
+
+export type OrganizationMemberListResult =
+  | { members: OrganizationMember[]; error: null }
+  | { members: null; error: string }
+
+/**
+ * Input: id tổ chức.
+ * Output: Danh sách thành viên, owner trước. Không bao giờ rỗng khi thành công — người đang
+ *         hỏi cũng nằm trong đó, nên mảng rỗng ở đây là dấu hiệu BE sai chứ không phải
+ *         trạng thái hợp lệ (khác hẳn fetchOrganizations).
+ *
+ *         BE trả 404 (ORG_001) cho cả "không có tổ chức đó" lẫn "bạn không phải thành viên" —
+ *         hai trường hợp này với người dùng là một: đường dẫn không dành cho họ.
+ */
+export async function fetchOrganizationMembers(
+  organizationId: string,
+): Promise<OrganizationMemberListResult> {
+  const cookieStore = await cookies()
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/organizations/${encodeURIComponent(organizationId)}/members`,
+      { headers: { cookie: cookieStore.toString() }, cache: "no-store" },
+    )
+    if (!response.ok) {
+      const code = await readErrorCode(response)
+      return { members: null, error: `Không tải được danh sách thành viên (${code})` }
+    }
+    const parsed = organizationMemberListResponseSchema.parse(await response.json())
+    return { members: parsed.data.members, error: null }
+  } catch (err) {
+    return { members: null, error: describeError(err) }
+  }
+}
+
+/**
+ * Tên cookie ghi nhớ tổ chức user xem lần gần nhất. Chỉ là BỘ NHỚ, không phải nguồn sự thật:
+ * trang đang xem luôn do `/orgs/[orgId]` trên URL quyết định, nên hai tab mở hai tổ chức vẫn
+ * chạy đúng. Cookie chỉ được đọc đúng một chỗ: lúc vào `/` để biết đưa user về đâu.
+ */
+export const ACTIVE_ORGANIZATION_COOKIE = "org"
+
+/** Một năm — chọn tổ chức là thói quen dài hạn, không phải trạng thái của một phiên. */
+export const ACTIVE_ORGANIZATION_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
+
+/**
+ * Input: Không nhận tham số; đọc cookie của request hiện tại.
+ * Output: id tổ chức xem lần gần nhất, hoặc null nếu chưa từng chọn.
+ *         KHÔNG kiểm tra id còn hợp lệ hay không — người gọi phải đối chiếu với danh sách
+ *         thật, vì user có thể đã rời tổ chức đó từ máy khác.
+ */
+export async function readActiveOrganizationId(): Promise<string | null> {
+  const cookieStore = await cookies()
+  return cookieStore.get(ACTIVE_ORGANIZATION_COOKIE)?.value ?? null
 }
 
 /** Mã lỗi nghiệp vụ của BE cho "mã sai hoặc tổ chức đang đóng cửa" (api ERROR_CODES.ORG_002). */

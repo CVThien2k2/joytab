@@ -20,6 +20,7 @@ import { LoadingOverlay } from "@/components/common/loading-overlay"
 import { useCreateOrganization } from "@/hooks/use-organizations-api"
 import { MAX_ORGANIZATION_NAME_LENGTH, createOrganizationFormSchema } from "@/schema/organization"
 import type { CreateOrganizationPayload } from "@/types/organization"
+import type { OrganizationDialogProps } from "./join-organization-dialog"
 
 /**
  * Input: Không nhận props.
@@ -29,8 +30,13 @@ import type { CreateOrganizationPayload } from "@/types/organization"
  *         Tổ chức mới tạo là KÍN: mã tham gia có sẵn nhưng chưa dùng được cho tới khi owner
  *         bật công tắc, nên form này chỉ hỏi đúng một thứ.
  */
-export function CreateOrganizationDialog() {
-  const [open, setOpen] = useState(false)
+export function CreateOrganizationDialog({
+  open: controlledOpen,
+  onOpenChange,
+}: OrganizationDialogProps = {}) {
+  const [selfOpen, setSelfOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : selfOpen
 
   const form = useForm<CreateOrganizationPayload>({
     resolver: zodResolver(createOrganizationFormSchema),
@@ -43,27 +49,48 @@ export function CreateOrganizationDialog() {
     defaultValues: { name: "" },
   })
 
-  const mutation = useCreateOrganization(() => setOpen(false))
+  const mutation = useCreateOrganization(() => close())
 
   /**
-   * Input: Trạng thái open mới của dialog.
-   * Output: Đóng/mở dialog và xoá thứ đã gõ khi đóng — mở lại phải là form trắng, không phải
-   *         tên cũ kèm lỗi cũ. Chặn đóng trong lúc đang gửi để không mất dấu request đang bay.
+   * Input: Trạng thái open mới.
+   * Output: Đẩy trạng thái về đúng nơi đang giữ nó — state nội bộ hoặc callback của bên ngoài.
+   */
+  function emitOpen(nextOpen: boolean): void {
+    if (isControlled) onOpenChange?.(nextOpen)
+    else setSelfOpen(nextOpen)
+  }
+
+  /**
+   * Input: Không nhận tham số.
+   * Output: Đóng dialog và xoá thứ đã gõ — mở lại phải là form trắng, không phải tên cũ kèm
+   *         lỗi cũ. KHÔNG qua handleOpenChange: onSuccess của mutation cũng gọi hàm này, lúc
+   *         đó `mutation.isPending` trong closure vẫn là true nên cái chốt ở dưới chặn oan.
+   */
+  function close(): void {
+    emitOpen(false)
+    form.reset()
+  }
+
+  /**
+   * Input: Trạng thái open mới do Radix báo (bấm nút X, Esc, click ra ngoài).
+   * Output: Đóng/mở dialog. Chặn đóng trong lúc đang gửi để không mất dấu request đang bay.
    */
   function handleOpenChange(nextOpen: boolean): void {
     if (mutation.isPending) return
-    setOpen(nextOpen)
-    if (!nextOpen) form.reset()
+    if (nextOpen) emitOpen(true)
+    else close()
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus aria-hidden="true" />
-          Tạo tổ chức
-        </Button>
-      </DialogTrigger>
+      {isControlled ? null : (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus aria-hidden="true" />
+            Tạo tổ chức
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-sm">
         {mutation.isPending ? <LoadingOverlay label="Đang tạo tổ chức" /> : null}
         <form onSubmit={form.handleSubmit((payload) => mutation.mutate(payload))} noValidate>

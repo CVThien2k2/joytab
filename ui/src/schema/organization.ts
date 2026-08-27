@@ -65,6 +65,24 @@ export const organizationResponseSchema = envelope(
   z.object({ organization: organizationSchema }),
 )
 
+/**
+ * Một thành viên trong danh sách thành viên. `userId` là id user (không phải id row
+ * membership) — FE so với user đang đăng nhập để đánh dấu "Bạn".
+ */
+export const organizationMemberSchema = z.object({
+  userId: z.string(),
+  fullName: z.string().nullable(),
+  email: z.string(),
+  avatarUrl: z.string().nullable(),
+  role: organizationRoleSchema,
+  joinedAt: z.string(),
+})
+
+/** GET /organizations/:id/members */
+export const organizationMemberListResponseSchema = envelope(
+  z.object({ members: z.array(organizationMemberSchema) }),
+)
+
 /** Form tạo tổ chức. */
 export const createOrganizationFormSchema = z.object({
   name: z
