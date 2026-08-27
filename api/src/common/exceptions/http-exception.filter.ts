@@ -9,7 +9,17 @@ const CODE_BY_STATUS: Record<number, ErrorCodeValue> = {
   400: ERROR_CODES.VALIDATION_001.code,
   401: ERROR_CODES.AUTH_001.code,
   404: ERROR_CODES.SYS_404.code,
+  429: ERROR_CODES.SYS_429.code,
 };
+
+/**
+ * Tra message theo mã lỗi. Toàn bộ message trả cho client đều lấy từ bảng này, KHÔNG lấy
+ * `exception.message` của Nest: những chuỗi đó là tiếng Anh ("Bad Request Exception",
+ * "Cannot GET /x", "Too Many Requests") và người dùng cuối là người đọc chúng.
+ */
+const MESSAGE_BY_CODE: Record<string, string> = Object.fromEntries(
+  Object.values(ERROR_CODES).map((item) => [item.code, item.message]),
+);
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -39,7 +49,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const payload: ApiErrorResponse = {
       success: false,
       code,
-      message: this.resolveMessage(exception, status),
+      message: this.resolveMessage(code, status),
     };
     const details = isHttpException ? this.extractValidationDetails(exception) : undefined;
     if (details !== undefined) payload.details = details;
@@ -58,14 +68,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
   }
 
   /**
-   * Input: Exception bất kỳ và HTTP status đã xác định.
-   * Output: Message an toàn để trả client — lỗi 5xx luôn dùng message chuẩn, không lộ nội bộ.
+   * Input: Mã lỗi đã xác định và HTTP status.
+   * Output: Message tiếng Việt tương ứng với mã đó.
+   *
+   *         Lỗi 5xx luôn dùng message chuẩn để không lộ chi tiết nội bộ; chi tiết thật đã
+   *         nằm trong log. Mã lạ (không có trong bảng) cũng rơi về đó.
+   *
+   *         Riêng lỗi validate: message ở đây chỉ nói chung chung, còn field nào sai nằm ở
+   *         `details` do ValidationPipe sinh — các message đó đã viết tiếng Việt trong DTO.
    */
-  private resolveMessage(exception: unknown, status: number): string {
+  private resolveMessage(code: ErrorCodeValue, status: number): string {
     if (status >= 500) return ERROR_CODES.SYS_001.message;
-    if (exception instanceof HttpException) return exception.message;
 
-    return ERROR_CODES.SYS_001.message;
+    return MESSAGE_BY_CODE[code] ?? ERROR_CODES.SYS_001.message;
   }
 
   /**

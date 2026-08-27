@@ -45,7 +45,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.user.deleteMany({ where: { id: userId } });
+  // `userId` chưa gán (beforeAll hỏng) thì Prisma hiểu `id: undefined` là không lọc gì —
+  // xoá sạch bảng users. Kiểm tra trước khi xoá.
+  if (userId) {
+    await db.user.deleteMany({ where: { id: userId, email: { endsWith: '@joytab.test' } } });
+  }
   await app.close();
 });
 

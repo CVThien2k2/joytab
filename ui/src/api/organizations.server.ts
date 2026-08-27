@@ -26,10 +26,8 @@ export async function fetchOrganizations(): Promise<OrganizationListResult> {
       cache: "no-store",
     })
     if (!response.ok) {
-      return {
-        organizations: null,
-        error: `GET ${API_BASE_URL}/organizations → ${response.status}`,
-      }
+      const code = await readErrorCode(response)
+      return { organizations: null, error: `Không tải được danh sách tổ chức (${code})` }
     }
     const parsed = organizationListResponseSchema.parse(await response.json())
     return { organizations: parsed.data.organizations, error: null }
@@ -75,7 +73,7 @@ export async function fetchOrganizationPreview(
       return {
         preview: null,
         unusable: false,
-        error: `GET ${API_BASE_URL}/organizations/by-code → ${response.status}`,
+        error: `Không tải được thông tin lời mời (${body?.code ?? response.status})`,
       }
     }
     const parsed = organizationPreviewResponseSchema.parse(await response.json())
@@ -86,13 +84,23 @@ export async function fetchOrganizationPreview(
 }
 
 /**
+ * Input: Response lỗi từ BE.
+ * Output: Mã lỗi nghiệp vụ (vd AUTH_001) để hiện kèm câu tiếng Việt; không đọc được thì lấy
+ *         HTTP status. Người dùng đọc câu chữ, còn mã là thứ để đối chiếu với log.
+ */
+async function readErrorCode(response: Response): Promise<string> {
+  const body = (await response.json().catch(() => null)) as { code?: string } | null
+  return body?.code ?? String(response.status)
+}
+
+/**
  * Input: Lỗi bất kỳ từ fetch/zod.
  * Output: Chuỗi có kèm `cause` — fetch của undici chỉ trả "fetch failed", nguyên nhân thật
  *         (ECONNREFUSED khi BE chưa chạy) nằm trong cause.
  */
 function describeError(err: unknown): string {
-  if (!(err instanceof Error)) return String(err)
+  if (!(err instanceof Error)) return `Không gọi được máy chủ: ${String(err)}`
   const cause = err.cause
-  if (cause instanceof Error) return `${err.message} (${cause.message})`
-  return err.message
+  if (cause instanceof Error) return `Không gọi được máy chủ: ${err.message} (${cause.message})`
+  return `Không gọi được máy chủ: ${err.message}`
 }

@@ -21,7 +21,8 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
       cache: "no-store",
     })
     if (!response.ok) {
-      return { user: null, error: `GET ${API_BASE_URL}/auth/me → ${response.status}` }
+      const code = await readErrorCode(response)
+      return { user: null, error: `Không lấy được thông tin tài khoản (${code})` }
     }
     return { user: meResponseSchema.parse(await response.json()).data, error: null }
   } catch (err) {
@@ -30,13 +31,23 @@ export async function fetchCurrentUser(): Promise<CurrentUserResult> {
 }
 
 /**
+ * Input: Response lỗi từ BE.
+ * Output: Mã lỗi nghiệp vụ (vd AUTH_001) để hiện kèm câu tiếng Việt; không đọc được thì lấy
+ *         HTTP status. Người dùng đọc câu chữ, còn mã là thứ để đối chiếu với log.
+ */
+async function readErrorCode(response: Response): Promise<string> {
+  const body = (await response.json().catch(() => null)) as { code?: string } | null
+  return body?.code ?? String(response.status)
+}
+
+/**
  * Input: Lỗi bất kỳ từ fetch/zod.
  * Output: Chuỗi có kèm `cause` — fetch của undici chỉ trả "fetch failed", nguyên nhân thật
  *         (ECONNREFUSED khi BE chưa chạy) nằm trong cause.
  */
 function describeError(err: unknown): string {
-  if (!(err instanceof Error)) return String(err)
+  if (!(err instanceof Error)) return `Không gọi được máy chủ: ${String(err)}`
   const cause = err.cause
-  if (cause instanceof Error) return `${err.message} (${cause.message})`
-  return err.message
+  if (cause instanceof Error) return `Không gọi được máy chủ: ${err.message} (${cause.message})`
+  return `Không gọi được máy chủ: ${err.message}`
 }

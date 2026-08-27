@@ -1,11 +1,11 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { Building2, LinkIcon } from "lucide-react"
+import { Building2, Link2Off } from "lucide-react"
 import { fetchOrganizationPreview } from "@/api/organizations.server"
 import { Button } from "@/components/ui/button"
 import { JoinByLinkButton } from "@/app/(private)/_components/join-by-link-button"
 
-// Trang chỉ có ý nghĩa với người cầm link; không cho công cụ tìm kiếm lập chỉ mục để mã tham
+// Trang chỉ có ý nghĩa với người cầm liên kết; không cho công cụ tìm kiếm lập chỉ mục để mã tham
 // gia không rơi vào kết quả tìm kiếm.
 export const metadata: Metadata = {
   title: "Lời mời tham gia",
@@ -14,10 +14,10 @@ export const metadata: Metadata = {
 
 /**
  * Input: Mã tham gia nằm trên URL (/join/ABCD1234) — chính là mã owner chia sẻ.
- * Output: Màn hình riêng cho link mời, đúng ba trạng thái:
- *  - Link dùng được → tên tổ chức + số thành viên + nút tham gia ngay.
+ * Output: Màn hình riêng cho liên kết mời, đúng ba trạng thái:
+ *  - Liên kết dùng được → tên tổ chức + số thành viên + nút tham gia ngay.
  *  - Đã là thành viên → không hiện nút, chỉ mời vào thẳng app.
- *  - Mã sai / tổ chức đã đóng cửa → nói rõ là link không dùng được, kèm lối về.
+ *  - Mã sai / tổ chức đã đóng cửa → nói rõ là liên kết không dùng được, kèm lối về.
  *
  *         Không tự guard đăng nhập: proxy đã đá người chưa đăng nhập về /login kèm
  *         `?next=/join/MÃ`, và BE mang giá trị đó đi vòng qua Google rồi trả về đúng đây.
@@ -31,10 +31,9 @@ export default async function JoinByLinkPage({ params }: { params: Promise<{ cod
   if (result.unusable) {
     return (
       <JoinScreen
-        icon={<LinkIcon className="size-6" aria-hidden="true" />}
-        title="Link mời không dùng được"
-        description="Link đã bị đóng, mã đã được đổi, hoặc bạn dán thiếu ký tự. Hỏi lại người
-          chia sẻ để lấy link mới."
+        tone="muted"
+        icon={<Link2Off className="size-6" aria-hidden="true" />}
+        title="Liên kết mời không dùng được"
       >
         <Button asChild variant="outline">
           <Link href="/">Về trang chủ</Link>
@@ -56,6 +55,7 @@ export default async function JoinByLinkPage({ params }: { params: Promise<{ cod
   if (alreadyMember) {
     return (
       <JoinScreen
+        tone="muted"
         icon={<Building2 className="size-6" aria-hidden="true" />}
         title={`Bạn đã ở trong "${name}"`}
       >
@@ -88,29 +88,32 @@ export default async function JoinByLinkPage({ params }: { params: Promise<{ cod
 function JoinScreen({
   icon,
   title,
-  description,
   meta,
+  tone = "primary",
   children,
 }: {
   icon: React.ReactNode
   title: string
-  /** Chỉ đặt khi có thứ user cần biết để làm tiếp — trạng thái tự nói được thì bỏ trống. */
-  description?: string
   /** Các mẩu thông tin ngắn, hiện trên một dòng và tự cách nhau bằng dấu `|`. */
   meta?: string[]
+  /** "primary" = lời mời dùng được; "muted" = đường cụt (hỏng / đã ở trong tổ chức rồi). */
+  tone?: "primary" | "muted"
   children: React.ReactNode
 }) {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-md text-center">
-        <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div
+          className={
+            tone === "muted"
+              ? "mx-auto flex size-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground"
+              : "mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+          }
+        >
           {icon}
         </div>
 
         <h1 className="mt-4 text-base font-semibold tracking-tight">{title}</h1>
-        {description ? (
-          <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
-        ) : null}
         {meta?.length ? (
           <p className="mt-2 text-xs text-muted-foreground">
             {meta.map((item, index) => (

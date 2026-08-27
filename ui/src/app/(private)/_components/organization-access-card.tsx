@@ -11,13 +11,13 @@ import type { Organization } from "@/types/organization"
 /**
  * Input: Tổ chức đang xem (chỉ render khi user là owner — member không có `joinCode`).
  * Output: Khu điều khiển cửa vào tổ chức: công tắc mở/đóng, mã tham gia để đọc cho nhau, và
- *         nút copy link mời.
+ *         nút sao chép liên kết mời.
  *
- *         Công tắc CHÍNH LÀ hành vi duyệt thành viên: tắt thì cả mã gõ tay lẫn link mời đều
- *         vô hiệu, nên khi tắt phải nói thẳng ra chứ không để owner tưởng link vẫn sống.
+ *         Công tắc CHÍNH LÀ hành vi duyệt thành viên: tắt thì cả mã gõ tay lẫn liên kết mời đều
+ *         vô hiệu, nên khi tắt phải nói thẳng ra chứ không để owner tưởng liên kết vẫn sống.
  *
- *         Link dựng từ `window.location.origin` lúc bấm chứ không phải env: app chạy ở
- *         localhost, LAN hay domain thật đều ra đúng link của chính nơi owner đang mở.
+ *         Liên kết dựng từ `window.location.origin` lúc bấm chứ không phải env: app chạy ở
+ *         localhost, LAN hay domain thật đều ra đúng liên kết của chính nơi owner đang mở.
  */
 export function OrganizationAccessCard({ organization }: { organization: Organization }) {
   const toggle = useToggleJoinByCode()
@@ -28,19 +28,19 @@ export function OrganizationAccessCard({ organization }: { organization: Organiz
 
   /**
    * Input: Không nhận tham số.
-   * Output: Chép link mời vào clipboard và đổi nhãn nút trong 2 giây.
+   * Output: Chép liên kết mời vào clipboard và đổi nhãn nút trong 2 giây.
    *         clipboard API cần secure context (https hoặc localhost) — không có thì báo lỗi
-   *         kèm link để owner tự chép tay, chứ không im lặng.
+   *         kèm liên kết để owner tự chép tay, chứ không im lặng.
    */
   async function copyInviteLink(): Promise<void> {
     const link = `${window.location.origin}/join/${joinCode}`
     try {
       await navigator.clipboard.writeText(link)
       setCopied(true)
-      toast.success("Đã copy link mời")
+      toast.success("Đã sao chép liên kết mời")
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast.error(`Không copy được. Link mời: ${link}`)
+      toast.error(`Không sao chép được. Liên kết mời: ${link}`)
     }
   }
 
@@ -51,8 +51,8 @@ export function OrganizationAccessCard({ organization }: { organization: Organiz
           <h2 className="text-sm font-semibold">Mời người vào tổ chức</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {organization.joinByCodeEnabled
-              ? "Đang mở: ai có mã hoặc link đều vào thẳng, không cần bạn duyệt."
-              : "Đang đóng: mã và link mời đều không dùng được cho tới khi bạn mở."}
+              ? "Đang mở: ai có mã hoặc liên kết đều vào thẳng, không cần bạn duyệt."
+              : "Đang đóng: mã và liên kết mời đều không dùng được cho tới khi bạn mở."}
           </p>
         </div>
 
@@ -80,7 +80,7 @@ export function OrganizationAccessCard({ organization }: { organization: Organiz
 
         <Button type="button" variant="outline" onClick={copyInviteLink}>
           {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-          {copied ? "Đã copy" : "Copy link mời"}
+          {copied ? "Đã sao chép" : "Sao chép liên kết mời"}
         </Button>
       </div>
     </section>

@@ -68,10 +68,18 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const ids = Object.values(users).map((u) => u.id);
-  // Xoá tổ chức trước: membership cascade theo tổ chức, còn user thì không xoá được khi
-  // vẫn còn hàng tham chiếu.
-  await db.organization.deleteMany({ where: { created_by: { in: ids } } });
-  await db.user.deleteMany({ where: { id: { in: ids } } });
+  // Hai lớp chặn, vì đây là code XOÁ chạy trên DB dev:
+  //  1. Danh sách rỗng thì không chạy gì cả. Prisma coi `in: undefined` là KHÔNG có điều
+  //     kiện, tức là khớp toàn bộ bảng — một beforeAll hỏng nửa chừng đủ để biến dòng
+  //     deleteMany này thành lệnh xoá sạch dữ liệu.
+  //  2. Kèm điều kiện tên có tiền tố `E2E ` để dù userId có sai thì cũng chỉ đụng tới thứ
+  //     do chính suite này tạo ra.
+  if (ids.length > 0) {
+    await db.organization.deleteMany({
+      where: { created_by: { in: ids }, name: { startsWith: 'E2E ' } },
+    });
+    await db.user.deleteMany({ where: { id: { in: ids }, email: { endsWith: '@joytab.test' } } });
+  }
   await app.close();
 });
 

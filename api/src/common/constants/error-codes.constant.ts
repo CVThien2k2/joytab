@@ -14,44 +14,46 @@ export interface ErrorCodeItem {
  */
 export const ERROR_CODES = {
   /** Token thiếu/sai chữ ký/malformed, hoặc user trong token không còn tồn tại. FE phải đăng nhập lại. */
-  AUTH_001: { code: 'AUTH_001', status: 401, message: 'Unauthorized' },
-  AUTH_002: { code: 'AUTH_002', status: 400, message: 'Google profile invalid' },
-  AUTH_003: { code: 'AUTH_003', status: 401, message: 'Google login code invalid or expired' },
+  AUTH_001: { code: 'AUTH_001', status: 401, message: 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.' },
+  AUTH_002: { code: 'AUTH_002', status: 400, message: 'Không lấy được thông tin tài khoản Google.' },
+  AUTH_003: { code: 'AUTH_003', status: 401, message: 'Mã đăng nhập Google không hợp lệ hoặc đã hết hạn.' },
   /**
    * Access token hết hạn — và CHỈ hết hạn. FE dựa vào đúng mã này để gọi /auth/refresh,
    * nên token sai chữ ký/malformed phải trả AUTH_001 chứ không phải mã này.
    */
-  AUTH_005: { code: 'AUTH_005', status: 401, message: 'Access token expired' },
+  AUTH_005: { code: 'AUTH_005', status: 401, message: 'Phiên đăng nhập đã hết hạn.' },
   /** Refresh token thiếu/sai/hết hạn/không tồn tại/đã bị thu hồi. FE phải đăng nhập lại. */
-  AUTH_006: { code: 'AUTH_006', status: 401, message: 'Refresh token invalid or expired' },
+  AUTH_006: { code: 'AUTH_006', status: 401, message: 'Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại.' },
 
   /** Tổ chức không tồn tại, hoặc user không phải thành viên nên coi như không tồn tại. */
-  ORG_001: { code: 'ORG_001', status: 404, message: 'Organization not found' },
+  ORG_001: { code: 'ORG_001', status: 404, message: 'Không tìm thấy tổ chức.' },
   /**
    * Mã tham gia không dùng được. Gộp CỐ Ý hai trường hợp "mã không tồn tại" và "mã đúng
    * nhưng tổ chức đang không cho vào bằng mã": tách ra thì người ngoài dò được mã nào có
    * thật chỉ bằng cách đọc mã lỗi.
    */
-  ORG_002: { code: 'ORG_002', status: 404, message: 'Join code invalid or joining is closed' },
+  ORG_002: { code: 'ORG_002', status: 404, message: 'Mã tham gia không dùng được hoặc tổ chức đang đóng cửa.' },
   /** Đã là thành viên của tổ chức đó. */
-  ORG_003: { code: 'ORG_003', status: 409, message: 'Already a member of this organization' },
+  ORG_003: { code: 'ORG_003', status: 409, message: 'Bạn đã là thành viên của tổ chức này.' },
   /** Là thành viên nhưng không phải owner — đổi cấu hình tổ chức chỉ owner được làm. */
-  ORG_004: { code: 'ORG_004', status: 403, message: 'Only the organization owner can do this' },
+  ORG_004: { code: 'ORG_004', status: 403, message: 'Chỉ chủ tổ chức mới làm được việc này.' },
 
-  VALIDATION_001: { code: 'VALIDATION_001', status: 400, message: 'Bad request' },
+  VALIDATION_001: { code: 'VALIDATION_001', status: 400, message: 'Dữ liệu gửi lên không hợp lệ.' },
 
-  SYS_001: { code: 'SYS_001', status: 500, message: 'Internal server error' },
-  SYS_404: { code: 'SYS_404', status: 404, message: 'Resource not found' },
+  SYS_001: { code: 'SYS_001', status: 500, message: 'Hệ thống đang gặp sự cố. Vui lòng thử lại sau.' },
+  SYS_404: { code: 'SYS_404', status: 404, message: 'Không tìm thấy đường dẫn này.' },
+  /** Vượt giới hạn số request (ThrottlerGuard). Tách mã riêng để thay message tiếng Anh của Nest. */
+  SYS_429: { code: 'SYS_429', status: 429, message: 'Bạn thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại.' },
 
   // Lỗi cấu hình/hạ tầng: chỉ phát sinh lúc bootstrap hoặc khi hạ tầng chết, không phải
   // lỗi nghiệp vụ của client — luôn là 5xx.
-  SYS_002: { code: 'SYS_002', status: 500, message: 'Missing GOOGLE_CLIENT_ID' },
-  SYS_003: { code: 'SYS_003', status: 500, message: 'Missing GOOGLE_CLIENT_SECRET' },
-  SYS_004: { code: 'SYS_004', status: 500, message: 'Missing API_URL' },
-  SYS_005: { code: 'SYS_005', status: 500, message: 'Missing DB_HOST' },
-  SYS_006: { code: 'SYS_006', status: 500, message: 'Missing DB_USER' },
-  SYS_007: { code: 'SYS_007', status: 500, message: 'Missing DB_PASSWORD' },
-  SYS_008: { code: 'SYS_008', status: 500, message: 'Missing DB_NAME' },
-  SYS_013: { code: 'SYS_013', status: 500, message: 'Database connection failed' },
-  SYS_014: { code: 'SYS_014', status: 500, message: 'Missing JWT_ACCESS_SECRET' },
+  SYS_002: { code: 'SYS_002', status: 500, message: 'Thiếu cấu hình GOOGLE_CLIENT_ID.' },
+  SYS_003: { code: 'SYS_003', status: 500, message: 'Thiếu cấu hình GOOGLE_CLIENT_SECRET.' },
+  SYS_004: { code: 'SYS_004', status: 500, message: 'Thiếu cấu hình API_URL.' },
+  SYS_005: { code: 'SYS_005', status: 500, message: 'Thiếu cấu hình DB_HOST.' },
+  SYS_006: { code: 'SYS_006', status: 500, message: 'Thiếu cấu hình DB_USER.' },
+  SYS_007: { code: 'SYS_007', status: 500, message: 'Thiếu cấu hình DB_PASSWORD.' },
+  SYS_008: { code: 'SYS_008', status: 500, message: 'Thiếu cấu hình DB_NAME.' },
+  SYS_013: { code: 'SYS_013', status: 500, message: 'Không kết nối được cơ sở dữ liệu.' },
+  SYS_014: { code: 'SYS_014', status: 500, message: 'Thiếu cấu hình JWT_ACCESS_SECRET.' },
 } as const satisfies Record<string, ErrorCodeItem>;

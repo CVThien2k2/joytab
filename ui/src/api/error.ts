@@ -10,10 +10,11 @@ type ApiErrorBody = {
 
 /**
  * Input: Lỗi bất kỳ từ axios/zod + message hiện khi không đọc được gì cụ thể.
- * Output: Câu tiếng Việt để đưa vào toast.
+ * Output: Câu tiếng Việt để đưa vào toast. KHÔNG kèm mã lỗi: mã là thứ dành cho log và cho
+ *          FE khớp nhánh xử lý, người dùng đọc nó chỉ thấy rối.
  *
- * Ưu tiên `details` trước `message`: với lỗi 400 do ValidationPipe, `message` chỉ là
- * "Bad Request" chung chung còn `details` mới nói rõ field nào sai.
+ * Ưu tiên `details` trước `message`: với lỗi 400 do ValidationPipe, `message` chỉ nói chung
+ * chung còn `details` mới chỉ ra field nào sai.
  */
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   if (!axios.isAxiosError(error)) return fallback

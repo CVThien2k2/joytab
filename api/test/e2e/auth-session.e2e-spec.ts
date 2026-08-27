@@ -75,8 +75,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.refreshToken.deleteMany({ where: { user_id: { in: createdUserIds } } });
-  await db.user.deleteMany({ where: { id: { in: createdUserIds } } });
+  // Xem ghi chú ở organizations.e2e-spec.ts: danh sách rỗng + lọc theo domain test, để một
+  // beforeAll hỏng không biến dọn dẹp thành xoá sạch bảng.
+  if (createdUserIds.length > 0) {
+    await db.refreshToken.deleteMany({ where: { user_id: { in: createdUserIds } } });
+    await db.user.deleteMany({
+      where: { id: { in: createdUserIds }, email: { endsWith: '@joytab.test' } },
+    });
+  }
   await app.close();
 });
 

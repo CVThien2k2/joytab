@@ -4,6 +4,9 @@ import * as React from "react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+
+// Chữ hiển thị đã dịch sang tiếng Việt (registry để "Close") — chạy lại `shadcn add dialog`
+// sẽ ghi đè, nhớ dịch lại.
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
@@ -76,7 +79,7 @@ function DialogContent({
             >
               <XIcon
               />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">Đóng</span>
             </Button>
           </DialogPrimitive.Close>
         )}
@@ -115,7 +118,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
+          <Button variant="outline">Đóng</Button>
         </DialogPrimitive.Close>
       )}
     </div>
