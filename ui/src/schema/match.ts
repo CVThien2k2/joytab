@@ -155,6 +155,26 @@ export const matchFormSchema = z
     path: ["endTime"],
   })
 
+/**
+ * Form xác nhận lại giờ sau khi kéo thả một trận trên lịch.
+ *
+ * Cùng ba ô ngày/giờ với `matchFormSchema` nhưng KHÔNG dùng lại nó qua `pick`: form kia còn
+ * bắt buộc tên sân và số người, mà kéo thả thì không đụng tới hai thứ đó.
+ *
+ * Cố tình không cấm quá khứ. BE cho phép dời trận về quá khứ (owner nhập bù một buổi đã đá
+ * xong), nên chặn ở đây là FE tự đặt ra một luật mà server không có.
+ */
+export const matchRescheduleFormSchema = z
+  .object({
+    date: z.string().min(1, "Vui lòng chọn ngày"),
+    startTime: z.string().regex(TIME_REGEX, "Giờ bắt đầu không hợp lệ"),
+    endTime: z.string().regex(TIME_REGEX, "Giờ kết thúc không hợp lệ"),
+  })
+  .refine((values) => values.endTime > values.startTime, {
+    message: "Giờ kết thúc phải sau giờ bắt đầu",
+    path: ["endTime"],
+  })
+
 /** Một dòng trong bảng chi phí lúc chốt tiền. Số nhập dạng chuỗi vì input trả chuỗi. */
 export const expenseLineFormSchema = z.object({
   name: z

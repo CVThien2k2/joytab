@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { LoadingOverlay } from "@/components/common/loading-overlay"
 import { useCreateMatch, useUpdateMatch } from "@/hooks/use-matches-api"
+import { toDateInput, toIso, toTimeInput } from "@/lib/date-input"
 import {
   MAX_COURT_NAME_LENGTH,
   MAX_MATCH_NOTE_LENGTH,
@@ -25,28 +26,6 @@ import {
   matchFormSchema,
 } from "@/schema/match"
 import type { MatchFormValues, MatchSummary } from "@/types/match"
-
-/** "2026-08-28" theo giờ máy người dùng — `toISOString` sẽ ra ngày hôm trước ở múi giờ âm. */
-function toDateInput(date: Date): string {
-  const offset = date.getTimezoneOffset() * 60_000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
-}
-
-/** "19:00" theo giờ máy. */
-function toTimeInput(date: Date): string {
-  return `${`${date.getHours()}`.padStart(2, "0")}:${`${date.getMinutes()}`.padStart(2, "0")}`
-}
-
-/**
- * Input: ngày (yyyy-mm-dd) + giờ (HH:mm) theo giờ máy.
- * Output: Chuỗi ISO có offset để gửi BE.
- *
- *         Ghép rồi để `new Date` hiểu theo GIỜ MÁY: người tạo lịch gõ "19:00" là 19h ở sân,
- *         không phải 19h UTC.
- */
-function toIso(date: string, time: string): string {
-  return new Date(`${date}T${time}:00`).toISOString()
-}
 
 export type MatchFormDialogProps = {
   organizationId: string

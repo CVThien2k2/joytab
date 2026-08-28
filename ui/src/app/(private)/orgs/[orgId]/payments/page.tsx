@@ -29,21 +29,18 @@ export default function OrganizationPaymentsPage() {
   const { data: history, isPending: historyPending } = usePayments(organization.id)
 
   const tabs: { key: Tab; label: string }[] = [
-    ...(isOwner ? [{ key: "queue" as const, label: `Chờ duyệt${queue ? ` (${queue.length})` : ""}` }] : []),
+    ...(isOwner
+      ? [{ key: "queue" as const, label: `Chờ duyệt${queue ? ` (${queue.length})` : ""}` }]
+      : []),
     { key: "mine", label: "Khoản của tôi" },
     { key: "history", label: isOwner ? "Tất cả chứng từ" : "Lịch sử của tôi" },
   ]
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6">
-      <h1 className="text-base font-semibold tracking-tight">Thanh toán</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {isOwner
-          ? "Đối soát chứng từ chuyển khoản của thành viên, và xem khoản của chính bạn."
-          : "Các khoản bạn cần trả trong tổ chức này và lịch sử đã gửi."}
-      </p>
-
-      <div className="mt-4 flex flex-wrap gap-2">
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
+      {/* Không lặp lại tên trang ở đây: breadcrumb trên thanh header đã nói, mà nói hai lần
+          thì lần thứ hai chỉ tốn chiều cao. */}
+      <div className="flex flex-wrap gap-2">
         {tabs.map((item) => (
           <Button
             key={item.key}

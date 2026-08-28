@@ -1,19 +1,11 @@
 "use client"
 
 import Link from "next/link"
+import { MatchStatusBadge } from "@/components/common/match-status-badge"
 import { Badge } from "@/components/ui/badge"
 import { useNow } from "@/hooks/use-now"
 import { formatDateTime, formatMoney, formatTimeRange } from "@/lib/format"
 import type { MatchSummary } from "@/types/match"
-
-/** Nhãn trạng thái của một trận, nhìn từ người đang xem danh sách. */
-function statusBadge(match: MatchSummary) {
-  if (match.status === "canceled") return <Badge variant="destructive">Đã huỷ</Badge>
-  if (match.status === "settled") return <Badge variant="secondary">Đã chốt tiền</Badge>
-  if (match.voteClosedReason === "started") return <Badge variant="outline">Đã diễn ra</Badge>
-  if (match.voteClosedReason === "full") return <Badge variant="outline">Đủ người</Badge>
-  return <Badge>Đang mở đăng ký</Badge>
-}
 
 /**
  * Input: danh sách trận trong khoảng đang xem + id tổ chức.
@@ -39,7 +31,7 @@ export function MatchList({
 
   if (matches.length === 0) {
     return (
-      <div className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
+      <div className="border-y p-6 text-center text-sm text-muted-foreground">
         Chưa có trận nào trong khoảng thời gian này.
       </div>
     )
@@ -67,7 +59,7 @@ function Section({
   return (
     <section>
       <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{title}</h3>
-      <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+      <ul className="divide-y border-y">
         {matches.map((match) => (
           <li key={match.id}>
             <Link
@@ -87,9 +79,9 @@ function Section({
                   {formatMoney(match.myAmount)}đ
                 </Badge>
               ) : null}
-              {statusBadge(match)}
+              <MatchStatusBadge match={match} />
 
-              <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+              <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
                 {match.playerCount}/{match.maxPlayers}
               </span>
             </Link>

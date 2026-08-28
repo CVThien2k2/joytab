@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils"
  * với mục con.
  */
 const ORGANIZATION_ITEMS = [
-  { segment: "", label: "Tổng quan", icon: Building2 },
+  { segment: "", label: "Tổ chức", icon: Building2 },
   { segment: "matches", label: "Lịch thi đấu", icon: CalendarRange },
   { segment: "payments", label: "Thanh toán", icon: Receipt },
 ] as const

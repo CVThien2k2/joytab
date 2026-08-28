@@ -29,8 +29,16 @@ import { VotePanel } from "./_components/vote-panel"
  * Input: `matchId` trên URL.
  * Output: Trang chi tiết một trận: thông tin, đăng ký, người tham gia, lịch sử, và chi phí.
  *
- *         Bốn khối theo đúng thứ tự người ta cần: "đá ở đâu lúc nào" → "tôi có đi không" →
+ *         Cột trái đi theo đúng thứ tự người ta cần: "đá ở đâu lúc nào" → "tôi có đi không" →
  *         "ai đi cùng" → "hết bao nhiêu tiền".
+ *
+ *         Lịch sử đăng ký tách sang cột phải vì nó là thứ ĐỐI CHIẾU chứ không phải một bước
+ *         trong mạch đó: người ta mở nó ra để so với danh sách người tham gia đang hiện, mà
+ *         nằm dưới đáy trang thì hai thứ cần so lại không bao giờ ở cùng một khung hình.
+ *         Cột phải dính theo màn hình cũng vì vậy.
+ *
+ *         Dưới `lg` xếp lại thành một cột, lịch sử xuống cuối: ở đó không có chỗ cho hai cột,
+ *         và nó vẫn là thứ ít cần nhất.
  */
 export default function MatchDetailPage() {
   const params = useParams<{ orgId: string; matchId: string }>()
@@ -71,64 +79,80 @@ export default function MatchDetailPage() {
   const canEdit = isOwner && match.status === "open"
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 space-y-4 px-4 py-6 sm:px-6">
-      <section className="rounded-xl border bg-card p-4">
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-bold">{match.courtName}</h1>
-              {match.status === "canceled" ? <Badge variant="destructive">Đã huỷ</Badge> : null}
-              {match.status === "settled" ? <Badge variant="secondary">Đã chốt tiền</Badge> : null}
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">{formatDateTime(match.startAt)}</p>
-          </div>
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-4">
+          <section className="rounded-xl border bg-card p-4">
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-lg font-bold">{match.courtName}</h1>
+                  {match.status === "canceled" ? <Badge variant="destructive">Đã huỷ</Badge> : null}
+                  {match.status === "settled" ? (
+                    <Badge variant="secondary">Đã chốt tiền</Badge>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {formatDateTime(match.startAt)}
+                </p>
+              </div>
 
-          {canEdit ? (
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
-                <Pencil aria-hidden="true" />
-                Sửa
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setCancelOpen(true)}>
-                <Trash2 aria-hidden="true" />
-                Huỷ trận
-              </Button>
+              {canEdit ? (
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
+                    <Pencil aria-hidden="true" />
+                    Sửa
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setCancelOpen(true)}>
+                    <Trash2 aria-hidden="true" />
+                    Huỷ trận
+                  </Button>
+                </div>
+              ) : null}
             </div>
-          ) : null}
+
+            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="truncate">{match.courtName}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CalendarDays
+                  className="size-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <span>{formatTimeRange(match.startAt, match.endAt)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span>
+                  {match.playerCount}/{match.maxPlayers} người · hệ số nam ×{match.maleRatio}
+                </span>
+              </div>
+            </dl>
+
+            {match.note ? (
+              <p className="mt-3 rounded-lg bg-muted px-3 py-2 text-sm">{match.note}</p>
+            ) : null}
+          </section>
+
+          <VotePanel match={match} />
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold">Người tham gia ({match.playerCount})</h2>
+            <ParticipantList participants={match.participants} currentUserId={currentUserId} />
+          </section>
+
+          <SettlementSection match={match} isOwner={isOwner} currentUserId={currentUserId} />
         </div>
 
-        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-          <div className="flex items-center gap-2">
-            <MapPin className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="truncate">{match.courtName}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <CalendarDays className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>{formatTimeRange(match.startAt, match.endAt)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>
-              {match.playerCount}/{match.maxPlayers} người · hệ số nam ×{match.maleRatio}
-            </span>
-          </div>
-        </dl>
-
-        {match.note ? (
-          <p className="mt-3 rounded-lg bg-muted px-3 py-2 text-sm">{match.note}</p>
-        ) : null}
-      </section>
-
-      <VotePanel match={match} />
-
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Người tham gia ({match.playerCount})</h2>
-        <ParticipantList participants={match.participants} currentUserId={currentUserId} />
-      </section>
-
-      <VoteHistory matchId={match.id} />
-
-      <SettlementSection match={match} isOwner={isOwner} currentUserId={currentUserId} />
+        {/* `self-start` để cột không bị kéo cao bằng cột trái — `sticky` chỉ có tác dụng khi
+            phần tử còn chỗ để trượt bên trong khung cha của nó. `top-18` chừa đúng thanh
+            header dính ở trên (h-14) cộng một khoảng thở. */}
+        <aside className="lg:sticky lg:top-18 lg:self-start">
+          <VoteHistory matchId={match.id} />
+        </aside>
+      </div>
 
       {canEdit ? (
         <MatchFormDialog

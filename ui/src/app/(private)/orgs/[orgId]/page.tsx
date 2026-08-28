@@ -30,7 +30,7 @@ export default function OrganizationPage() {
   const isOwner = organization.role === "owner"
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 space-y-4 px-4 py-6 sm:px-6">
+    <main className="mx-auto w-full max-w-7xl flex-1 space-y-4 px-4 py-6 sm:px-6">
       {/* Thẻ đầu chạy suốt chiều ngang vì nó là tiêu đề của cả trang. */}
       <OrganizationInfoCard organization={organization} />
 

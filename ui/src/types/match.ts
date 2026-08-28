@@ -5,6 +5,7 @@ import {
   matchDetailSchema,
   matchExpenseSchema,
   matchFormSchema,
+  matchRescheduleFormSchema,
   matchParticipantSchema,
   matchSettlementSchema,
   matchSummarySchema,
@@ -28,6 +29,8 @@ export type VoteClosedReason = MatchSummary["voteClosedReason"]
  */
 export type MatchFormValues = z.input<typeof matchFormSchema>
 export type MatchFormPayload = z.infer<typeof matchFormSchema>
+/** Form xác nhận lại giờ sau khi kéo thả — chỉ ngày và hai mốc giờ. */
+export type MatchRescheduleValues = z.input<typeof matchRescheduleFormSchema>
 export type ExpenseLineValues = z.input<typeof expenseLineFormSchema>
 export type SettlementFormValues = z.input<typeof settlementFormSchema>
 export type SettlementFormPayload = z.infer<typeof settlementFormSchema>

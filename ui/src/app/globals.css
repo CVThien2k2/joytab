@@ -137,61 +137,67 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-/* FullCalendar: nối bộ biến --fc-* của thư viện vào token của theme.
-   Làm bằng BIẾN chứ không ghi đè selector `.fc-*`: bộ biến là API công khai của FullCalendar,
-   còn tên class là chi tiết bên trong nó — bám vào class thì mỗi lần lên phiên bản là một lần
-   giao diện vỡ mà không ai biết trước. Nhờ đi qua token, sáng/tối tự đổi theo next-themes. */
+/* ─── Lịch thi đấu ────────────────────────────────────────────────────────────────────────
+   FullCalendar v7 sinh class BĂM (`.fc-breezy-aPk`), nên không còn cách nào bám vào cấu trúc
+   bên trong nó như bản v6 từng làm. Mọi thứ dưới đây đi qua hai cửa chính thức: bộ biến của
+   theme, và các hook `*Class` mà component truyền vào.
+
+   Trong 5 theme của v7 chọn Breezy vì từ vựng biến của nó gần trùng token shadcn
+   (popover, secondary, muted, strong-foreground…), nên bảng dưới gần như là ánh xạ 1-1 chứ
+   không phải một lớp dịch.
+
+   CỐ TÌNH không import `themes/breezy/palettes/*.css` của thư viện: bảng này thay chỗ cho nó.
+   Nhờ trỏ hết vào token của app, sáng/tối tự lật theo next-themes — không cần
+   `[data-color-scheme=dark]` mà thư viện dựng sẵn, và cũng không có hai nguồn màu để lệch. */
 :root {
-  --fc-small-font-size: 0.8125rem;
-  --fc-page-bg-color: var(--card);
-  --fc-neutral-bg-color: var(--muted);
-  --fc-neutral-text-color: var(--muted-foreground);
-  --fc-border-color: var(--border);
-  --fc-today-bg-color: color-mix(in oklab, var(--primary) 12%, transparent);
-  --fc-event-bg-color: var(--primary);
-  --fc-event-border-color: var(--primary);
-  --fc-event-text-color: var(--primary-foreground);
-  --fc-highlight-color: color-mix(in oklab, var(--primary) 18%, transparent);
-  --fc-non-business-color: var(--muted);
+  --fc-breezy-background: var(--card);
+  --fc-breezy-foreground: var(--foreground);
+  --fc-breezy-muted-foreground: var(--muted-foreground);
+  --fc-breezy-faint-foreground: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
+  --fc-breezy-strong-foreground: var(--foreground);
+
+  --fc-breezy-faint: color-mix(in oklab, var(--foreground) 3%, transparent);
+  --fc-breezy-muted: var(--muted);
+  --fc-breezy-strong: color-mix(in oklab, var(--foreground) 9%, transparent);
+  --fc-breezy-stronger: color-mix(in oklab, var(--foreground) 14%, transparent);
+  --fc-breezy-strongest: color-mix(in oklab, var(--foreground) 20%, transparent);
+
+  --fc-breezy-border: var(--border);
+  --fc-breezy-muted-border: color-mix(in oklab, var(--border) 55%, transparent);
+  --fc-breezy-strong-border: color-mix(in oklab, var(--foreground) 24%, transparent);
+
+  --fc-breezy-primary: var(--primary);
+  --fc-breezy-primary-foreground: var(--primary-foreground);
+  --fc-breezy-primary-over: color-mix(in oklab, var(--primary) 88%, var(--foreground));
+
+  --fc-breezy-secondary: var(--secondary);
+  --fc-breezy-secondary-foreground: var(--secondary-foreground);
+  --fc-breezy-secondary-border: var(--border);
+  --fc-breezy-secondary-over: var(--accent);
+  --fc-breezy-secondary-icon: var(--muted-foreground);
+  --fc-breezy-secondary-icon-over: var(--foreground);
+
+  --fc-breezy-popover: var(--popover);
+  --fc-breezy-popover-border: var(--border);
+
+  /* Màu một sự kiện khi nó KHÔNG tự khai màu. FullCalendar luôn ghi thẳng vào style của
+     event `--fc-event-color: var(--fc-breezy-event)`, nên thiếu ba dòng này là mọi chip trong
+     suốt — và không có lỗi nào nổ ra, vì `var()` hụt chỉ lặng lẽ ra rỗng. */
+  --fc-breezy-event: var(--primary);
+  --fc-breezy-event-contrast: var(--primary-foreground);
+  --fc-breezy-background-event: var(--primary);
+
+  --fc-breezy-selected: color-mix(in oklab, var(--primary) 14%, transparent);
+  --fc-breezy-highlight: color-mix(in oklab, var(--primary) 20%, transparent);
+  --fc-breezy-ring-color: var(--ring);
+  /* Vạch "bây giờ" đang TẮT (không truyền `nowIndicator`), nhưng vẫn khai màu cho đủ bộ
+     palette: thiếu một khoá thì `var()` hụt lặng lẽ ra rỗng chứ không báo lỗi, nên hôm nào
+     bật lại sẽ không phải đi tìm vì sao nó vô hình. */
+  --fc-breezy-now: var(--destructive);
 }
 
-/* Vài chỗ FullCalendar không mở biến ra, mà để nguyên thì lạc hẳn khỏi phần còn lại của app. */
-.fc {
-  --fc-list-event-hover-bg-color: var(--accent);
-  font-size: 0.875rem;
-}
-.fc .fc-daygrid-day-number,
-.fc .fc-col-header-cell-cushion {
-  color: var(--muted-foreground);
-  font-weight: 500;
-  text-decoration: none;
-}
-.fc .fc-day-today .fc-daygrid-day-number {
-  color: var(--foreground);
-  font-weight: 700;
-}
-/* Sự kiện tự vẽ hoàn toàn trong eventContent, nên bỏ nền và viền mặc định — nếu không thì
-   chip nằm trong một hộp màu của thư viện, thành hai lớp nền chồng nhau. */
-.fc .fc-daygrid-event,
-.fc .fc-timegrid-event {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 0;
-}
-.fc .fc-daygrid-event-harness {
-  margin-bottom: 2px;
-}
-.fc .fc-scrollgrid,
-.fc .fc-scrollgrid td,
-.fc .fc-scrollgrid th {
-  border-color: var(--border);
-}
-.fc .fc-scrollgrid {
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-/* Ô ngày ngoài tháng đang xem: mờ đi thay vì đổi nền, để lưới không bị loang lổ. */
-.fc .fc-day-other .fc-daygrid-day-top {
-  opacity: 0.45;
+/* Ngày đã qua: làm mờ chứ không đổi nền, để lưới không loang lổ. Có nó thì người ta thấy
+   trước là bấm vào đây không tạo được lịch, chứ không phải bấm rồi mới ăn toast. */
+.match-day-past {
+  opacity: 0.55;
 }

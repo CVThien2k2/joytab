@@ -1,74 +1,65 @@
 "use client"
 
-import { useState } from "react"
-import { ChevronDown, ChevronUp, LogIn, LogOut } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { LogIn, LogOut } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { useMatchHistory } from "@/hooks/use-matches-api"
 import { formatDateTime } from "@/lib/format"
 
 /**
  * Input: id trận.
- * Output: Lịch sử đăng ký/huỷ, thu gọn sẵn.
+ * Output: Lịch sử đăng ký/huỷ, hiện sẵn.
  *
- *         Thu gọn vì đây là thứ chỉ mở khi có tranh cãi ("ai bỏ ngang làm thiếu người"), không
- *         phải thứ nhìn mỗi lần vào trang. Cũng nhờ vậy chỉ gọi API khi thật sự mở ra.
+ *         Trước đây khối này thu gọn để khỏi gọi API cho tới lúc có người bấm mở. Nay nó nằm
+ *         ở cột riêng bên phải, không còn giành chỗ dọc với thứ gì nữa — mà một khối chỉ có
+ *         mỗi cái nút trong một cột trống thì vừa khó hiểu vừa phí cả cột. Đổi lại là thêm một
+ *         request mỗi lần vào trang; chấp nhận được vì đây là log của đúng một trận.
+ *
+ *         Danh sách tự cuộn trong khung: một trận nhiều người đổi ý có thể dài hàng chục dòng,
+ *         mà cột phải thì dính theo màn hình — để nó dài ra là kéo cả trang dài theo.
  *
  *         Mọi thành viên xem được, không riêng chủ tổ chức: người cùng đá mới là người cần biết.
  */
 export function VoteHistory({ matchId }: { matchId: string }) {
-  const [open, setOpen] = useState(false)
-  const { data: events, isPending } = useMatchHistory(matchId, open)
+  const { data: events, isPending } = useMatchHistory(matchId)
 
   return (
     <section className="overflow-hidden rounded-xl border bg-card">
-      <Button
-        type="button"
-        variant="ghost"
-        className="h-auto w-full justify-between rounded-none px-4 py-3"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-      >
-        <span className="text-sm font-semibold">Lịch sử đăng ký</span>
-        {open ? (
-          <ChevronUp className="size-4" aria-hidden="true" />
-        ) : (
-          <ChevronDown className="size-4" aria-hidden="true" />
-        )}
-      </Button>
+      <h2 className="border-b px-4 py-3 text-sm font-semibold">Lịch sử đăng ký</h2>
 
-      {open ? (
-        <div className="border-t">
-          {isPending ? (
-            <div className="flex h-20 items-center justify-center">
-              <Spinner className="size-4 text-muted-foreground" />
-            </div>
-          ) : events && events.length > 0 ? (
-            <ul className="divide-y">
-              {events.map((event, index) => (
-                <li key={`${event.userId}-${event.createdAt}-${index}`} className="flex items-center gap-3 px-4 py-2">
-                  {event.action === "join" ? (
-                    <LogIn className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                  ) : (
-                    <LogOut className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate text-sm">
-                    {event.fullName ?? "Người đã rời"}{" "}
-                    <span className="text-muted-foreground">
-                      {event.action === "join" ? "đã đăng ký" : "đã huỷ đăng ký"}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {formatDateTime(event.createdAt)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-4 py-3 text-sm text-muted-foreground">Chưa có thao tác nào.</p>
-          )}
+      {isPending ? (
+        <div className="flex h-20 items-center justify-center">
+          <Spinner className="size-4 text-muted-foreground" />
         </div>
-      ) : null}
+      ) : events && events.length > 0 ? (
+        <ul className="max-h-[60svh] divide-y overflow-y-auto">
+          {events.map((event, index) => (
+            <li
+              key={`${event.userId}-${event.createdAt}-${index}`}
+              className="flex items-start gap-2.5 px-4 py-2.5"
+            >
+              {event.action === "join" ? (
+                <LogIn className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+              ) : (
+                <LogOut
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">
+                  {event.fullName ?? "Người đã rời"}{" "}
+                  <span className="text-muted-foreground">
+                    {event.action === "join" ? "đã đăng ký" : "đã huỷ đăng ký"}
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="px-4 py-3 text-sm text-muted-foreground">Chưa có thao tác nào.</p>
+      )}
     </section>
   )
 }
