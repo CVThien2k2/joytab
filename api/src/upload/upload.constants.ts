@@ -7,7 +7,7 @@
  * ghi được vào bất kỳ prefix nào của bucket — kể cả prefix của app khác đang dùng chung bucket.
  * (Hub không chặn ở BE; đây là chỗ joytab làm chặt hơn.)
  */
-export const UPLOAD_FOLDERS = ['avatars', 'org-logos'] as const;
+export const UPLOAD_FOLDERS = ['avatars', 'org-logos', 'payment-qr', 'payment-proofs'] as const;
 export type UploadFolder = (typeof UPLOAD_FOLDERS)[number];
 
 /**
@@ -26,9 +26,4 @@ export const UPLOAD_POLICY_EXPIRES_SECONDS = 900;
  * Loại ảnh được nhận. Chốt danh sách chứ không chỉ kiểm tiền tố `image/`: `image/svg+xml` là
  * ảnh nhưng chứa script chạy được khi mở trực tiếp từ bucket.
  */
-export const UPLOAD_IMAGE_CONTENT_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-] as const;
+export const UPLOAD_IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;

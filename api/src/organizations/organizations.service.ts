@@ -9,11 +9,7 @@ import {
   Pagination,
 } from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
-import {
-  CreateOrganizationDto,
-  ListMembersQueryDto,
-  UpdateOrganizationDto,
-} from './organizations.dto';
+import { CreateOrganizationDto, ListMembersQueryDto, UpdateOrganizationDto } from './organizations.dto';
 import { JOIN_CODE_MAX_ATTEMPTS, ORGANIZATION_ROLES } from './organizations.constants';
 import { generateJoinCode } from './organizations.utils';
 
@@ -26,6 +22,8 @@ type OrganizationWithMembership = {
   name: string;
   /** NULL = tổ chức đang kín. Xem chú thích ở schema.prisma. */
   join_code: string | null;
+  payment_qr_url: string | null;
+  male_ratio: unknown;
   _count: { members: number };
 };
 
@@ -201,10 +199,7 @@ export class OrganizationsService {
    *         setJoinByCodeEnabled KHÔNG dùng hàm này: nó còn cần `joined_at` để dựng response,
    *         nên đọc cả hàng thay vì hai cột.
    */
-  private async requireMembership(
-    userId: string,
-    organizationId: string,
-  ): Promise<{ id: string; role: string }> {
+  private async requireMembership(userId: string, organizationId: string): Promise<{ id: string; role: string }> {
     const membership = await this.databaseService.organizationMember.findFirst({
       where: { organization_id: organizationId, user_id: userId },
       select: { id: true, role: true },
@@ -286,11 +281,7 @@ export class OrganizationsService {
    *         người ngoài không cần biết id đó có thật hay không. Là member nhưng không phải
    *         owner mới trả ORG_004 — người trong nhà thì nói thẳng là không đủ quyền.
    */
-  async update(
-    userId: string,
-    organizationId: string,
-    dto: UpdateOrganizationDto,
-  ): Promise<OrganizationSummary> {
+  async update(userId: string, organizationId: string, dto: UpdateOrganizationDto): Promise<OrganizationSummary> {
     const membership = await this.databaseService.organizationMember.findFirst({
       where: { organization_id: organizationId, user_id: userId },
     });
@@ -307,6 +298,10 @@ export class OrganizationsService {
       data: {
         ...(dto.name !== undefined ? { name: dto.name } : {}),
         ...(dto.joinByCodeEnabled === false ? { join_code: null } : {}),
+        // Chuỗi rỗng = gỡ QR. Phân biệt được với "không gửi" nhờ `!== undefined`, nên owner
+        // đổi tên tổ chức không vô tình xoá mất mã QR đang dùng.
+        ...(dto.paymentQrUrl !== undefined ? { payment_qr_url: dto.paymentQrUrl || null } : {}),
+        ...(dto.maleRatio !== undefined ? { male_ratio: dto.maleRatio } : {}),
       },
       include: { _count: { select: { members: true } } },
     });
@@ -315,6 +310,8 @@ export class OrganizationsService {
       dto.name !== undefined ? `renamed to "${dto.name}"` : null,
       dto.joinByCodeEnabled === true ? 'opened with a new join code' : null,
       dto.joinByCodeEnabled === false ? 'closed' : null,
+      dto.paymentQrUrl !== undefined ? 'payment QR changed' : null,
+      dto.maleRatio !== undefined ? `male ratio set to ${dto.maleRatio}` : null,
     ].filter(Boolean);
     if (changes.length > 0) {
       this.logger.log(`Organization ${organizationId} ${changes.join(', ')} by ${userId}`);
@@ -400,19 +397,17 @@ export class OrganizationsService {
    *         mà không được gì.
    */
   private isUniqueViolation(err: unknown): boolean {
-    return (
-      typeof err === 'object' &&
-      err !== null &&
-      (err as { code?: unknown }).code === PRISMA_UNIQUE_VIOLATION
-    );
+    return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === PRISMA_UNIQUE_VIOLATION;
   }
 
   /**
    * Input: Row organizations (kèm `_count.members`), vai trò của user đang hỏi, thời điểm join.
    * Output: OrganizationSummary trả cho FE.
    *
-   *         `joinCode` CHỈ trả cho owner: member không cần mã để làm gì, mà mã lộ ra là người
-   *         ngoài vào được ngay (mã tồn tại nghĩa là cửa đang mở).
+   *         `joinCode` trả cho MỌI thành viên, không riêng owner: mời bạn vào nhóm là việc ai
+   *         trong nhóm cũng làm, bắt phải qua owner chỉ tạo một nút thắt không cần thiết. Đổi
+   *         lại, mã trong tay nhiều người hơn — nên việc BẬT/TẮT và xoay mã vẫn CHỈ owner làm
+   *         được (PATCH /organizations/:id), và đóng cửa là mã chết ngay lập tức.
    */
   private toSummary(
     organization: OrganizationWithMembership,
@@ -423,11 +418,12 @@ export class OrganizationsService {
       id: organization.id,
       name: organization.name,
       role,
-      joinCode: role === 'owner' ? organization.join_code : null,
-      // Suy ra từ mã, không đọc cột riêng: cửa mở đúng bằng việc có mã. Member vẫn nhận được
-      // cờ này (dù không thấy mã) để FE giải thích được vì sao họ không có gì để chia sẻ.
+      joinCode: organization.join_code,
+      // Suy ra từ mã, không đọc cột riêng: cửa mở đúng bằng việc có mã.
       joinByCodeEnabled: organization.join_code !== null,
       memberCount: organization._count.members,
+      paymentQrUrl: organization.payment_qr_url,
+      maleRatio: Number(organization.male_ratio),
       joinedAt: joinedAt.toISOString(),
     };
   }
@@ -437,8 +433,6 @@ export class OrganizationsService {
    * Output: Vai trò hợp lệ; giá trị không nhận ra coi như 'member' — quyền thấp nhất.
    */
   private toRole(value: string): OrganizationRole {
-    return ORGANIZATION_ROLES.includes(value as OrganizationRole)
-      ? (value as OrganizationRole)
-      : 'member';
+    return ORGANIZATION_ROLES.includes(value as OrganizationRole) ? (value as OrganizationRole) : 'member';
   }
 }

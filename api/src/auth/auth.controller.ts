@@ -16,6 +16,8 @@ import {
   ONBOARDING_PENDING_VALUE,
   PROFILE_UPDATE_THROTTLE_LIMIT,
   PROFILE_UPDATE_THROTTLE_TTL_MS,
+  SESSION_READ_THROTTLE_LIMIT,
+  SESSION_READ_THROTTLE_TTL_MS,
   REFRESH_COOKIE_NAME,
   REFRESH_TOKEN_TTL_MS,
 } from './auth.constants';
@@ -150,7 +152,14 @@ export class AuthController {
   /**
    * Input: cookie `at` (qua JwtAuthGuard).
    * Output: Thông tin user hiện tại.
+   *
+   *         Ngưỡng riêng, rộng hơn hẳn ngưỡng chung của controller: đây không phải thao tác
+   *         người dùng mà là thứ Next server gọi ở mỗi lần render trang — xem chú thích ở
+   *         SESSION_READ_THROTTLE_LIMIT.
    */
+  @Throttle({
+    global: { ttl: SESSION_READ_THROTTLE_TTL_MS, limit: SESSION_READ_THROTTLE_LIMIT },
+  })
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async me(@Req() request: Request & { userId: string }) {
@@ -170,10 +179,7 @@ export class AuthController {
   })
   @Patch('me')
   @UseGuards(JwtAuthGuard)
-  async updateProfile(
-    @Req() request: Request & { userId: string },
-    @Body() dto: UpdateProfileDto,
-  ) {
+  async updateProfile(@Req() request: Request & { userId: string }, @Body() dto: UpdateProfileDto) {
     const result = await this.authService.updateProfile(request.userId, dto);
     this.logger.log(`Profile updated for ${result.user.email}`);
     return result;

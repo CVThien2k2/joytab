@@ -1,22 +1,8 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import {
-  JOIN_CODE_THROTTLE_LIMIT,
-  JOIN_CODE_THROTTLE_TTL_MS,
-} from './organizations.constants';
+import { JOIN_CODE_THROTTLE_LIMIT, JOIN_CODE_THROTTLE_TTL_MS } from './organizations.constants';
 import {
   CreateOrganizationDto,
   JoinCodeParamDto,
@@ -67,10 +53,7 @@ export class OrganizationsController {
    */
   @Throttle({ global: { ttl: JOIN_CODE_THROTTLE_TTL_MS, limit: JOIN_CODE_THROTTLE_LIMIT } })
   @Get('by-code/:code')
-  async previewByCode(
-    @Req() request: Request & { userId: string },
-    @Param() params: JoinCodeParamDto,
-  ) {
+  async previewByCode(@Req() request: Request & { userId: string }, @Param() params: JoinCodeParamDto) {
     return {
       organization: await this.organizationsService.previewByCode(request.userId, params.code),
     };
@@ -101,10 +84,7 @@ export class OrganizationsController {
    *         (ORG_005) — muốn dừng thì xoá cả tổ chức.
    */
   @Delete(':id/members/:userId')
-  async removeMember(
-    @Req() request: Request & { userId: string },
-    @Param() params: OrganizationMemberParamDto,
-  ) {
+  async removeMember(@Req() request: Request & { userId: string }, @Param() params: OrganizationMemberParamDto) {
     await this.organizationsService.removeMember(request.userId, params.id, params.userId);
   }
 
@@ -116,10 +96,7 @@ export class OrganizationsController {
    *         envelope, giữ nếp đó thì FE không phải có nhánh riêng cho hai route xoá.
    */
   @Delete(':id')
-  async remove(
-    @Req() request: Request & { userId: string },
-    @Param() params: OrganizationIdParamDto,
-  ) {
+  async remove(@Req() request: Request & { userId: string }, @Param() params: OrganizationIdParamDto) {
     await this.organizationsService.remove(request.userId, params.id);
   }
 

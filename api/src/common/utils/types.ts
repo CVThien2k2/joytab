@@ -58,7 +58,7 @@ export type UserProfile = GoogleUser & {
 export type OrganizationRole = 'owner' | 'member';
 
 /**
- * Một tổ chức nhìn từ góc độ user đang hỏi — nên có cả `role` và `joinCode` (chỉ owner thấy).
+ * Một tổ chức nhìn từ góc độ user đang hỏi — nên có `role` (quyết định FE hiện nút gì).
  * Cùng shape cho GET /organizations, POST /organizations và POST /organizations/join.
  */
 /**
@@ -76,10 +76,15 @@ export type OrganizationSummary = {
   id: string;
   name: string;
   role: OrganizationRole;
-  /** null với member: chỉ owner cần mã để chia sẻ. */
+  /** null = tổ chức đang đóng cửa. Mọi thành viên đều thấy mã; chỉ owner bật/tắt được. */
   joinCode: string | null;
   joinByCodeEnabled: boolean;
   memberCount: number;
+  /** Ảnh QR chuyển khoản của tổ chức; null = owner chưa cấu hình. Mọi thành viên đều thấy —
+   *  người phải quét mã chính là member. */
+  paymentQrUrl: string | null;
+  /** Hệ số nam mặc định cho trận mới (nữ là mốc 1). */
+  maleRatio: number;
   /** ISO 8601 — thời điểm user đang hỏi vào tổ chức này. */
   joinedAt: string;
 };
@@ -112,4 +117,145 @@ export type Pagination = {
   pageSize: number;
   totalItems: number;
   totalPages: number;
+};
+
+/** Trạng thái một trận. Nguồn giá trị: MATCH_STATUSES trong matches.constants.ts. */
+export type MatchStatus = 'open' | 'settled' | 'canceled';
+
+/**
+ * Vì sao vote đang đóng. `null` = đang mở.
+ *
+ * Trả lý do chứ không trả một cờ boolean: FE phải nói được "đã đủ người" hay "đã bắt đầu",
+ * chứ làm mờ nút mà không giải thích thì người dùng đứng đoán.
+ */
+export type VoteClosedReason = 'full' | 'started' | 'canceled' | null;
+
+/** Một trận trong danh sách/bộ lịch, kèm phần thông tin riêng của user đang hỏi. */
+export type MatchSummary = {
+  id: string;
+  organizationId: string;
+  /** Chỉ có ở lịch cá nhân (xuyên tổ chức) — chip trên lịch phải nói rõ trận của tổ chức nào. */
+  organizationName?: string;
+  courtName: string;
+  /** ISO 8601 có offset. */
+  startAt: string;
+  endAt: string;
+  maxPlayers: number;
+  playerCount: number;
+  maleRatio: number;
+  note: string | null;
+  status: MatchStatus;
+  /** User đang hỏi đã vote trận này chưa. */
+  voted: boolean;
+  voteClosedReason: VoteClosedReason;
+  /** Số tiền của user đang hỏi ở trận này; null khi trận chưa chốt hoặc user không tham gia. */
+  myAmount: number | null;
+  myPaymentStatus: ChargePaymentStatus | null;
+};
+
+/** Một người đang tham gia trận. */
+export type MatchParticipant = {
+  userId: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  gender: Gender | null;
+  /** ISO 8601 — lần vote hiện tại, không phải lần vote đầu tiên trong lịch sử. */
+  votedAt: string;
+};
+
+/** Chi tiết một trận: summary + danh sách người tham gia. */
+export type MatchDetail = MatchSummary & {
+  participants: MatchParticipant[];
+  /** Còn huỷ vote được không (đã vote, và chưa tới mốc 2 giờ trước giờ chơi). */
+  canCancelVote: boolean;
+};
+
+/** Một dòng lịch sử vote. Append-only nên chỉ có đọc. */
+export type MatchVoteEventItem = {
+  action: 'join' | 'cancel';
+  userId: string;
+  fullName: string | null;
+  createdAt: string;
+};
+
+/** Một dòng chi phí. `unitPrice` là ĐƠN GIÁ; thành tiền do FE/BE nhân ra, không lưu. */
+export type MatchExpenseItem = {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+/** Trạng thái trả tiền của một khoản. */
+export type ChargePaymentStatus = 'unpaid' | 'submitted' | 'confirmed';
+
+/** Số tiền của một người trong một trận. */
+export type MatchChargeItem = {
+  userId: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  gender: Gender | null;
+  ratio: number;
+  amount: number;
+  paymentStatus: ChargePaymentStatus;
+};
+
+/**
+ * Bảng chia tiền của một trận. Dùng chung cho hai việc: xem lại sau khi chốt, và preview
+ * trước khi chốt — cùng một shape nên FE chỉ dựng một bảng.
+ */
+export type MatchSettlement = {
+  matchId: string;
+  settled: boolean;
+  maleRatio: number;
+  expenses: MatchExpenseItem[];
+  total: number;
+  charges: MatchChargeItem[];
+  /** Σ(tiền từng người) − tổng chi, sinh ra do làm tròn lên nghìn. Luôn ≥ 0. */
+  surplus: number;
+  /** Còn sửa được không: chỉ khi mọi khoản còn 'unpaid'. */
+  editable: boolean;
+};
+
+/** Một khoản chưa/đã trả của user, kèm ngữ cảnh trận để hiển thị. */
+export type UserChargeItem = {
+  chargeId: string;
+  matchId: string;
+  courtName: string;
+  startAt: string;
+  amount: number;
+  paymentStatus: ChargePaymentStatus;
+  /** Lý do owner báo chưa nhận được, ở lần thanh toán gần nhất chứa khoản này. */
+  rejectReason: string | null;
+};
+
+/** Công nợ của user trong MỘT tổ chức — đơn vị mà một lần chuyển khoản có thể trả. */
+export type OrganizationChargeGroup = {
+  organizationId: string;
+  organizationName: string;
+  /** null = tổ chức chưa cấu hình QR, FE phải chặn nút thanh toán. */
+  paymentQrUrl: string | null;
+  unpaidTotal: number;
+  charges: UserChargeItem[];
+};
+
+/** Trạng thái một lần chuyển khoản. */
+export type PaymentStatus = 'submitted' | 'confirmed' | 'rejected';
+
+/** Một lần chuyển khoản, gom nhiều khoản của nhiều trận. */
+export type PaymentSummary = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  proofUrl: string;
+  note: string | null;
+  status: PaymentStatus;
+  rejectReason: string | null;
+  submittedAt: string;
+  confirmedAt: string | null;
+  /** Σ amount của các khoản trong lần này — tính từ charges, không lưu cột riêng. */
+  total: number;
+  /** Các trận mà lần chuyển khoản này trả cho. */
+  items: { matchId: string; courtName: string; startAt: string; amount: number }[];
 };

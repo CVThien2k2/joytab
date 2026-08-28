@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -11,12 +12,14 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { MALE_RATIO_DECIMALS, MAX_MALE_RATIO, MIN_MALE_RATIO } from '../matches/matches.constants';
 import {
   JOIN_CODE_REGEX,
   MAX_ORGANIZATION_NAME_LENGTH,
   MEMBER_SEARCH_MAX_LENGTH,
   MEMBERS_DEFAULT_PAGE_SIZE,
   MEMBERS_MAX_PAGE_SIZE,
+  MAX_PAYMENT_QR_URL_LENGTH,
   MIN_ORGANIZATION_NAME_LENGTH,
 } from './organizations.constants';
 import { normalizeJoinCode, normalizeOrganizationName } from './organizations.utils';
@@ -54,9 +57,9 @@ export class JoinCodeParamDto {
 }
 
 /**
- * Body của PATCH /organizations/:id. Hai field, đều TUỲ CHỌN và độc lập: gửi field nào thì đổi
+ * Body của PATCH /organizations/:id. Mọi field đều TUỲ CHỌN và độc lập: gửi field nào thì đổi
  * field đó, không gửi thì giữ nguyên. Nhờ vậy popup đổi tên không phải gửi kèm trạng thái công
- * tắc (và vô tình xoay mã tham gia).
+ * tắc (và vô tình xoay mã tham gia), cũng không phải gửi lại ảnh QR.
  *
  * `whitelist: true` của ValidationPipe loại field lạ, nhưng body RỖNG vẫn hợp lệ — service coi
  * đó là không có gì để đổi.
@@ -73,6 +76,27 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsBoolean({ message: 'Giá trị bật/tắt không hợp lệ' })
   joinByCodeEnabled?: boolean;
+
+  /**
+   * Ảnh QR chuyển khoản của tổ chức. Chuỗi RỖNG là hợp lệ và có nghĩa là gỡ QR — khác với
+   * không gửi field (giữ nguyên), nên không dùng @IsUrl trần được.
+   */
+  @IsOptional()
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
+  @IsString({ message: 'Ảnh QR không hợp lệ' })
+  @MaxLength(MAX_PAYMENT_QR_URL_LENGTH, { message: 'Đường dẫn ảnh QR quá dài' })
+  paymentQrUrl?: string;
+
+  /** Hệ số nam mặc định cho trận mới. Nữ luôn là mốc 1. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber(
+    { maxDecimalPlaces: MALE_RATIO_DECIMALS },
+    { message: `Hệ số nam tối đa ${MALE_RATIO_DECIMALS} chữ số thập phân` },
+  )
+  @Min(MIN_MALE_RATIO, { message: `Hệ số nam phải từ ${MIN_MALE_RATIO}` })
+  @Max(MAX_MALE_RATIO, { message: `Hệ số nam không quá ${MAX_MALE_RATIO}` })
+  maleRatio?: number;
 }
 
 /**

@@ -11,6 +11,20 @@ export type Crumb = {
 }
 
 /**
+ * Trang của chính user, không treo tổ chức lên trước: đây là thông tin tài khoản, không đổi
+ * khi người dùng chuyển tổ chức đang xem.
+ */
+const PERSONAL_LABELS: Record<string, string> = {
+  "/me": "Thông tin cá nhân",
+}
+
+/** Nhãn của các trang con trong một tổ chức, theo segment ngay sau `/orgs/<id>`. */
+const ORGANIZATION_LABELS: Record<string, string> = {
+  matches: "Lịch thi đấu",
+  payments: "Thanh toán",
+}
+
+/**
  * Input: Không nhận tham số — suy từ pathname và store tổ chức.
  * Output: Danh sách breadcrumb của trang đang mở. Route lạ trả mảng rỗng (header khi đó chỉ
  *         trống chứ không hiện một mẩu sai).
@@ -22,25 +36,41 @@ export type Crumb = {
  *         Nhãn của tổ chức lấy từ store (server đã fetch ở layout) nên không có nhịp "đang tải"
  *         như hub — bên đó tên tổ chức đến từ query nên phải có skeleton.
  *
- *         Hiện tại mỗi trang chỉ có MỘT mẩu: trong tổ chức thì là tên tổ chức, còn `/me` là trang
- *         riêng của user nên chỉ có tên trang, không treo tổ chức lên trước. Giữ dạng mảng để khi
- *         có trang con (vd /orgs/<id>/thu-chi) thì thêm cấp mà không phải viết lại component.
+ *         `/me` chỉ có MỘT mẩu — nó là trang tài khoản, treo tên tổ chức lên trước là sai.
+ *         Trang trong tổ chức thì bắt đầu bằng tên tổ chức rồi mới tới mục con.
  */
 export function useBreadcrumb(): Crumb[] {
   const pathname = usePathname()
   const organizations = useOrganizationStore((state) => state.organizations)
   const activeId = useOrganizationStore((state) => state.activeOrganizationId)
 
-  if (pathname === "/me") {
-    // KHÔNG chèn tổ chức đứng trước: đây là trang của chính user, không thuộc tổ chức nào. Sidebar
-    // vẫn là sidebar của tổ chức đang xem, nhưng đó là khung chứa — breadcrumb nói về NỘI DUNG
-    // đang mở, và nội dung này không đổi khi chuyển tổ chức.
-    return [{ href: "/me", label: "Thông tin cá nhân", current: true }]
-  }
+  const personalLabel = PERSONAL_LABELS[pathname]
+  if (personalLabel) return [{ href: pathname, label: personalLabel, current: true }]
 
   const active = organizations.find((organization) => organization.id === activeId)
   if (!active) return []
 
-  const href = `/orgs/${active.id}`
-  return pathname === href ? [{ href, label: active.name, current: true }] : []
+  const root = `/orgs/${active.id}`
+  if (!pathname.startsWith(root)) return []
+
+  // "" ở trang gốc, "matches" hoặc "payments" ở trang con, và có thể còn id trận phía sau.
+  const rest = pathname.slice(root.length).split("/").filter(Boolean)
+  if (rest.length === 0) return [{ href: root, label: active.name, current: true }]
+
+  const sectionLabel = ORGANIZATION_LABELS[rest[0]]
+  if (!sectionLabel) return [{ href: root, label: active.name, current: true }]
+
+  const sectionHref = `${root}/${rest[0]}`
+  const crumbs: Crumb[] = [
+    { href: root, label: active.name, current: false },
+    { href: sectionHref, label: sectionLabel, current: rest.length === 1 },
+  ]
+
+  // Trang chi tiết trận: tên sân chỉ biết sau khi fetch, mà breadcrumb thì render ngay — nên
+  // dùng một nhãn cố định thay vì để trống một nhịp rồi mới nhảy ra chữ.
+  if (rest.length > 1) {
+    crumbs.push({ href: pathname, label: "Chi tiết trận", current: true })
+  }
+
+  return crumbs
 }

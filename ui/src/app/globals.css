@@ -136,3 +136,62 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+
+/* FullCalendar: nối bộ biến --fc-* của thư viện vào token của theme.
+   Làm bằng BIẾN chứ không ghi đè selector `.fc-*`: bộ biến là API công khai của FullCalendar,
+   còn tên class là chi tiết bên trong nó — bám vào class thì mỗi lần lên phiên bản là một lần
+   giao diện vỡ mà không ai biết trước. Nhờ đi qua token, sáng/tối tự đổi theo next-themes. */
+:root {
+  --fc-small-font-size: 0.8125rem;
+  --fc-page-bg-color: var(--card);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-neutral-text-color: var(--muted-foreground);
+  --fc-border-color: var(--border);
+  --fc-today-bg-color: color-mix(in oklab, var(--primary) 12%, transparent);
+  --fc-event-bg-color: var(--primary);
+  --fc-event-border-color: var(--primary);
+  --fc-event-text-color: var(--primary-foreground);
+  --fc-highlight-color: color-mix(in oklab, var(--primary) 18%, transparent);
+  --fc-non-business-color: var(--muted);
+}
+
+/* Vài chỗ FullCalendar không mở biến ra, mà để nguyên thì lạc hẳn khỏi phần còn lại của app. */
+.fc {
+  --fc-list-event-hover-bg-color: var(--accent);
+  font-size: 0.875rem;
+}
+.fc .fc-daygrid-day-number,
+.fc .fc-col-header-cell-cushion {
+  color: var(--muted-foreground);
+  font-weight: 500;
+  text-decoration: none;
+}
+.fc .fc-day-today .fc-daygrid-day-number {
+  color: var(--foreground);
+  font-weight: 700;
+}
+/* Sự kiện tự vẽ hoàn toàn trong eventContent, nên bỏ nền và viền mặc định — nếu không thì
+   chip nằm trong một hộp màu của thư viện, thành hai lớp nền chồng nhau. */
+.fc .fc-daygrid-event,
+.fc .fc-timegrid-event {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+.fc .fc-daygrid-event-harness {
+  margin-bottom: 2px;
+}
+.fc .fc-scrollgrid,
+.fc .fc-scrollgrid td,
+.fc .fc-scrollgrid th {
+  border-color: var(--border);
+}
+.fc .fc-scrollgrid {
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+/* Ô ngày ngoài tháng đang xem: mờ đi thay vì đổi nền, để lưới không bị loang lổ. */
+.fc .fc-day-other .fc-daygrid-day-top {
+  opacity: 0.45;
+}

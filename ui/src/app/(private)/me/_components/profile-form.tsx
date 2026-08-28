@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Check, RotateCcw } from "lucide-react"
 import { Controller, useForm } from "react-hook-form"
-import { AvatarUpload } from "@/components/common/avatar-upload"
+import { ImageUpload } from "@/components/common/image-upload"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -83,11 +83,14 @@ export function ProfileForm() {
       <section className="p-4">
         <h2 className="text-sm font-semibold">Ảnh đại diện</h2>
         <div className="mt-3">
-          <AvatarUpload
+          <ImageUpload
+            shape="circle"
             name={displayName}
             value={profile.avatarUrl}
             folder="avatars"
             disabled={mutation.isPending}
+            removeTitle="Xoá ảnh đại diện?"
+            removeDescription="Ảnh sẽ bị xoá ngay và không lấy lại được. Chỗ nào đang hiện ảnh của bạn sẽ chuyển về chữ viết tắt trên nền màu."
             onUploaded={(publicUrl) => mutation.mutate({ avatarUrl: publicUrl })}
             onRemove={() => mutation.mutate({ avatarUrl: null })}
           />

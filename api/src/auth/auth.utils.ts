@@ -45,10 +45,7 @@ export function buildFrontendUrl(frontendOrigin: string | undefined, path: strin
  * Output: URL trang onboarding FE. Dùng khi login xong mà user chưa khai đủ thông tin —
  *         redirect thẳng tới đây thay vì để `/` rồi proxy đá lại một nhịp nữa.
  */
-export function buildOnboardingRedirectUrl(
-  frontendOrigin: string | undefined,
-  returnTo?: string | null,
-): string {
+export function buildOnboardingRedirectUrl(frontendOrigin: string | undefined, returnTo?: string | null): string {
   const baseUrl = normalizeFrontendOrigin(frontendOrigin);
   const url = new URL('/onboarding', `${baseUrl}/`);
   // Giữ đích cuối qua bước khai thông tin: khai xong FE tự đi tiếp tới đây, không rơi về `/`.

@@ -53,18 +53,36 @@ export async function updateJoinByCodeEnabled(payload: {
 }
 
 /**
- * Input: id tổ chức + tên mới.
- * Output: Tổ chức sau khi đổi tên. Chỉ owner gọi được.
+ * Input: id tổ chức + tên mới + hệ số nam mặc định.
+ * Output: Tổ chức sau khi đổi. Chỉ owner gọi được.
  *
- *         Gửi ĐÚNG field `name`: BE coi mỗi field là một ý định riêng, gửi kèm
- *         `joinByCodeEnabled` là vô tình xoay mã tham gia.
+ *         KHÔNG gửi kèm `joinByCodeEnabled`: BE coi mỗi field là một ý định riêng, gửi kèm là
+ *         vô tình xoay mã tham gia và làm chết mọi liên kết mời đang lưu hành.
  */
 export async function updateOrganization(payload: {
   organizationId: string
   name: string
+  maleRatio: number
 }): Promise<Organization> {
   const response = await apiClient.patch(`/organizations/${payload.organizationId}`, {
     name: payload.name,
+    maleRatio: payload.maleRatio,
+  })
+  return organizationResponseSchema.parse(response.data).data.organization
+}
+
+/**
+ * Input: id tổ chức + URL ảnh QR (chuỗi RỖNG = gỡ mã).
+ * Output: Tổ chức sau khi đổi. Chỉ owner gọi được.
+ *
+ *         Ảnh lưu ngay khi chọn nên đây là một mutation riêng, không đi qua form sửa thông tin.
+ */
+export async function updatePaymentQr(payload: {
+  organizationId: string
+  paymentQrUrl: string
+}): Promise<Organization> {
+  const response = await apiClient.patch(`/organizations/${payload.organizationId}`, {
+    paymentQrUrl: payload.paymentQrUrl,
   })
   return organizationResponseSchema.parse(response.data).data.organization
 }

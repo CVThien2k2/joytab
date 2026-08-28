@@ -58,6 +58,10 @@ export const VN_MOBILE_PHONE_REGEX = /^0(3[2-9]|5[2689]|7[06-9]|8[1-9]|9[0-46-9]
 export const ACCESS_TOKEN_TYPE = 'at';
 
 // ===== Rate limit (áp ở AuthController) =====
+/**
+ * Ngưỡng CHUNG của AuthController, đặt cho các route ĐOÁN ĐƯỢC: /auth/google, callback,
+ * /auth/refresh. 10 lần/phút là rộng cho người thật và chật cho máy dò.
+ */
 export const AUTH_THROTTLE_TTL_MS = 60_000;
 export const AUTH_THROTTLE_LIMIT = 10;
 
@@ -72,3 +76,18 @@ export const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:3000';
  */
 export const PROFILE_UPDATE_THROTTLE_TTL_MS = 60_000;
 export const PROFILE_UPDATE_THROTTLE_LIMIT = 30;
+
+/**
+ * Giới hạn riêng cho GET /auth/me. Phải RỘNG HẲN so với ngưỡng chung của controller vì đây
+ * không phải một thao tác người dùng — Next server gọi nó ở MỖI lần render trang trong khu đã
+ * đăng nhập, nên bấm qua lại vài màn hình là hết 10 lượt.
+ *
+ * Nặng hơn nữa: mọi lệnh gọi đó xuất phát từ chính máy chạy Next, tức là CÙNG một IP cho MỌI
+ * người dùng — ngưỡng chật ở đây thì người này duyệt trang làm người kia bị chặn.
+ *
+ * Nới rộng không mất gì về bảo mật: route này đọc đúng hàng dữ liệu của chính người gọi và đã
+ * có JwtAuthGuard chặn trước. Không có token thì gọi bao nhiêu lần cũng chỉ nhận 401, mà gọi
+ * nhiều lần cũng không lộ thêm gì. Ngưỡng ở đây chỉ để một vòng lặp hỏng không đập vào DB.
+ */
+export const SESSION_READ_THROTTLE_TTL_MS = 60_000;
+export const SESSION_READ_THROTTLE_LIMIT = 120;

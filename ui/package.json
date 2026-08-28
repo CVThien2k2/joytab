@@ -11,6 +11,11 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\""
   },
   "dependencies": {
+    "@fullcalendar/core": "^6.1.21",
+    "@fullcalendar/daygrid": "^6.1.21",
+    "@fullcalendar/interaction": "^6.1.21",
+    "@fullcalendar/react": "^6.1.21",
+    "@fullcalendar/timegrid": "^6.1.21",
     "@hookform/resolvers": "^5.4.0",
     "@tanstack/react-query": "^5.100.13",
     "axios": "^1.16.1",

@@ -12,6 +12,7 @@ import {
   removeOrganizationMember,
   updateJoinByCodeEnabled,
   updateOrganization,
+  updatePaymentQr,
   type MemberListParams,
 } from "@/api/organizations"
 import type { Organization } from "@/types/organization"
@@ -77,7 +78,7 @@ export function useUpdateOrganization(onSuccess?: () => void) {
   return useMutation({
     mutationFn: updateOrganization,
     onSuccess: (organization) => {
-      toast.success(`Đã đổi tên tổ chức thành "${organization.name}"`)
+      toast.success(`Đã lưu thông tin "${organization.name}"`)
       onSuccess?.()
       router.refresh()
     },
@@ -243,4 +244,30 @@ function buildHandlers(params: {
       toast.error(getApiErrorMessage(error, params.fallbackError))
     },
   }
+}
+
+/**
+ * Input: Không nhận tham số.
+ * Output: Mutation đổi/gỡ mã QR thanh toán của tổ chức.
+ *
+ *         Tách khỏi useUpdateOrganization (form sửa thông tin) vì ảnh lưu NGAY khi chọn, không
+ *         chờ bấm Lưu — giữ một URL chưa lưu trong form chỉ tạo ảnh mồ côi trên S3 khi người ta
+ *         rời trang.
+ *
+ *         `router.refresh()` chứ không invalidate: tổ chức do server component fetch rồi bơm
+ *         vào store, không nằm trong cache react-query.
+ */
+export function useUpdatePaymentQr() {
+  const router = useRouter()
+
+  return useMutation({
+    mutationFn: updatePaymentQr,
+    onSuccess: (_organization, variables) => {
+      toast.success(variables.paymentQrUrl ? "Đã cập nhật mã QR" : "Đã gỡ mã QR")
+      router.refresh()
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không lưu được mã QR. Vui lòng thử lại."))
+    },
+  })
 }

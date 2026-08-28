@@ -38,6 +38,10 @@ export const organizationSchema = z.object({
   joinCode: z.string().nullable(),
   joinByCodeEnabled: z.boolean(),
   memberCount: z.number(),
+  /** Ảnh QR chuyển khoản; null = owner chưa cấu hình. Member cũng thấy — họ là người quét. */
+  paymentQrUrl: z.string().nullable(),
+  /** Hệ số nam mặc định cho trận mới (nữ là mốc 1). */
+  maleRatio: z.number(),
   joinedAt: z.string(),
 })
 
@@ -95,6 +99,10 @@ export const organizationMemberListResponseSchema = envelope(
   }),
 )
 
+/** Ràng buộc hệ số nam, mirror của BE (api/src/matches/matches.constants.ts). */
+export const MIN_MALE_RATIO = 0.1
+export const MAX_MALE_RATIO = 10
+
 /** Form tạo tổ chức. */
 export const createOrganizationFormSchema = z.object({
   name: z
@@ -104,6 +112,19 @@ export const createOrganizationFormSchema = z.object({
     .min(MIN_ORGANIZATION_NAME_LENGTH, `Tên tổ chức phải từ ${MIN_ORGANIZATION_NAME_LENGTH} ký tự`)
     .max(MAX_ORGANIZATION_NAME_LENGTH, `Tên tổ chức tối đa ${MAX_ORGANIZATION_NAME_LENGTH} ký tự`)
     .transform((value) => value.replace(/\s+/g, " ")),
+})
+
+/**
+ * Form sửa tổ chức: tên + hệ số nam mặc định.
+ *
+ * Hệ số nhập dạng chuỗi (input trả chuỗi) rồi mới ép số, nên `z.input` khác `z.output` — form
+ * phải dùng riêng hai kiểu này.
+ */
+export const editOrganizationFormSchema = createOrganizationFormSchema.extend({
+  maleRatio: z.coerce
+    .number()
+    .min(MIN_MALE_RATIO, `Hệ số nam từ ${MIN_MALE_RATIO}`)
+    .max(MAX_MALE_RATIO, `Hệ số nam tối đa ${MAX_MALE_RATIO}`),
 })
 
 /**

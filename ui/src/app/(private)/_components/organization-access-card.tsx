@@ -12,9 +12,13 @@ import type { Organization } from "@/types/organization"
 type Copied = "code" | "link" | null
 
 /**
- * Input: Tổ chức đang xem (chỉ render khi user là owner — member không có `joinCode`).
- * Output: Khu điều khiển cửa vào tổ chức: công tắc mở/đóng, mã tham gia và liên kết mời, mỗi
- *         thứ một nút sao chép.
+ * Input: Tổ chức đang xem.
+ * Output: Mã tham gia và liên kết mời (MỌI thành viên thấy, mỗi thứ một nút sao chép), kèm công
+ *         tắc mở/đóng cửa — CHỈ owner.
+ *
+ *         Mời bạn vào nhóm là việc ai trong nhóm cũng làm, nên chặn member ở đây chỉ tạo một
+ *         nút thắt phải đi qua owner. Nhưng quyền MỞ và XOAY mã thì vẫn của riêng owner: mở cửa
+ *         chính là hành vi duyệt, và đóng cửa phải giết được mọi liên kết đã phát ra.
  *
  *         Công tắc CHÍNH LÀ hành vi duyệt thành viên, và mã CHỈ tồn tại khi cửa đang mở — đóng
  *         là BE set mã về null. Vì vậy mở cửa luôn sinh mã MỚI: mọi liên kết đã chia sẻ trước
@@ -28,8 +32,8 @@ type Copied = "code" | "link" | null
  *         Liên kết dựng từ `window.location.origin` lúc bấm chứ không phải env: app chạy ở
  *         localhost, LAN hay domain thật đều ra đúng liên kết của chính nơi owner đang mở.
  *
- *         Chỉ có padding, KHÔNG có khung riêng: đây là một khối trong thẻ chung của trang tổ
- *         chức, khung và đường kẻ ngăn cách do trang đó lo.
+ *         Là một THẺ độc lập chạy suốt chiều ngang: nội dung của nó là MỘT hàng (mã + hai nút
+ *         sao chép), chia đôi hàng thì mã và nút phải xuống dòng mà nửa kia vẫn trống.
  */
 export function OrganizationAccessCard({ organization }: { organization: Organization }) {
   const toggle = useToggleJoinByCode()
@@ -37,6 +41,7 @@ export function OrganizationAccessCard({ organization }: { organization: Organiz
 
   const joinCode = organization.joinCode
   const isOpen = organization.joinByCodeEnabled
+  const isOwner = organization.role === "owner"
 
   /**
    * Input: Thứ cần chép (mã hoặc liên kết) và nội dung của nó.
@@ -56,31 +61,39 @@ export function OrganizationAccessCard({ organization }: { organization: Organiz
   }
 
   return (
-    <section className="p-4">
+    <section className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">Mời người vào tổ chức</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {isOpen
-              ? "Đang mở: ai có mã hoặc liên kết đều vào thẳng, không cần bạn duyệt."
-              : "Đang đóng: chưa có mã nào dùng được. Mở cửa để tạo mã và liên kết mời."}
+              ? "Ai có mã hoặc liên kết đều vào thẳng, không cần duyệt."
+              : isOwner
+                ? "Chưa có mã nào dùng được. Mở cửa để tạo mã và liên kết mời."
+                : "Chủ tổ chức chưa mở cửa nên chưa có mã để mời."}
           </p>
         </div>
 
-        <label className="flex shrink-0 items-center gap-2 text-sm">
-          <Switch
-            checked={isOpen}
-            disabled={toggle.isPending}
-            onCheckedChange={(checked) =>
-              toggle.mutate({
-                organizationId: organization.id,
-                joinByCodeEnabled: checked,
-              })
-            }
-            aria-label="Mở hoặc đóng cửa vào tổ chức bằng mã"
-          />
-          {isOpen ? "Đang mở" : "Đang đóng"}
-        </label>
+        {isOwner ? (
+          <label className="flex shrink-0 items-center gap-2 text-sm">
+            <Switch
+              checked={isOpen}
+              disabled={toggle.isPending}
+              onCheckedChange={(checked) =>
+                toggle.mutate({
+                  organizationId: organization.id,
+                  joinByCodeEnabled: checked,
+                })
+              }
+              aria-label="Mở hoặc đóng cửa vào tổ chức bằng mã"
+            />
+            {isOpen ? "Đang mở" : "Đang đóng"}
+          </label>
+        ) : (
+          <span className="shrink-0 text-sm text-muted-foreground">
+            {isOpen ? "Đang mở" : "Đang đóng"}
+          </span>
+        )}
       </div>
 
       {joinCode ? (
@@ -108,8 +121,9 @@ export function OrganizationAccessCard({ organization }: { organization: Organiz
 
           <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
             <RefreshCw className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            Đóng cửa là mã này mất hẳn. Mở lại sẽ tạo mã mới, nên mọi liên kết đã chia sẻ trước đó
-            không dùng được nữa — cũng là cách xoay mã khi mã cũ bị lọt ra ngoài.
+            {isOwner
+              ? "Đóng cửa là mã này mất hẳn. Mở lại sẽ tạo mã mới, nên mọi liên kết đã chia sẻ trước đó không dùng được nữa — cũng là cách xoay mã khi mã cũ bị lọt ra ngoài."
+              : "Chủ tổ chức đóng cửa là mã này mất hẳn, và liên kết bạn đã chia sẻ cũng thôi dùng được."}
           </p>
         </>
       ) : null}

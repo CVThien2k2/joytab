@@ -2,7 +2,7 @@ import { z } from "zod"
 import { envelope } from "@/schema/envelope"
 
 /** Thư mục đích trên S3 — khớp allowlist ở BE (api/src/upload/upload.constants.ts). */
-export const UPLOAD_FOLDERS = ["avatars", "org-logos"] as const
+export const UPLOAD_FOLDERS = ["avatars", "org-logos", "payment-qr", "payment-proofs"] as const
 export const uploadFolderSchema = z.enum(UPLOAD_FOLDERS)
 
 /** Loại ảnh BE nhận. Khớp UPLOAD_IMAGE_CONTENT_TYPES ở BE — lệch nhau thì BE trả 400. */

@@ -28,8 +28,9 @@ import type { Organization } from "@/types/organization"
  *         Xoá tổ chức bắt gõ lại ĐÚNG tên mới bấm được: rời tổ chức còn vào lại được bằng mã
  *         mời, còn xoá thì không có đường về — thêm một bước tay để không ai xoá vì bấm nhầm.
  *
- *         Chỉ có padding, KHÔNG có khung riêng: đây là một khối trong thẻ chung của trang, khung
- *         và đường kẻ ngăn cách do trang lo. Dấu hiệu "nguy hiểm" nằm ở icon và màu nút.
+ *         Là một THẺ độc lập, nằm cuối trang. Dấu hiệu "nguy hiểm" nằm ở icon và màu nút chứ
+ *         không ở khung — một cái viền đỏ chạy suốt chiều ngang chỉ để bọc một cái nút thì to
+ *         hơn mức nguy hiểm thật của nó.
  */
 export function OrganizationDangerZone({ organization }: { organization: Organization }) {
   const userId = useAuthStore((state) => state.user?.userId)
@@ -63,7 +64,7 @@ export function OrganizationDangerZone({ organization }: { organization: Organiz
 
   return (
     <>
-      <section className="p-4">
+      <section className="rounded-xl border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold">

@@ -194,8 +194,9 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
     const org = res.body.data.organization;
     expect(org.role).toBe('member');
     expect(org.memberCount).toBe(2);
-    // Member KHÔNG được thấy mã — mã lộ ra là người ngoài vào được khi cửa đang mở.
-    expect(org.joinCode).toBeNull();
+    // Member CŨNG thấy mã: mời bạn vào nhóm là việc ai trong nhóm cũng làm. Bật/tắt và xoay
+    // mã thì vẫn chỉ owner làm được — kiểm ở test riêng bên dưới.
+    expect(org.joinCode).toBe(joinCode);
   });
 
   it('vào lần hai → ORG_003, và xem trước báo đã là thành viên', async () => {
@@ -304,7 +305,7 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
       (o: { id: string }) => o.id === organizationId,
     );
     expect(joinerOrg.role).toBe('member');
-    expect(joinerOrg.joinCode).toBeNull();
+    expect(joinerOrg.joinCode).toBe(joinCode);
 
     const outsiderList = await api().get('/organizations').set(asUser('outsider')).expect(200);
     expect(outsiderList.body.data.organizations).toEqual([]);

@@ -31,6 +31,9 @@ model User {
   updated_at       DateTime             @updatedAt @db.Timestamptz(6)
   memberships      OrganizationMember[]
   refresh_tokens   RefreshToken[]
+  match_votes      MatchVote[]
+  match_charges    MatchCharge[]
+  payments         Payment[]
 
   @@unique([provider, provider_user_id])
   @@map("users")
@@ -57,8 +60,8 @@ model RefreshToken {
 /// Một tổ chức = một không gian làm việc chung. User tham gia được nhiều tổ chức, mỗi tổ
 /// chức nhiều thành viên — quan hệ n-n nằm ở organization_members.
 model Organization {
-  id                   String                   @id @default(uuid()) @db.Uuid
-  name                 String                   @db.VarChar(100)
+  id             String               @id @default(uuid()) @db.Uuid
+  name           String               @db.VarChar(100)
   /// Mã 8 ký tự để người khác tự nhập vào tham gia, hoặc NULL khi tổ chức đang kín.
   ///
   /// NULL CHÍNH LÀ công tắc: không có cột `join_by_code_enabled` riêng, vì hai nguồn sự thật
@@ -68,14 +71,24 @@ model Organization {
   /// Mỗi lần mở cửa là một mã MỚI, không dùng lại mã cũ: nhờ vậy đóng cửa là mọi liên kết đã
   /// chia sẻ chết hẳn, mở lại không hồi sinh chúng.
   ///
-  /// Lưu PLAINTEXT (khác refresh_token) vì owner phải đọc được để chia sẻ. `unique` vẫn dùng
-  /// được với cột nullable: Postgres cho phép nhiều NULL trong unique index.
-  join_code            String?                  @unique @db.VarChar(12)
+  /// Lưu PLAINTEXT (khác refresh_token) vì mọi thành viên phải đọc được để chia sẻ. `unique`
+  /// vẫn dùng được với cột nullable: Postgres cho phép nhiều NULL trong unique index.
+  join_code      String?              @unique @db.VarChar(12)
+  /// Ảnh QR chuyển khoản của tổ chức. NULL = owner chưa cấu hình, FE ẩn nút thanh toán.
+  ///
+  /// Nguồn DUY NHẤT: trận KHÔNG giữ bản sao. Vì một lần chuyển khoản gom nhiều trận
+  /// (xem Payment), mỗi trận một QR thì người trả không biết quét cái nào.
+  payment_qr_url String?
+  /// Hệ số nam mặc định cho trận mới. Nữ luôn là mốc 1, nam đóng `male_ratio` lần nữ.
+  /// Trận CHỤP LẠI giá trị này lúc tạo nên đổi ở đây không làm đổi trận đã tạo.
+  male_ratio     Decimal              @default(1.0) @db.Decimal(4, 2)
   /// Chỉ để truy vết ai tạo. KHÔNG dùng để kiểm quyền — quyền đọc ở organization_members.role.
-  created_by           String                   @db.Uuid
-  created_at           DateTime                 @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime                 @updatedAt @db.Timestamptz(6)
-  members              OrganizationMember[]
+  created_by     String               @db.Uuid
+  created_at     DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime             @updatedAt @db.Timestamptz(6)
+  members        OrganizationMember[]
+  matches        Match[]
+  payments       Payment[]
 
   @@map("organizations")
 }
@@ -99,3 +112,157 @@ model OrganizationMember {
   @@map("organization_members")
 }
 
+/// Một buổi thi đấu do owner tạo. Thành viên vote tham gia, hết trận owner chốt chi phí và
+/// hệ thống chia tiền theo hệ số nam/nữ.
+model Match {
+  id              String    @id @default(uuid()) @db.Uuid
+  organization_id String    @db.Uuid
+  court_name      String    @db.VarChar(120)
+  start_at        DateTime  @db.Timestamptz(6)
+  /// Bắt buộc, không suy ra từ start_at: khoảng [start_at, end_at) chính là thứ dùng để
+  /// biết hai trận có trùng giờ hay không (xem MatchVote).
+  end_at          DateTime  @db.Timestamptz(6)
+  max_players     Int       @db.SmallInt
+  /// Chụp lại từ organizations.male_ratio lúc tạo. Owner sửa riêng cho trận này được, và
+  /// sửa lại lần nữa ở màn chốt chi phí.
+  male_ratio      Decimal   @db.Decimal(4, 2)
+  note            String?
+  /// 'open' | 'settled' | 'canceled'.
+  ///
+  /// CỐ TÌNH không có trạng thái "đã đóng vote": nó được SUY RA (đủ max_players, hoặc đã
+  /// quá start_at). Nếu là cột thì mỗi lần có người huỷ vote lúc còn slot lại phải nhớ mở
+  /// lại — hai nguồn sự thật cho cùng một câu hỏi sẽ có lúc lệch nhau.
+  status          String    @default("open") @db.VarChar(20)
+  /// Chỉ để truy vết. Quyền vẫn đọc ở organization_members.role.
+  created_by      String    @db.Uuid
+  settled_at      DateTime? @db.Timestamptz(6)
+  settled_by      String?   @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  votes        MatchVote[]
+  vote_events  MatchVoteEvent[]
+  expenses     MatchExpense[]
+  charges      MatchCharge[]
+
+  /// Truy vấn nóng nhất: lịch của một tổ chức trong một khoảng ngày (bộ lịch).
+  @@index([organization_id, start_at])
+  @@map("matches")
+}
+
+/// Một row = một người ĐANG tham gia một trận. Huỷ vote là XOÁ row, không đánh dấu —
+/// lịch sử nằm ở matches_vote_events.
+model MatchVote {
+  id       String   @id @default(uuid()) @db.Uuid
+  match_id String   @db.Uuid
+  user_id  String   @db.Uuid
+  voted_at DateTime @default(now()) @db.Timestamptz(6)
+
+  match Match @relation(fields: [match_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  /// Một người chỉ vote một lần cho một trận — chặn double-vote ở tầng DB, không tin service.
+  @@unique([match_id, user_id])
+  /// "User này đang vote những trận nào" — chạy mỗi lần vote để kiểm trùng giờ, XUYÊN tổ chức.
+  @@index([user_id])
+  @@map("match_votes")
+}
+
+/// Append-only. Không bao giờ sửa hay xoá row ở đây.
+///
+/// Tách khỏi match_votes chứ không dùng một cột `canceled_at`: vote → huỷ → vote lại là
+/// chuyện bình thường, mà với một bảng thì lần huỷ trước bị đè mất — đúng thứ cần tra khi
+/// có tranh cãi ai đã đăng ký rồi bỏ.
+model MatchVoteEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  match_id   String   @db.Uuid
+  user_id    String   @db.Uuid
+  /// 'join' | 'cancel'
+  action     String   @db.VarChar(10)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  match Match @relation(fields: [match_id], references: [id], onDelete: Cascade)
+
+  @@index([match_id, created_at])
+  @@map("match_vote_events")
+}
+
+/// Một dòng chi phí của một trận: "Cầu | 6 | 25000". Một trận có nhiều dòng.
+model MatchExpense {
+  id         String @id @default(uuid()) @db.Uuid
+  match_id   String @db.Uuid
+  name       String @db.VarChar(120)
+  quantity   Int    @db.SmallInt
+  /// ĐƠN GIÁ, đơn vị ĐỒNG. Thành tiền = quantity × unit_price, cố tình không lưu: lưu cả
+  /// hai thì có ngày chúng lệch nhau.
+  unit_price Int
+  /// Thứ tự hiển thị, theo đúng thứ tự owner đã nhập.
+  position   Int    @db.SmallInt
+
+  match Match @relation(fields: [match_id], references: [id], onDelete: Cascade)
+
+  @@index([match_id, position])
+  @@map("match_expenses")
+}
+
+/// Số tiền một người phải trả cho một trận. Là SNAPSHOT sinh lúc chốt, không tính lại khi đọc.
+model MatchCharge {
+  id               String  @id @default(uuid()) @db.Uuid
+  match_id         String  @db.Uuid
+  user_id          String  @db.Uuid
+  /// Giới tính TẠI THỜI ĐIỂM chốt. User đổi giới tính sau không làm đổi tiền đã chia.
+  gender_at_settle String? @db.VarChar(10)
+  /// Hệ số đã áp cho người này (1 với nữ, male_ratio với nam/other/chưa khai).
+  ratio            Decimal @db.Decimal(4, 2)
+  /// Đơn vị ĐỒNG, đã làm tròn lên bội của 1.000.
+  amount           Int
+  /// 'unpaid' | 'submitted' | 'confirmed'. Một cột, hai phía đọc khác nhau: user coi
+  /// 'submitted' là đã trả xong, owner coi đó là còn phải đối soát.
+  payment_status   String  @default("unpaid") @db.VarChar(20)
+  /// NULL = chưa nằm trong lần thanh toán nào.
+  payment_id       String? @db.Uuid
+
+  match   Match    @relation(fields: [match_id], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// SetNull chứ không Cascade: xoá một lần thanh toán không được phép xoá luôn khoản nợ.
+  payment Payment? @relation(fields: [payment_id], references: [id], onDelete: SetNull)
+
+  @@unique([match_id, user_id])
+  /// "Tôi còn nợ gì" — chạy ở trang chủ cá nhân, xuyên tổ chức.
+  @@index([user_id, payment_status])
+  @@map("match_charges")
+}
+
+/// Một lần chuyển khoản, gom NHIỀU khoản của nhiều trận trong CÙNG một tổ chức.
+///
+/// Gom trong phạm vi một tổ chức vì QR là của tổ chức. Người chơi 3-4 buổi mới chuyển tiền
+/// một lần, nên đây mới là đơn vị thanh toán thật, không phải từng trận.
+model Payment {
+  id              String    @id @default(uuid()) @db.Uuid
+  organization_id String    @db.Uuid
+  user_id         String    @db.Uuid
+  /// Ảnh chuyển khoản. BẮT BUỘC — không có nhánh tiền mặt, nên một lần thanh toán không có
+  /// ảnh là một lần owner không có gì để đối soát.
+  proof_url       String
+  note            String?
+  /// 'submitted' | 'confirmed' | 'rejected'
+  status          String    @default("submitted") @db.VarChar(20)
+  /// Owner phải nói vì sao khi báo chưa nhận được: user chỉ có thao tác GỬI, không tự rút
+  /// lại được, nên lý do là thứ duy nhất giúp họ biết phải làm gì tiếp.
+  reject_reason   String?
+  submitted_at    DateTime  @default(now()) @db.Timestamptz(6)
+  confirmed_at    DateTime? @db.Timestamptz(6)
+  confirmed_by    String?   @db.Uuid
+
+  organization Organization  @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// KHÔNG có cột tổng tiền: tổng luôn = Σ amount của các charge trỏ vào đây. Lưu sẵn thì
+  /// có ngày nó lệch với các dòng bên dưới.
+  charges      MatchCharge[]
+
+  /// Hàng đợi duyệt của owner: lọc theo trạng thái, cũ trước.
+  @@index([organization_id, status, submitted_at])
+  @@index([user_id, submitted_at])
+  @@map("payments")
+}

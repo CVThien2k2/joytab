@@ -6,7 +6,9 @@ import { AuthModule } from './auth/auth.module';
 import { AppLogger } from './common/loggers/app.logger';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
+import { MatchesModule } from './matches/matches.module';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { PaymentsModule } from './payments/payments.module';
 import { UploadModule } from './upload/upload.module';
 
 const REQUIRED_ENV_KEYS = [
@@ -50,6 +52,8 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
     DatabaseModule,
     AuthModule,
     OrganizationsModule,
+    MatchesModule,
+    PaymentsModule,
     UploadModule,
   ],
   controllers: [],

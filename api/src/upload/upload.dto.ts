@@ -1,9 +1,5 @@
 import { IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
-import {
-  UPLOAD_FOLDERS,
-  UPLOAD_IMAGE_CONTENT_TYPES,
-  UploadFolder,
-} from './upload.constants';
+import { UPLOAD_FOLDERS, UPLOAD_IMAGE_CONTENT_TYPES, UploadFolder } from './upload.constants';
 
 /** Body của POST /upload/presign — xin quyền upload MỘT ảnh lên S3. */
 export class CreatePresignedUploadDto {

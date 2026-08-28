@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, CircleUser, PanelLeft } from "lucide-react"
+import { Building2, CalendarRange, CircleUser, PanelLeft, Receipt } from "lucide-react"
 import { JoytabLogo } from "@/components/common/joytab-logo"
 import { RailTooltip } from "@/components/common/rail-tooltip"
 import { SidebarProfileMenu } from "@/components/common/sidebar-profile-menu"
@@ -11,13 +11,15 @@ import { useOrganizationStore } from "@/providers/organization-store-provider"
 import { cn } from "@/lib/utils"
 
 /**
- * Các nav của một tổ chức. Hiện chỉ có một mục vì cả tổ chức gọn trong một trang (thông tin +
- * thành viên); vẫn để dạng mảng vì thêm nghiệp vụ sau (thu chi, báo cáo) là thêm phần tử ở đây,
- * không phải viết lại vòng render.
- *
- * `segment` rỗng = chính `/orgs/<id>`.
+ * Nav của tổ chức đang chọn. `segment` rỗng = chính `/orgs/<id>`, và mục đó phải so BẰNG chứ
+ * không `startsWith`: nó là tiền tố của mọi trang con nên startsWith sẽ làm nó sáng cùng lúc
+ * với mục con.
  */
-const NAV_ITEMS = [{ segment: "", label: "Tổ chức", icon: Building2 }] as const
+const ORGANIZATION_ITEMS = [
+  { segment: "", label: "Tổng quan", icon: Building2 },
+  { segment: "matches", label: "Lịch thi đấu", icon: CalendarRange },
+  { segment: "payments", label: "Thanh toán", icon: Receipt },
+] as const
 
 /**
  * Input: Mục này có đang mở hay không.
@@ -38,6 +40,78 @@ function navRowClass(isActive: boolean): string {
     isActive
       ? "bg-sidebar-accent text-sidebar-accent-foreground"
       : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+  )
+}
+
+/**
+ * Input: Tiêu đề nhóm + trạng thái thu gọn.
+ * Output: Nhãn nhóm ("Cá nhân" / "Tổ chức"), hoặc một đường kẻ khi sidebar đã thu.
+ *
+ *         Thu rồi thì chữ không còn chỗ, nhưng ranh giới giữa hai nhóm vẫn phải thấy được —
+ *         bỏ hẳn nhãn đi thì rail thành một dãy bảy icon không có nhóm nào.
+ */
+function GroupLabel({
+  children,
+  collapsed,
+  className,
+}: {
+  children: React.ReactNode
+  collapsed: boolean
+  className?: string
+}) {
+  if (collapsed) {
+    return (
+      <div
+        aria-hidden="true"
+        className={cn("mx-2 hidden h-px bg-sidebar-border sidebar-closed:md:block", className)}
+      />
+    )
+  }
+
+  return (
+    <p
+      className={cn(
+        "px-[13px] pt-2 pb-1 text-xs font-semibold tracking-wide text-sidebar-foreground/50 uppercase sidebar-closed:md:hidden",
+        className,
+      )}
+    >
+      {children}
+    </p>
+  )
+}
+
+/** Một hàng nav. Tách ra vì hai nhóm dùng chung markup — hai bản chép tay sẽ trôi khác nhau. */
+function NavRow({
+  href,
+  label,
+  icon: Icon,
+  isActive,
+  collapsed,
+  onNavigate,
+  className,
+}: {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>
+  isActive: boolean
+  collapsed: boolean
+  onNavigate?: () => void
+  className?: string
+}) {
+  return (
+    <RailTooltip label={label} enabled={collapsed}>
+      <Link
+        href={href}
+        onClick={onNavigate}
+        aria-current={isActive ? "page" : undefined}
+        className={cn(className, navRowClass(isActive))}
+      >
+        <Icon className="size-5 shrink-0 text-current" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-left sidebar-closed:md:opacity-0">
+          {label}
+        </span>
+      </Link>
+    </RailTooltip>
   )
 }
 
@@ -118,54 +192,51 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav
-        aria-label="Điều hướng tổ chức"
+        aria-label="Điều hướng"
         className={cn(
           // pt-8 giãn nav xuống khỏi khối logo (hub cũng giãn, ở mức pt-4): logo là nhận diện,
           // nav là điều hướng — dán sát nhau thì mắt đọc thành một danh sách mà dòng đầu vô tình
           // trông như một mục bấm được.
-          "flex min-h-0 flex-1 flex-col gap-2 px-3 pt-8 pb-2 sidebar-closed:md:px-2.5",
+          "flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pt-8 pb-2 sidebar-closed:md:px-2.5",
         )}
       >
-        {NAV_ITEMS.map((item) => {
-          const href = item.segment ? `/orgs/${activeId}/${item.segment}` : `/orgs/${activeId}`
-          // Mục gốc phải so BẰNG, không `startsWith`: `/orgs/<id>` là tiền tố của mọi trang con
-          // nên startsWith sẽ làm nó sáng cùng lúc với mục con sau này.
-          const isActive = item.segment ? pathname.startsWith(href) : pathname === href
-          const Icon = item.icon
+        {/* Nhóm tổ chức chỉ dựng được khi đã có tổ chức đang chọn. Trang cá nhân của người chưa
+            vào tổ chức nào không đi qua khung này, nhưng vẫn kiểm ở đây để không bao giờ render
+            ra một đường dẫn `/orgs//matches`. */}
+        {activeId ? (
+          <>
+            <GroupLabel collapsed={collapsed}>Tổ chức</GroupLabel>
+            {ORGANIZATION_ITEMS.map((item) => {
+              const href = item.segment ? `/orgs/${activeId}/${item.segment}` : `/orgs/${activeId}`
+              const isActive = item.segment ? pathname.startsWith(href) : pathname === href
+              return (
+                <NavRow
+                  key={item.label}
+                  href={href}
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={isActive}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                />
+              )
+            })}
+          </>
+        ) : null}
 
-          return (
-            <RailTooltip key={item.label} label={item.label} enabled={collapsed}>
-              <Link
-                href={href}
-                onClick={onNavigate}
-                aria-current={isActive ? "page" : undefined}
-                className={navRowClass(isActive)}
-              >
-                <Icon className="size-5 shrink-0 text-current" aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate text-left sidebar-closed:md:opacity-0">
-                  {item.label}
-                </span>
-              </Link>
-            </RailTooltip>
-          )
-        })}
-
-        {/* mt-auto đẩy xuống sát đường kẻ của footer: nó vẫn là một mục điều hướng nên ở TRÊN
-            đường kẻ, cùng khối với nav — nhưng là thứ "về tôi" chứ không thuộc tổ chức đang xem,
-            nên nằm cách xa nav tổ chức thay vì dán ngay dưới chúng. */}
-        <RailTooltip label="Thông tin cá nhân" enabled={collapsed}>
-          <Link
-            href="/me"
-            onClick={onNavigate}
-            aria-current={pathname === "/me" ? "page" : undefined}
-            className={cn("mt-auto", navRowClass(pathname === "/me"))}
-          >
-            <CircleUser className="size-5 shrink-0 text-current" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate text-left sidebar-closed:md:opacity-0">
-              Thông tin cá nhân
-            </span>
-          </Link>
-        </RailTooltip>
+        {/* mt-auto đẩy xuống sát đường kẻ của footer. Đứng RIÊNG, không nằm trong nhóm nào:
+            nó là thứ "về tôi" — tài khoản, chứ không phải một mục nghiệp vụ như lịch hay
+            thanh toán. Gom vào nhóm Cá nhân thì hai loại khác hẳn nhau nằm chung một danh
+            sách, mà nó cũng mất luôn vị trí cố định ở đáy cột. */}
+        <NavRow
+          href="/me"
+          label="Thông tin cá nhân"
+          icon={CircleUser}
+          isActive={pathname === "/me"}
+          collapsed={collapsed}
+          onNavigate={onNavigate}
+          className="mt-auto"
+        />
       </nav>
 
       <div className="shrink-0 border-t border-sidebar-border px-3 py-2 sidebar-closed:md:px-2.5">
