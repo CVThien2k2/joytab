@@ -30,8 +30,11 @@ const GENDER_OPTIONS: ReadonlyArray<{ value: Gender; label: string }> = [
 
 /**
  * Input: Không nhận props — user lấy từ store (layout đã bơm vào từ /auth/me).
- * Output: Một thẻ gồm ảnh đại diện (đổi/xoá) và form tên/tuổi/giới tính/SĐT; email hiện dạng
- *         chỉ đọc.
+ * Output: Hai khối — ảnh đại diện (đổi/xoá) và form tên/tuổi/giới tính/SĐT; email hiện dạng chỉ
+ *         đọc.
+ *
+ *         KHÔNG tự dựng khung thẻ: trang mới là chỗ gom mọi khối vào một thẻ chung (tiêu đề, ảnh,
+ *         thông tin, giao diện) và vẽ đường kẻ giữa chúng — component này chỉ có padding.
  *
  *         Avatar lưu NGAY khi upload xong, không chờ bấm "Lưu": nó không phải một field của
  *         form (file đã nằm trên S3 rồi), và để user bấm Lưu mới ghi URL thì bỏ trang giữa
@@ -76,7 +79,7 @@ export function ProfileForm() {
   const isDirty = form.formState.isDirty
 
   return (
-    <div className="divide-y overflow-hidden rounded-xl border bg-card">
+    <>
       <section className="p-4">
         <h2 className="text-sm font-semibold">Ảnh đại diện</h2>
         <div className="mt-3">
@@ -226,6 +229,6 @@ export function ProfileForm() {
           </fieldset>
         </form>
       </section>
-    </div>
+    </>
   )
 }
