@@ -79,7 +79,7 @@ export function ProfileForm() {
     <div className="divide-y overflow-hidden rounded-xl border bg-card">
       <section className="p-4">
         <h2 className="text-sm font-semibold">Ảnh đại diện</h2>
-        <div className="mt-4">
+        <div className="mt-3">
           <AvatarUpload
             name={displayName}
             value={profile.avatarUrl}

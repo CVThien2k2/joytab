@@ -18,8 +18,11 @@ import { uploadOneImage } from "@/lib/upload"
 import { UPLOAD_IMAGE_CONTENT_TYPES, UPLOAD_MAX_BYTES } from "@/schema/upload"
 import type { UploadFolder } from "@/types/upload"
 
-/** Cạnh avatar ở trang thông tin cá nhân (px). To hơn mọi chỗ khác vì đây là chỗ NGẮM ảnh. */
-const AVATAR_SIZE = 88
+/**
+ * Cạnh avatar ở trang thông tin cá nhân (px). To hơn mọi chỗ khác vì đây là chỗ NGẮM ảnh, nhưng
+ * không to hơn nữa: 64px vẫn thấy rõ mặt, mà cả khối vẫn gọn trong một dòng cùng hai cái nút.
+ */
+const AVATAR_SIZE = 64
 
 /**
  * Input: Tên/ảnh hiện tại, thư mục đích trên S3, và hai callback: có ảnh mới (URL) hoặc xoá ảnh.
@@ -106,7 +109,7 @@ export function AvatarUpload({
   }
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-wrap items-center gap-3">
       <div className="relative">
         <AccountAvatar name={name} src={src} size={AVATAR_SIZE} />
 
@@ -117,7 +120,7 @@ export function AvatarUpload({
         ) : null}
       </div>
 
-      <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <input
           ref={inputRef}
           type="file"
@@ -132,7 +135,7 @@ export function AvatarUpload({
           }}
         />
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button
             type="button"
             variant="outline"
