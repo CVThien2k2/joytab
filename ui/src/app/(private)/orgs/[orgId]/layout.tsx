@@ -1,8 +1,6 @@
-import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
 import { fetchOrganizations } from "@/api/organizations.server"
 import { AppShell } from "@/components/common/app-shell"
-import { SIDEBAR_COOKIE } from "@/components/common/sidebar-provider"
 import { OrganizationStoreProvider } from "@/providers/organization-store-provider"
 
 /**
@@ -30,7 +28,7 @@ export default async function OrganizationLayout({
   params: Promise<{ orgId: string }>
 }) {
   const { orgId } = await params
-  const [result, cookieStore] = await Promise.all([fetchOrganizations(), cookies()])
+  const result = await fetchOrganizations()
 
   if (!result.organizations) {
     return (
@@ -47,7 +45,7 @@ export default async function OrganizationLayout({
     <OrganizationStoreProvider
       initialState={{ organizations: result.organizations, activeOrganizationId: current.id }}
     >
-      <AppShell sidebarOpen={cookieStore.get(SIDEBAR_COOKIE)?.value !== "0"}>{children}</AppShell>
+      <AppShell>{children}</AppShell>
     </OrganizationStoreProvider>
   )
 }

@@ -2,7 +2,6 @@
 
 import { MonitorSmartphone, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
-import { Button } from "@/components/ui/button"
 import { useMounted } from "@/hooks/use-mounted"
 import { cn } from "@/lib/utils"
 
@@ -15,8 +14,13 @@ const THEME_OPTIONS = [
 
 /**
  * Input: Không nhận props.
- * Output: Khu chọn giao diện: nhãn bên trái, ba nút Sáng / Tối / Theo hệ thống bên phải, cái đang
- *         chọn có viền.
+ * Output: Khu chọn giao diện: nhãn bên trái, ba lựa chọn Sáng / Tối / Theo hệ thống bên phải,
+ *         dựng thành segmented control — cả cụm nằm trên một rãnh nền chìm, cái đang chọn nổi
+ *         lên thành thẻ nền sáng có đổ bóng.
+ *
+ *         Trước đây phân biệt bằng `variant` outline với ghost, tức là chỉ hơn nhau một đường
+ *         viền mờ — nhìn lướt không ra đang chọn cái nào. Ở đây tương phản là NỀN chứ không phải
+ *         viền: nổi/chìm đọc được ngay cả khi liếc qua, và không cần mượn màu nhấn.
  *
  *         Cũng có trong menu tài khoản ở sidebar, nhưng đặt thêm ở đây là có lý: menu kia để đổi
  *         nhanh khi đang làm việc khác, còn đây là chỗ người ta VÀO để xem mình đang cài gì —
@@ -45,27 +49,33 @@ export function ThemeSetting() {
 
       {/* Nhãn trái, nút phải: ba nút xếp dưới nhãn thì khối cao ba dòng và cả nửa phải bỏ trống.
           `flex-wrap` để màn hẹp vẫn xuống dòng thay vì bóp nút. */}
-      <div className="flex shrink-0 flex-wrap gap-1.5" role="group" aria-label="Chọn giao diện">
+      <div
+        className="inline-flex shrink-0 flex-wrap gap-1 rounded-lg bg-muted p-1"
+        role="group"
+        aria-label="Chọn giao diện"
+      >
         {THEME_OPTIONS.map((option) => {
           const isActive = current === option.value
           const Icon = option.icon
 
           return (
-            <Button
+            <button
               key={option.value}
               type="button"
-              size="sm"
-              variant={isActive ? "outline" : "ghost"}
               aria-pressed={isActive}
               onClick={() => setTheme(option.value)}
-              className={cn(isActive && "border-primary/40 text-foreground")}
+              className={cn(
+                "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                isActive
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
             >
-              <Icon
-                className={cn(isActive ? "text-primary" : "text-muted-foreground")}
-                aria-hidden="true"
-              />
+              {/* Icon đi theo màu chữ của chính nút — trạng thái đã nói bằng nền, thêm một màu
+                  riêng cho icon là nói hai lần. */}
+              <Icon className="size-4 shrink-0 text-current" aria-hidden="true" />
               {option.label}
-            </Button>
+            </button>
           )
         })}
       </div>

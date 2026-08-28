@@ -34,7 +34,6 @@ import { Spinner } from "@/components/ui/spinner"
 import { useLogout } from "@/hooks/use-auth-api"
 import { useAuthStore } from "@/providers/auth-store-provider"
 import { useOrganizationStore } from "@/providers/organization-store-provider"
-import { cn } from "@/lib/utils"
 
 /** Dialog nào đang mở — hai dialog dùng chung một ô state nên không mở được cả hai cùng lúc. */
 type OpenDialog = "join" | "create" | null
@@ -71,7 +70,7 @@ export function SidebarProfileMenu({
   collapsed = false,
   onNavigate,
 }: {
-  /** Cột đang thu thành rail — nhãn mờ đi, tooltip thay chỗ nó. */
+  /** Cột đang thu thành rail. Chỉ dùng để BẬT tooltip; nhãn mờ đi bằng biến `sidebar-closed`. */
   collapsed?: boolean
   onNavigate?: () => void
 }) {
@@ -113,16 +112,11 @@ export function SidebarProfileMenu({
           <DropdownMenuTrigger asChild disabled={isSwitching}>
             <button
               type="button"
-              className="flex h-12 w-full items-center gap-3 overflow-hidden rounded-lg px-[13px] text-left whitespace-nowrap transition-colors outline-none hover:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60"
+              className="flex h-12 w-full items-center gap-3 overflow-hidden rounded-lg px-[13px] text-left whitespace-nowrap transition-colors outline-none hover:bg-sidebar-accent/60 focus-visible:ring-[3px] focus-visible:ring-sidebar-ring/50 disabled:opacity-60"
               aria-label="Mở menu tài khoản"
             >
               <AccountAvatar name={displayName} src={user.user.avatarUrl} size={26} />
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-sm font-medium transition-opacity duration-150",
-                  collapsed && "md:opacity-0",
-                )}
-              >
+              <span className="min-w-0 flex-1 truncate text-sm font-medium sidebar-closed:md:opacity-0">
                 {displayName}
               </span>
               {isSwitching ? <Spinner className="size-4 shrink-0 text-muted-foreground" /> : null}

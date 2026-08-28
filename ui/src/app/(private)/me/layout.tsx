@@ -1,11 +1,6 @@
-import { cookies } from "next/headers"
-import {
-  fetchOrganizations,
-  readActiveOrganizationId,
-} from "@/api/organizations.server"
+import { fetchOrganizations, readActiveOrganizationId } from "@/api/organizations.server"
 import { AppHeader } from "@/components/common/app-header"
 import { AppShell } from "@/components/common/app-shell"
-import { SIDEBAR_COOKIE } from "@/components/common/sidebar-provider"
 import { OrganizationStoreProvider } from "@/providers/organization-store-provider"
 
 /**
@@ -22,9 +17,8 @@ import { OrganizationStoreProvider } from "@/providers/organization-store-provid
  *         dựng sidebar, mà thông tin cá nhân vẫn phải sửa được.
  */
 export default async function MeLayout({ children }: { children: React.ReactNode }) {
-  const [result, cookieStore, rememberedId] = await Promise.all([
+  const [result, rememberedId] = await Promise.all([
     fetchOrganizations(),
-    cookies(),
     readActiveOrganizationId(),
   ])
 
@@ -53,7 +47,7 @@ export default async function MeLayout({ children }: { children: React.ReactNode
     <OrganizationStoreProvider
       initialState={{ organizations: result.organizations, activeOrganizationId: active.id }}
     >
-      <AppShell sidebarOpen={cookieStore.get(SIDEBAR_COOKIE)?.value !== "0"}>{children}</AppShell>
+      <AppShell>{children}</AppShell>
     </OrganizationStoreProvider>
   )
 }

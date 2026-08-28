@@ -5,6 +5,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Trạng thái thu của sidebar. Dấu `data-sidebar` nằm trên <html>, do script trong app/layout.tsx
+   đặt TRƯỚC khi trang được vẽ — nhờ vậy mọi class `sidebar-closed:*` đã đúng ngay khung hình đầu
+   tiên, không phải chờ React hydrate rồi mới giật về đúng bề rộng. */
+@custom-variant sidebar-closed (&:is([data-sidebar="closed"] *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -90,7 +95,9 @@
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.681 0.162 75.834);
   --sidebar-primary-foreground: oklch(0.987 0.026 102.212);
-  --sidebar-accent: oklch(0.97 0 0);
+  /* Sáng hơn nền sidebar (0.985) đúng 0.015 thì hàng active gần như không thấy — kéo về
+     ngang `--border` (0.922) để nền nói được trạng thái mà không cần mượn màu nhấn. */
+  --sidebar-accent: oklch(0.922 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);

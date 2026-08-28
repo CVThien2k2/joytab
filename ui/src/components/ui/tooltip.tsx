@@ -49,6 +49,11 @@ function TooltipContent({
         {...props}
       >
         {children}
+        {/* Mũi nhọn chỉ về phía phần tử đang hover. Cần nhất ở rail đang thu: tooltip bung ra
+            giữa khoảng trống bên phải, không có mũi thì không biết nó đang nói về icon nào
+            trong dãy nav xếp sát nhau. `fill-foreground` để mũi cùng màu thân tooltip —
+            Radix tự xoay nó theo `side`. */}
+        <TooltipPrimitive.Arrow width={11} height={5} className="fill-foreground" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )

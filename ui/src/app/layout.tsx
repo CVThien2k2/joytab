@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono, Inter, Nunito_Sans } from "next/font/google"
 import "./globals.css"
+import { SIDEBAR_PREPAINT_SCRIPT } from "@/lib/sidebar-storage"
 import { cn } from "@/lib/utils"
 import { QueryProvider } from "@/providers/query-provider"
 import { ThemeProvider } from "@/providers/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 
-const nunitoSans = Nunito_Sans({subsets:['latin'],variable:'--font-sans'})
+const nunitoSans = Nunito_Sans({ subsets: ["latin"], variable: "--font-sans" })
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -104,6 +105,10 @@ export default function RootLayout({
       )}
     >
       <body className="flex min-h-full flex-col">
+        {/* Chặn render một nhịp để đóng dấu trạng thái sidebar lên <html> trước khi vẽ. Phải nằm
+            ngay đầu <body> và là script thường (không next/script): localStorage không tới được
+            server, chờ React mount mới đọc thì mọi lần tải đều vẽ cột mở rồi mới giật về thu. */}
+        <script dangerouslySetInnerHTML={{ __html: SIDEBAR_PREPAINT_SCRIPT }} />
         {/* Không dùng disableTransitionOnChange: prop đó chèn
             `transition: none !important` lên mọi element khi đổi theme, làm mất
             luôn hiệu ứng sun/moon của ThemeModeButton. */}
