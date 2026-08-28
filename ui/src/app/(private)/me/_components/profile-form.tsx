@@ -1,7 +1,7 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Check } from "lucide-react"
+import { Check, RotateCcw } from "lucide-react"
 import { Controller, useForm } from "react-hook-form"
 import { AvatarUpload } from "@/components/common/avatar-upload"
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,10 @@ const GENDER_OPTIONS: ReadonlyArray<{ value: Gender; label: string }> = [
  *
  *         Dùng LẠI schema của onboarding (xem schema/profile.ts) nên luật validate và cách
  *         chuẩn hoá SĐT giống hệt bước khai lần đầu.
+ *
+ *         Hai nút chỉ bật khi form đã đổi: form này mở ra là đã đầy dữ liệu (user onboarding
+ *         xong mới vào được), nên một nút "Lưu" luôn sáng chỉ mời người ta gửi lại đúng thứ đang
+ *         có — và làm mất luôn tín hiệu "mình có thay đổi gì chưa lưu".
  */
 export function ProfileForm() {
   const profile = useAuthStore((state) => state.user?.user)
@@ -67,6 +71,9 @@ export function ProfileForm() {
   if (!profile) return null
 
   const displayName = profile.fullName?.trim() || profile.email
+  // So với `defaultValues` của react-hook-form, không so với store — nhờ vậy gõ rồi gõ về đúng
+  // giá trị ban đầu thì nút cũng tắt lại, không chỉ tắt khi chưa chạm gì.
+  const isDirty = form.formState.isDirty
 
   return (
     <div className="divide-y overflow-hidden rounded-xl border bg-card">
@@ -89,7 +96,13 @@ export function ProfileForm() {
 
         <form
           className="mt-4"
-          onSubmit={form.handleSubmit((payload) => mutation.mutate(payload))}
+          onSubmit={form.handleSubmit((payload) => {
+            // Chụp lại giá trị THÔ của form (age là chuỗi) rồi reset về chính nó sau khi lưu:
+            // không reset thì `defaultValues` của react-hook-form vẫn là giá trị cũ, `isDirty`
+            // mãi là true và nút "Lưu" không bao giờ tắt lại sau một lần lưu thành công.
+            const submitted = form.getValues()
+            mutation.mutate(payload, { onSuccess: () => form.reset(submitted) })
+          })}
           noValidate
         >
           {/* fieldset disabled khoá mọi control bằng một chỗ duy nhất — không phải rắc
@@ -186,8 +199,21 @@ export function ProfileForm() {
                 </FieldDescription>
               </Field>
 
-              <div className="sm:col-span-2">
-                <Button type="submit">
+              {/* Nút dồn sang phải: mắt đọc form từ trên xuống, hành động đặt ở cuối dòng cuối
+                  là chỗ tay dừng lại. Cả hai nút tắt khi form chưa đổi gì — "Lưu" thì vì không
+                  có gì để lưu, "Huỷ thay đổi" thì vì không có thay đổi nào để huỷ, mà một nút
+                  bấm được nhưng không làm gì thì người dùng tưởng app treo. */}
+              <div className="flex justify-end gap-2 sm:col-span-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!isDirty || mutation.isPending}
+                  onClick={() => form.reset(defaults)}
+                >
+                  <RotateCcw aria-hidden="true" />
+                  Huỷ thay đổi
+                </Button>
+                <Button type="submit" disabled={!isDirty || mutation.isPending}>
                   {mutation.isPending ? (
                     <Spinner className="size-4" />
                   ) : (
