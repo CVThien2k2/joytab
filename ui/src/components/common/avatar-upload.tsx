@@ -5,6 +5,14 @@ import { Camera, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import { uploadOneImage } from "@/lib/upload"
 import { UPLOAD_IMAGE_CONTENT_TYPES, UPLOAD_MAX_BYTES } from "@/schema/upload"
@@ -21,8 +29,12 @@ import type { UploadFolder } from "@/types/upload"
  *         Chặn sai loại/quá dung lượng ngay tại đây, TRƯỚC khi gọi presign: S3 và BE đều chặn
  *         lần nữa, nhưng để user chờ upload 5 phút rồi mới báo "file quá lớn" là tệ.
  *
- *         Lấy ý từ hub (components/globals/avatar-upload.tsx), bỏ phần confirm dialog và
- *         `fit/shape` — ở đây chỉ có một chỗ dùng là avatar tròn.
+ *         Xoá ảnh phải qua hộp thoại xác nhận: nó ghi thẳng lên DB ngay khi bấm (không chờ
+ *         "Lưu"), và ảnh cũ trên S3 bị xoá luôn — không có đường hoàn lại. Đổi ảnh thì không cần
+ *         hỏi, vì chọn sai chỉ việc chọn lại.
+ *
+ *         Lấy ý từ hub (components/globals/avatar-upload.tsx), bỏ phần `fit/shape` — ở đây chỉ có
+ *         một chỗ dùng là avatar tròn.
  */
 export function AvatarUpload({
   name,
@@ -44,6 +56,7 @@ export function AvatarUpload({
   const inputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [percent, setPercent] = useState<number | null>(null)
+  const [confirmingRemove, setConfirmingRemove] = useState(false)
 
   // Thu hồi object URL khi đổi ảnh / rời trang — không có dòng này thì mỗi lần chọn ảnh là một
   // blob nằm lại trong bộ nhớ tới khi reload trang.
@@ -138,10 +151,7 @@ export function AvatarUpload({
             size="sm"
             disabled={disabled || isUploading || !src}
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => {
-              setPreview(null)
-              onRemove()
-            }}
+            onClick={() => setConfirmingRemove(true)}
           >
             <Trash2 aria-hidden="true" />
             Xoá ảnh
@@ -153,6 +163,50 @@ export function AvatarUpload({
           ảnh thì hiện chữ viết tắt.
         </p>
       </div>
+
+      <Dialog
+        open={confirmingRemove}
+        onOpenChange={(open) => {
+          if (!disabled) setConfirmingRemove(open)
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton={false}>
+          <DialogHeader>
+            <div className="flex size-11 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <Trash2 className="size-5" aria-hidden="true" />
+            </div>
+            <DialogTitle className="mt-3">Xoá ảnh đại diện?</DialogTitle>
+            <DialogDescription>
+              Ảnh sẽ bị xoá ngay và không lấy lại được. Chỗ nào đang hiện ảnh của bạn sẽ chuyển về
+              chữ viết tắt <span className="font-medium text-foreground">{initials}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-5">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => setConfirmingRemove(false)}
+            >
+              Huỷ
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={disabled}
+              onClick={() => {
+                setConfirmingRemove(false)
+                setPreview(null)
+                onRemove()
+              }}
+            >
+              <Trash2 aria-hidden="true" />
+              Xoá ảnh
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
