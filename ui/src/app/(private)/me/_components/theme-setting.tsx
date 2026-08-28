@@ -15,7 +15,8 @@ const THEME_OPTIONS = [
 
 /**
  * Input: Không nhận props.
- * Output: Khu chọn giao diện: ba nút Sáng / Tối / Theo hệ thống, cái đang chọn có viền.
+ * Output: Khu chọn giao diện: nhãn bên trái, ba nút Sáng / Tối / Theo hệ thống bên phải, cái đang
+ *         chọn có viền.
  *
  *         Cũng có trong menu tài khoản ở sidebar, nhưng đặt thêm ở đây là có lý: menu kia để đổi
  *         nhanh khi đang làm việc khác, còn đây là chỗ người ta VÀO để xem mình đang cài gì —
@@ -34,13 +35,17 @@ export function ThemeSetting() {
   const current = mounted ? (theme ?? "system") : null
 
   return (
-    <section className="p-4">
-      <h2 className="text-sm font-semibold">Giao diện</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Áp dụng cho thiết bị này. &ldquo;Theo hệ thống&rdquo; là đi theo cài đặt sáng/tối của máy.
-      </p>
+    <section className="flex flex-wrap items-center justify-between gap-3 p-4">
+      <div className="min-w-0">
+        <h2 className="text-sm font-semibold">Giao diện</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Áp dụng cho thiết bị này. &ldquo;Theo hệ thống&rdquo; là đi theo cài đặt sáng/tối của máy.
+        </p>
+      </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Chọn giao diện">
+      {/* Nhãn trái, nút phải: ba nút xếp dưới nhãn thì khối cao ba dòng và cả nửa phải bỏ trống.
+          `flex-wrap` để màn hẹp vẫn xuống dòng thay vì bóp nút. */}
+      <div className="flex shrink-0 flex-wrap gap-1.5" role="group" aria-label="Chọn giao diện">
         {THEME_OPTIONS.map((option) => {
           const isActive = current === option.value
           const Icon = option.icon
