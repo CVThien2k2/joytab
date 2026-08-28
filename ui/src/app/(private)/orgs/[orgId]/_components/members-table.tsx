@@ -3,9 +3,9 @@
 import { useState } from "react"
 import { Inbox, MoreHorizontal, Trash2 } from "lucide-react"
 import { getApiErrorMessage } from "@/api/error"
+import { AccountAvatar } from "@/components/common/account-avatar"
 import { SearchInput } from "@/components/common/search-input"
 import { TablePagination } from "@/components/common/table-pagination"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,19 +30,6 @@ import { useAuthStore } from "@/providers/auth-store-provider"
 import { cn } from "@/lib/utils"
 import type { OrganizationMember, OrganizationRole } from "@/types/organization"
 import { RemoveMemberDialog } from "./remove-member-dialog"
-
-/**
- * Input: Tên/email của một thành viên.
- * Output: 1–2 ký tự viết tắt cho avatar khi không tải được ảnh. Cùng thuật toán với UserMenu và
- *         SidebarProfileMenu — mọi chỗ vẽ avatar phải rơi về cùng chữ cái cho cùng một người.
- */
-function initialsOf(fullName: string | null, email: string): string {
-  const source = fullName?.trim() || email
-  const words = source.split(/\s+/).filter(Boolean)
-  if (words.length === 0) return "?"
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
-}
 
 /**
  * Badge vai trò theo lối hub (nền tint mềm, viền trong suốt) nhưng map CỐ ĐỊNH thay vì chọn
@@ -136,18 +123,7 @@ export function MembersTable({
                       <TableRow key={member.userId}>
                         <TableCell className={CELL_CLASS}>
                           <div className="flex items-center gap-3">
-                            <Avatar>
-                              {member.avatarUrl ? (
-                                <AvatarImage
-                                  src={member.avatarUrl}
-                                  alt=""
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : null}
-                              <AvatarFallback>
-                                {initialsOf(member.fullName, member.email)}
-                              </AvatarFallback>
-                            </Avatar>
+                            <AccountAvatar name={displayName} src={member.avatarUrl} />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 font-medium">
                                 <span className="truncate">{displayName}</span>

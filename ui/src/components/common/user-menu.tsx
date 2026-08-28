@@ -1,7 +1,7 @@
 "use client"
 
 import { LogOut } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AccountAvatar } from "@/components/common/account-avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,19 +12,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useLogout } from "@/hooks/use-auth-api"
 import { useAuthStore } from "@/providers/auth-store-provider"
-
-/**
- * Input: Tên/email của user (có thể null).
- * Output: 1–2 ký tự viết tắt cho avatar khi không tải được ảnh. Ưu tiên chữ cái đầu của
- *         tên; user chưa onboarding chưa chắc có fullName nên rơi về email.
- */
-function initialsOf(fullName: string | null, email: string): string {
-  const source = fullName?.trim() || email
-  const words = source.split(/\s+/).filter(Boolean)
-  if (words.length === 0) return "?"
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
-}
 
 /**
  * Input: Không nhận props — user lấy từ store (do PrivateLayout bơm vào).
@@ -50,12 +37,7 @@ export function UserMenu() {
         className="rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         aria-label="Mở menu tài khoản"
       >
-        <Avatar>
-          {user.user.avatarUrl ? (
-            <AvatarImage src={user.user.avatarUrl} alt="" referrerPolicy="no-referrer" />
-          ) : null}
-          <AvatarFallback>{initialsOf(user.user.fullName, user.user.email)}</AvatarFallback>
-        </Avatar>
+        <AccountAvatar name={displayName} src={user.user.avatarUrl} />
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-56">

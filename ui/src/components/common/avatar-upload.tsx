@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Camera, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AccountAvatar } from "@/components/common/account-avatar"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -17,6 +17,9 @@ import { Spinner } from "@/components/ui/spinner"
 import { uploadOneImage } from "@/lib/upload"
 import { UPLOAD_IMAGE_CONTENT_TYPES, UPLOAD_MAX_BYTES } from "@/schema/upload"
 import type { UploadFolder } from "@/types/upload"
+
+/** Cạnh avatar ở trang thông tin cá nhân (px). To hơn mọi chỗ khác vì đây là chỗ NGẮM ảnh. */
+const AVATAR_SIZE = 88
 
 /**
  * Input: Tên/ảnh hiện tại, thư mục đích trên S3, và hai callback: có ảnh mới (URL) hoặc xoá ảnh.
@@ -68,7 +71,6 @@ export function AvatarUpload({
 
   const isUploading = percent !== null
   const src = preview ?? value
-  const initials = initialsOf(name)
 
   /**
    * Input: File user vừa chọn.
@@ -106,10 +108,7 @@ export function AvatarUpload({
   return (
     <div className="flex items-center gap-4">
       <div className="relative">
-        <Avatar size="lg" className="size-16">
-          {src ? <AvatarImage src={src} alt="" referrerPolicy="no-referrer" /> : null}
-          <AvatarFallback className="text-base">{initials}</AvatarFallback>
-        </Avatar>
+        <AccountAvatar name={name} src={src} size={AVATAR_SIZE} />
 
         {isUploading ? (
           <div className="absolute inset-0 grid place-items-center rounded-full bg-background/70">
@@ -159,8 +158,7 @@ export function AvatarUpload({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          JPEG, PNG, WebP hoặc GIF, tối đa {Math.round(UPLOAD_MAX_BYTES / 1024 / 1024)}MB. Không có
-          ảnh thì hiện chữ viết tắt.
+          JPEG, PNG, WebP hoặc GIF, tối đa {Math.round(UPLOAD_MAX_BYTES / 1024 / 1024)}MB.
         </p>
       </div>
 
@@ -178,7 +176,7 @@ export function AvatarUpload({
             <DialogTitle className="mt-3">Xoá ảnh đại diện?</DialogTitle>
             <DialogDescription>
               Ảnh sẽ bị xoá ngay và không lấy lại được. Chỗ nào đang hiện ảnh của bạn sẽ chuyển về
-              chữ viết tắt <span className="font-medium text-foreground">{initials}</span>.
+              chữ viết tắt trên nền màu.
             </DialogDescription>
           </DialogHeader>
 
@@ -209,16 +207,4 @@ export function AvatarUpload({
       </Dialog>
     </div>
   )
-}
-
-/**
- * Input: Tên (hoặc email) dùng làm nguồn.
- * Output: 1–2 ký tự viết tắt. Cùng thuật toán với UserMenu / SidebarProfileMenu / MembersTable —
- *         mọi chỗ vẽ avatar phải rơi về cùng chữ cái cho cùng một người.
- */
-function initialsOf(source: string): string {
-  const words = source.trim().split(/\s+/).filter(Boolean)
-  if (words.length === 0) return "?"
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
 }

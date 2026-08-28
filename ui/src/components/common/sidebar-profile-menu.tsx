@@ -16,8 +16,8 @@ import {
 import { setActiveOrganization } from "@/api/organizations.actions"
 import { CreateOrganizationDialog } from "@/app/(private)/_components/create-organization-dialog"
 import { JoinOrganizationDialog } from "@/app/(private)/_components/join-organization-dialog"
+import { AccountAvatar } from "@/components/common/account-avatar"
 import { RailTooltip } from "@/components/common/rail-tooltip"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,19 +45,6 @@ const THEME_OPTIONS = [
   { value: "dark", label: "Tối", icon: Moon },
   { value: "system", label: "Theo hệ thống", icon: MonitorSmartphone },
 ] as const
-
-/**
- * Input: Tên/email của user (có thể null).
- * Output: 1–2 ký tự viết tắt cho avatar khi không tải được ảnh. Cùng thuật toán với UserMenu và
- *         MembersTable — ba chỗ vẽ avatar phải rơi về cùng chữ cái cho cùng một người.
- */
-function initialsOf(fullName: string | null, email: string): string {
-  const source = fullName?.trim() || email
-  const words = source.split(/\s+/).filter(Boolean)
-  if (words.length === 0) return "?"
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
-}
 
 /**
  * Input: `onNavigate` — gọi sau khi chuyển tổ chức (bản mobile dùng để đóng tấm trượt).
@@ -129,12 +116,7 @@ export function SidebarProfileMenu({
               className="flex h-12 w-full items-center gap-3 overflow-hidden rounded-lg px-[13px] text-left whitespace-nowrap transition-colors outline-none hover:bg-muted/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60"
               aria-label="Mở menu tài khoản"
             >
-              <Avatar size="sm">
-                {user.user.avatarUrl ? (
-                  <AvatarImage src={user.user.avatarUrl} alt="" referrerPolicy="no-referrer" />
-                ) : null}
-                <AvatarFallback>{initialsOf(user.user.fullName, user.user.email)}</AvatarFallback>
-              </Avatar>
+              <AccountAvatar name={displayName} src={user.user.avatarUrl} size={26} />
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-sm font-medium transition-opacity duration-150",
