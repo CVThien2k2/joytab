@@ -23,7 +23,7 @@ const NAV_ITEMS = [{ segment: "", label: "Tổ chức", icon: Building2 }] as co
  * Input: Mục này có đang mở hay không.
  * Output: Class của một hàng nav.
  *
- *         Tách ra hàm vì có hai nhóm nav dùng nó (nav tổ chức và nav "Thông tin cá nhân" ở đáy):
+ *         Tách ra hàm vì có hai nhóm nav dùng nó (nav tổ chức và nav "Thông tin cá nhân"):
  *         hai chỗ tự viết class là hai chỗ sẽ trôi mỗi cái một kiểu.
  *
  *         Mọi hàng cùng chiều cao và cùng độ đậm, kể cả hàng đang mở: đổi `font-weight` theo
@@ -145,23 +145,16 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
             </RailTooltip>
           )
         })}
-      </nav>
 
-      <div
-        className={cn(
-          "flex shrink-0 flex-col gap-1 border-t py-2",
-          collapsed ? "px-3 md:px-2.5" : "px-3",
-        )}
-      >
-        {/* Nằm ở đáy cạnh nút tài khoản chứ không trong nav tổ chức phía trên: đây là thứ "về
-            tôi", không phải một mục của tổ chức đang xem — và cũng là chỗ mắt tìm tới khi muốn
-            sửa thông tin của mình. */}
+        {/* mt-auto đẩy xuống sát đường kẻ của footer: nó vẫn là một mục điều hướng nên ở TRÊN
+            đường kẻ, cùng khối với nav — nhưng là thứ "về tôi" chứ không thuộc tổ chức đang xem,
+            nên nằm cách xa nav tổ chức thay vì dán ngay dưới chúng. */}
         <RailTooltip label="Thông tin cá nhân" enabled={collapsed}>
           <Link
             href="/me"
             onClick={onNavigate}
             aria-current={pathname === "/me" ? "page" : undefined}
-            className={navRowClass(pathname === "/me")}
+            className={cn("mt-auto", navRowClass(pathname === "/me"))}
           >
             <UserRound
               className={cn(
@@ -180,7 +173,9 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
             </span>
           </Link>
         </RailTooltip>
+      </nav>
 
+      <div className={cn("shrink-0 border-t py-2", collapsed ? "px-3 md:px-2.5" : "px-3")}>
         <SidebarProfileMenu collapsed={collapsed} onNavigate={onNavigate} />
       </div>
     </div>

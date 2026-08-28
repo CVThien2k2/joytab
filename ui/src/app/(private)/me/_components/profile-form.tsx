@@ -95,7 +95,10 @@ export function ProfileForm() {
           {/* fieldset disabled khoá mọi control bằng một chỗ duy nhất — không phải rắc
               `disabled` lên từng field rồi quên một cái. */}
           <fieldset disabled={mutation.isPending} className="contents">
-            <FieldGroup className="max-w-lg gap-5">
+            {/* Hai cột từ `sm` trở lên: form dùng hết chiều rộng thẻ, nhưng không kéo một ô
+                input dài suốt màn hình rộng — ô càng dài thì mắt càng khó bắt đầu và kết thúc
+                của nó. Email chiếm cả hàng vì nó chỉ đọc, không cần đứng cạnh field nào. */}
+            <FieldGroup className="grid gap-5 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="fullName">Họ và tên</FieldLabel>
                 <Input
@@ -109,58 +112,6 @@ export function ProfileForm() {
                 />
                 <FieldError errors={[form.formState.errors.fullName]} />
               </Field>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Field>
-                  <FieldLabel htmlFor="age">Tuổi</FieldLabel>
-                  {/* type="text" + inputMode numeric: type="number" cho gõ "e"/"+" và trả "" cho
-                      mọi input không parse được, mất luôn thứ user đã gõ. */}
-                  <Input
-                    id="age"
-                    type="text"
-                    inputMode="numeric"
-                    defaultValue={defaults.age}
-                    maxLength={3}
-                    placeholder="25"
-                    aria-invalid={!!form.formState.errors.age}
-                    {...form.register("age")}
-                  />
-                  <FieldError errors={[form.formState.errors.age]} />
-                </Field>
-
-                <Field>
-                  <FieldLabel htmlFor="gender">Giới tính</FieldLabel>
-                  <Controller
-                    control={form.control}
-                    name="gender"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        disabled={mutation.isPending}
-                      >
-                        <SelectTrigger
-                          id="gender"
-                          className="w-full"
-                          ref={field.ref}
-                          onBlur={field.onBlur}
-                          aria-invalid={!!form.formState.errors.gender}
-                        >
-                          <SelectValue placeholder="Chọn" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {GENDER_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  <FieldError errors={[form.formState.errors.gender]} />
-                </Field>
-              </div>
 
               <Field>
                 <FieldLabel htmlFor="phone">Số điện thoại</FieldLabel>
@@ -178,6 +129,56 @@ export function ProfileForm() {
               </Field>
 
               <Field>
+                <FieldLabel htmlFor="age">Tuổi</FieldLabel>
+                {/* type="text" + inputMode numeric: type="number" cho gõ "e"/"+" và trả "" cho
+                    mọi input không parse được, mất luôn thứ user đã gõ. */}
+                <Input
+                  id="age"
+                  type="text"
+                  inputMode="numeric"
+                  defaultValue={defaults.age}
+                  maxLength={3}
+                  placeholder="25"
+                  aria-invalid={!!form.formState.errors.age}
+                  {...form.register("age")}
+                />
+                <FieldError errors={[form.formState.errors.age]} />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="gender">Giới tính</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="gender"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={mutation.isPending}
+                    >
+                      <SelectTrigger
+                        id="gender"
+                        className="w-full"
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        aria-invalid={!!form.formState.errors.gender}
+                      >
+                        <SelectValue placeholder="Chọn" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GENDER_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FieldError errors={[form.formState.errors.gender]} />
+              </Field>
+
+              <Field className="sm:col-span-2">
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input id="email" value={profile.email} readOnly disabled />
                 <FieldDescription>
@@ -185,7 +186,7 @@ export function ProfileForm() {
                 </FieldDescription>
               </Field>
 
-              <div>
+              <div className="sm:col-span-2">
                 <Button type="submit">
                   {mutation.isPending ? (
                     <Spinner className="size-4" />
