@@ -186,7 +186,7 @@ export type MatchExpenseItem = {
 };
 
 /** Trạng thái trả tiền của một khoản. */
-export type ChargePaymentStatus = 'unpaid' | 'submitted' | 'confirmed';
+export type ChargePaymentStatus = 'unpaid' | 'paid';
 
 /** Số tiền của một người trong một trận. */
 export type MatchChargeItem = {
@@ -224,8 +224,6 @@ export type UserChargeItem = {
   startAt: string;
   amount: number;
   paymentStatus: ChargePaymentStatus;
-  /** Lý do owner báo chưa nhận được, ở lần thanh toán gần nhất chứa khoản này. */
-  rejectReason: string | null;
 };
 
 /** Công nợ của user trong MỘT tổ chức — đơn vị mà một lần chuyển khoản có thể trả. */
@@ -238,10 +236,11 @@ export type OrganizationChargeGroup = {
   charges: UserChargeItem[];
 };
 
-/** Trạng thái một lần chuyển khoản. */
-export type PaymentStatus = 'submitted' | 'confirmed' | 'rejected';
-
-/** Một lần chuyển khoản, gom nhiều khoản của nhiều trận. */
+/**
+ * Một lần chuyển khoản, gom nhiều khoản của nhiều trận.
+ *
+ * Không có `status`: không ai duyệt nữa, nên một row tồn tại đã là "đã chuyển".
+ */
 export type PaymentSummary = {
   id: string;
   organizationId: string;
@@ -250,10 +249,7 @@ export type PaymentSummary = {
   avatarUrl: string | null;
   proofUrl: string;
   note: string | null;
-  status: PaymentStatus;
-  rejectReason: string | null;
   submittedAt: string;
-  confirmedAt: string | null;
   /** Σ amount của các khoản trong lần này — tính từ charges, không lưu cột riêng. */
   total: number;
   /** Các trận mà lần chuyển khoản này trả cho. */

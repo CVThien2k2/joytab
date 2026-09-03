@@ -2,8 +2,9 @@
 
 import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CalendarDays, List, Plus } from "lucide-react"
+import { Info, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { MatchCalendar, type MatchMoveRequest } from "@/components/common/match-calendar"
 import { MatchCalendarToolbar } from "@/components/common/match-calendar-toolbar"
 import { useOrganizationMatches } from "@/hooks/use-matches-api"
@@ -11,7 +12,6 @@ import { useNow } from "@/hooks/use-now"
 import { rangeOf, type CalendarViewName } from "@/lib/match-range"
 import { useActiveOrganization } from "@/providers/organization-store-provider"
 import { MatchFormDialog } from "./_components/match-form-dialog"
-import { MatchList } from "./_components/match-list"
 import { MatchRescheduleDialog } from "./_components/match-reschedule-dialog"
 
 /**
@@ -19,12 +19,11 @@ import { MatchRescheduleDialog } from "./_components/match-reschedule-dialog"
  * Output: Trang quản lý lịch thi đấu của tổ chức.
  *
  *         Trang giữ MỘT kỳ đang xem (mốc neo + kiểu xem) và suy ra mọi thứ từ đó: khoảng gửi
- *         lên BE, tiêu đề, phạm vi của bộ lịch, và phạm vi của danh sách. Bộ lịch là thành
- *         phần ĐƯỢC ĐIỀU KHIỂN chứ không tự giữ kỳ của nó — nhờ vậy một thanh lọc duy nhất
- *         lái được cả hai cách xem, thay vì cách xem nào cũng phải có bộ lọc riêng.
+ *         lên BE, tiêu đề, và phạm vi của bộ lịch. Bộ lịch là thành phần ĐƯỢC ĐIỀU KHIỂN chứ
+ *         không tự giữ kỳ của nó — nhờ vậy thanh lọc nằm ở trang vẫn lái được nó.
  *
- *         Bộ lịch và danh sách đều không có viền: chúng là hai cách đọc cùng một dữ liệu, đổi
- *         qua lại mà một bên có khung một bên không thì mỗi lần đổi là một lần giao diện nhảy.
+ *         Thanh lọc và bộ lịch nằm trong CÙNG một thẻ: thanh lọc chỉ đổi kỳ của bộ lịch, tách
+ *         ra ngoài thì nó trông như một bộ lọc của cả trang.
  *
  *         Owner có thêm hai thao tác ngay trên lịch: bấm vào chỗ trống để tạo, và kéo thả để
  *         dời. Cả hai đều đi qua một dialog — thao tác trên lưới đủ để CHỌN thời điểm, nhưng
@@ -38,18 +37,18 @@ export default function OrganizationMatchesPage() {
 
   const [anchor, setAnchor] = useState(() => new Date(now))
   const [view, setView] = useState<CalendarViewName>("timeGridWeek")
-  const [mode, setMode] = useState<"calendar" | "list">("calendar")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [initialStart, setInitialStart] = useState<Date | undefined>(undefined)
   const [initialEnd, setInitialEnd] = useState<Date | null>(null)
   const [moveRequest, setMoveRequest] = useState<MatchMoveRequest | null>(null)
+  const [moveOpen, setMoveOpen] = useState(false)
 
   const range = useMemo(() => rangeOf(anchor, view), [anchor, view])
   const { data: matches, isFetching } = useOrganizationMatches(organization.id, range)
 
-  // Trận đã huỷ không hiện trên lịch lẫn danh sách: nó không còn là một buổi để đi, và một ô
-  // trông y hệt các ô khác mà thực ra đã huỷ thì tệ hơn hẳn một ô trống. Lịch sử của nó vẫn
-  // nằm ở BE (huỷ là huỷ mềm), chỉ là không chiếm chỗ trên lưới nữa.
+  // Trận đã huỷ không hiện trên lịch: nó không còn là một buổi để đi, và một ô trông y hệt các
+  // ô khác mà thực ra đã huỷ thì tệ hơn hẳn một ô trống. Lịch sử của nó vẫn nằm ở BE (huỷ là
+  // huỷ mềm), chỉ là không chiếm chỗ trên lưới nữa.
   const visibleMatches = useMemo(
     () => (matches ?? []).filter((match) => match.status !== "canceled"),
     [matches],
@@ -69,50 +68,38 @@ export default function OrganizationMatchesPage() {
   const closeMove = useCallback(
     (committed: boolean) => {
       if (!committed) moveRequest?.revert()
-      setMoveRequest(null)
+      // Chỉ hạ `open`, KHÔNG xoá `moveRequest`: hộp thoại còn animation ra, xoá dữ liệu ngay là
+      // nó trống trơn trong lúc đang co lại. Lần kéo sau ghi đè giá trị cũ này.
+      setMoveOpen(false)
     },
     [moveRequest],
   )
 
-  // Cùng một bộ nút cho cả hai cách xem, khai một lần: hai chỗ tự dựng lại là hai chỗ sẽ trôi
-  // mỗi cái một kiểu.
-  const actions = (
-    <div className="flex items-center gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        aria-label={mode === "calendar" ? "Xem dạng danh sách" : "Xem dạng lịch"}
-        onClick={() => setMode(mode === "calendar" ? "list" : "calendar")}
-      >
-        {mode === "calendar" ? (
-          <List className="size-4" aria-hidden="true" />
-        ) : (
-          <CalendarDays className="size-4" aria-hidden="true" />
-        )}
-      </Button>
-
-      {isOwner ? (
-        <Button type="button" onClick={() => openCreate()}>
-          <Plus aria-hidden="true" />
-          Tạo lịch
-        </Button>
-      ) : null}
-    </div>
-  )
+  const openMove = useCallback((request: MatchMoveRequest) => {
+    setMoveRequest(request)
+    setMoveOpen(true)
+  }, [])
 
   return (
     <main className="flex min-h-0 w-full flex-1 flex-col px-4 py-4 sm:px-6">
-      <MatchCalendarToolbar
-        anchor={anchor}
-        view={view}
-        loading={isFetching}
-        onAnchorChange={setAnchor}
-        onViewChange={setView}
-        actions={actions}
-      />
+      {/* `gap-0` vì thanh lọc đã tự chừa khoảng dưới; để cả hai thì thành hai lần khoảng trắng. */}
+      <Card size="sm" className="min-h-0 flex-1 gap-0 px-(--card-spacing)">
+        <MatchCalendarToolbar
+          anchor={anchor}
+          view={view}
+          loading={isFetching}
+          onAnchorChange={setAnchor}
+          onViewChange={setView}
+          actions={
+            isOwner ? (
+              <Button type="button" onClick={() => openCreate()}>
+                <Plus aria-hidden="true" />
+                Tạo lịch
+              </Button>
+            ) : null
+          }
+        />
 
-      {mode === "calendar" ? (
         <MatchCalendar
           matches={visibleMatches}
           organizationId={organization.id}
@@ -121,13 +108,21 @@ export default function OrganizationMatchesPage() {
           editable={isOwner}
           onSelectMatch={(matchId) => router.push(`/orgs/${organization.id}/matches/${matchId}`)}
           onCreateAt={isOwner ? ({ start, end }) => openCreate(start, end) : undefined}
-          onMove={isOwner ? setMoveRequest : undefined}
+          onMove={isOwner ? openMove : undefined}
         />
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <MatchList matches={visibleMatches} organizationId={organization.id} />
-        </div>
-      )}
+
+        {/* Chú thích cách dùng, không phải trang trí: thẻ xem nhanh chỉ bung ra khi RÊ CHUỘT,
+            mà một khối màu trên lưới thì không tự nói ra điều đó — không có dòng này thì người
+            dùng phải tình cờ rê vào mới biết là có. Ẩn ở màn hình nhỏ vì ở đó không có con trỏ
+            để rê, chạm là mở luôn trang chi tiết. */}
+        <p className="hidden shrink-0 items-start gap-1.5 pt-2 text-xs text-muted-foreground sm:flex">
+          <Info className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            Rê chuột vào một buổi để xem nhanh, bấm để mở trang chi tiết.
+            {isOwner ? " Kéo thả để dời giờ, bấm ô trống để tạo buổi mới." : null}
+          </span>
+        </p>
+      </Card>
 
       {isOwner ? (
         <>
@@ -141,6 +136,7 @@ export default function OrganizationMatchesPage() {
           <MatchRescheduleDialog
             organizationId={organization.id}
             request={moveRequest}
+            open={moveOpen}
             onClose={closeMove}
           />
         </>

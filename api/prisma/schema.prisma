@@ -217,8 +217,11 @@ model MatchCharge {
   ratio            Decimal @db.Decimal(4, 2)
   /// Đơn vị ĐỒNG, đã làm tròn lên bội của 1.000.
   amount           Int
-  /// 'unpaid' | 'submitted' | 'confirmed'. Một cột, hai phía đọc khác nhau: user coi
-  /// 'submitted' là đã trả xong, owner coi đó là còn phải đối soát.
+  /// 'unpaid' | 'paid'.
+  ///
+  /// Hai mức, không có mức "chờ đối soát": người trả tự ghi nhận, không ai duyệt. Trước đây có
+  /// ba mức vì cùng một khoản được hai phía đọc khác nhau (user coi 'submitted' là xong, owner
+  /// coi đó là còn phải kiểm) — bỏ bước duyệt thì mức ở giữa không còn nghĩa gì.
   payment_status   String  @default("unpaid") @db.VarChar(20)
   /// NULL = chưa nằm trong lần thanh toán nào.
   payment_id       String? @db.Uuid
@@ -238,22 +241,19 @@ model MatchCharge {
 ///
 /// Gom trong phạm vi một tổ chức vì QR là của tổ chức. Người chơi 3-4 buổi mới chuyển tiền
 /// một lần, nên đây mới là đơn vị thanh toán thật, không phải từng trận.
+///
+/// Là BẢN GHI, không phải một yêu cầu chờ xử lý: người trả tự ghi nhận đã chuyển, không ai
+/// duyệt. Vì vậy không còn `status`/`reject_reason`/`confirmed_*` — một row tồn tại nghĩa là
+/// tiền đã được báo là đã chuyển, và ảnh chứng từ nằm ngay trong row đó.
 model Payment {
   id              String    @id @default(uuid()) @db.Uuid
   organization_id String    @db.Uuid
   user_id         String    @db.Uuid
   /// Ảnh chuyển khoản. BẮT BUỘC — không có nhánh tiền mặt, nên một lần thanh toán không có
-  /// ảnh là một lần owner không có gì để đối soát.
+  /// ảnh là một lần cả nhóm không có gì để đối chiếu về sau.
   proof_url       String
   note            String?
-  /// 'submitted' | 'confirmed' | 'rejected'
-  status          String    @default("submitted") @db.VarChar(20)
-  /// Owner phải nói vì sao khi báo chưa nhận được: user chỉ có thao tác GỬI, không tự rút
-  /// lại được, nên lý do là thứ duy nhất giúp họ biết phải làm gì tiếp.
-  reject_reason   String?
   submitted_at    DateTime  @default(now()) @db.Timestamptz(6)
-  confirmed_at    DateTime? @db.Timestamptz(6)
-  confirmed_by    String?   @db.Uuid
 
   organization Organization  @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   user         User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -261,8 +261,9 @@ model Payment {
   /// có ngày nó lệch với các dòng bên dưới.
   charges      MatchCharge[]
 
-  /// Hàng đợi duyệt của owner: lọc theo trạng thái, cũ trước.
-  @@index([organization_id, status, submitted_at])
+  /// Sổ chứng từ của tổ chức: mới nhất trước. Không còn cột trạng thái để lọc — mọi row ở đây
+  /// đều là một lần đã chuyển tiền.
+  @@index([organization_id, submitted_at])
   @@index([user_id, submitted_at])
   @@map("payments")
 }

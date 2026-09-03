@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { colorFromName, initialsFromName } from "@/lib/avatar"
+import { colorFromName, initialsFromName } from "@/lib/color"
 import { cn } from "@/lib/utils"
 
 /**

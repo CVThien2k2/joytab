@@ -3,22 +3,14 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Receipt } from "lucide-react"
-import { AccountAvatar } from "@/components/common/account-avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { useSettlement } from "@/hooks/use-matches-api"
 import { useNow } from "@/hooks/use-now"
 import { formatMoney } from "@/lib/format"
+import { matchPhase } from "@/lib/match-phase"
 import type { MatchDetail } from "@/types/match"
 import { SettlementDialog } from "./settlement-dialog"
-
-/** Nhãn trạng thái trả tiền của MỘT người trong bảng chia tiền — góc nhìn của chủ tổ chức. */
-function chargeBadge(status: "unpaid" | "submitted" | "confirmed") {
-  if (status === "confirmed") return <Badge variant="secondary">Đã đối soát</Badge>
-  if (status === "submitted") return <Badge variant="outline">Chờ duyệt</Badge>
-  return <Badge variant="destructive">Chưa trả</Badge>
-}
 
 /**
  * Input: chi tiết trận + có phải chủ tổ chức không + id người đang xem.
@@ -27,8 +19,12 @@ function chargeBadge(status: "unpaid" | "submitted" | "confirmed") {
  *         Ba trạng thái, ba nội dung khác nhau:
  *          - chưa tới giờ chơi: nói rõ là chốt được sau khi trận bắt đầu, không hiện nút chết;
  *          - đã đá xong mà chưa chốt: chủ tổ chức thấy nút chốt, người khác thấy lời nhắc;
- *          - đã chốt: bảng chi phí + tiền từng người, và với chính mình thì thêm đường sang
- *            trang thanh toán.
+ *          - đã chốt: các khoản đã chi + tổng, và với chính mình thì thêm đường sang trang
+ *            thanh toán.
+ *
+ *         Tiền của TỪNG NGƯỜI không nằm ở đây mà hiện ngay trên dòng của họ trong danh sách
+ *         người tham gia: hai danh sách cùng một nhóm người thì người ta phải dò tên từ bảng
+ *         này sang bảng kia mới trả lời được "ai trả bao nhiêu".
  */
 export function SettlementSection({
   match,
@@ -41,9 +37,19 @@ export function SettlementSection({
 }) {
   const now = useNow()
   const [dialogOpen, setDialogOpen] = useState(false)
+  // Đổi `key` mỗi lần mở để hộp thoại dựng lại với bảng chi phí mới nhất. Hộp thoại vẫn nằm sẵn
+  // trong cây (đóng/mở có animation), chỉ RUỘT của nó là mới — nên không cần effect nào để nạp
+  // lại state, và cũng không có cảnh mở lần hai thấy dữ liệu lần một.
+  const [openToken, setOpenToken] = useState(0)
+
+  function openDialog(): void {
+    setOpenToken((token) => token + 1)
+    setDialogOpen(true)
+  }
   const settled = match.status === "settled"
   const { data: settlement, isPending } = useSettlement(match.id, settled)
-  const started = new Date(match.startAt).getTime() <= now
+  const phase = matchPhase(match, now)
+  const started = phase !== "upcoming"
 
   if (!settled) {
     return (
@@ -54,27 +60,29 @@ export function SettlementSection({
             ? "Trận đã huỷ nên không có chi phí."
             : started
               ? isOwner
-                ? "Trận đã diễn ra. Nhập chi phí để chia tiền cho những người đã đăng ký."
+                ? `${phase === "ended" ? "Trận đã kết thúc" : "Trận đang diễn ra"}. Nhập chi phí để chia tiền cho những người đã đăng ký.`
                 : "Chủ tổ chức chưa chốt chi phí cho trận này."
               : "Chốt chi phí được sau khi trận bắt đầu."}
         </p>
 
         {isOwner && started && match.status !== "canceled" ? (
           <>
-            <Button type="button" className="mt-3" onClick={() => setDialogOpen(true)}>
+            <Button type="button" className="mt-3" onClick={openDialog}>
               <Receipt aria-hidden="true" />
               Chốt chi phí
             </Button>
-            {dialogOpen ? (
-              <SettlementDialog
-                match={match}
-                organizationId={match.organizationId}
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-                initialExpenses={[]}
-                initialMaleRatio={match.maleRatio}
-              />
-            ) : null}
+            {/* Dựng sẵn, không `dialogOpen ? … : null`: mount lúc mở thì không có animation vào,
+                unmount lúc đóng thì hộp thoại BIẾN MẤT giữa animation ra. Radix tự lo việc chỉ
+                mount ruột khi mở, và `SettlementDialog` nạp lại state mỗi lần `open` bật. */}
+            <SettlementDialog
+              key={openToken}
+              match={match}
+              organizationId={match.organizationId}
+              open={dialogOpen}
+              onOpenChange={setDialogOpen}
+              initialExpenses={[]}
+              initialMaleRatio={match.maleRatio}
+            />
           </>
         ) : null}
       </section>
@@ -104,19 +112,19 @@ export function SettlementSection({
 
         {isOwner ? (
           settlement.editable ? (
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(true)}>
+            <Button type="button" variant="outline" onClick={openDialog}>
               Sửa chia tiền
             </Button>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Đã có người gửi thanh toán nên không sửa được. Từ chối lần thanh toán đó trước nếu
-              cần sửa.
+              Đã có người trả nên không sửa được nữa — số trên ảnh chuyển khoản của họ phải còn khớp
+              với bảng này.
             </p>
           )
         ) : null}
       </header>
 
-      <ul className="divide-y border-b">
+      <ul className="divide-y">
         {settlement.expenses.map((expense, index) => (
           <li key={index} className="flex items-center gap-3 px-4 py-2 text-sm">
             <span className="min-w-0 flex-1 truncate">{expense.name}</span>
@@ -128,28 +136,6 @@ export function SettlementSection({
             </span>
           </li>
         ))}
-      </ul>
-
-      <ul className="divide-y">
-        {settlement.charges.map((charge) => {
-          const name = charge.fullName ?? "Thành viên"
-          return (
-            <li key={charge.userId} className="flex items-center gap-3 p-3">
-              <AccountAvatar name={name} src={charge.avatarUrl} size={28} />
-              <span className="min-w-0 flex-1 truncate text-sm">
-                {name}
-                {charge.userId === currentUserId ? (
-                  <span className="ml-1 text-xs text-muted-foreground">(Bạn)</span>
-                ) : null}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">×{charge.ratio}</span>
-              {chargeBadge(charge.paymentStatus)}
-              <span className="shrink-0 text-sm font-semibold tabular-nums">
-                {formatMoney(charge.amount)}đ
-              </span>
-            </li>
-          )
-        })}
       </ul>
 
       {myCharge && myCharge.paymentStatus === "unpaid" ? (
@@ -164,16 +150,15 @@ export function SettlementSection({
         </div>
       ) : null}
 
-      {dialogOpen ? (
-        <SettlementDialog
-          match={match}
-          organizationId={match.organizationId}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          initialExpenses={settlement.expenses}
-          initialMaleRatio={settlement.maleRatio}
-        />
-      ) : null}
+      <SettlementDialog
+        key={openToken}
+        match={match}
+        organizationId={match.organizationId}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initialExpenses={settlement.expenses}
+        initialMaleRatio={settlement.maleRatio}
+      />
     </section>
   )
 }

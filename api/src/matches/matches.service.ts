@@ -61,6 +61,8 @@ export class MatchesService {
    *         `maleRatio` không gửi thì CHỤP LẠI mặc định của tổ chức. Chụp chứ không tham
    *         chiếu: owner đổi mặc định vào tháng sau không được phép làm đổi tiền của trận
    *         đã đá xong.
+   *
+   *         Không cho hai trận GIAO GIỜ trong cùng một tổ chức (xem `assertNoOverlap`).
    */
   async create(userId: string, organizationId: string, dto: CreateMatchDto): Promise<MatchSummary> {
     await requireOwner(this.databaseService, userId, organizationId);
@@ -72,18 +74,25 @@ export class MatchesService {
     });
     if (!organization) throw new AppException(ERROR_CODES.ORG_001);
 
-    const match = await this.databaseService.match.create({
-      data: {
-        organization_id: organizationId,
-        court_name: dto.courtName,
-        start_at: startAt,
-        end_at: endAt,
-        max_players: dto.maxPlayers,
-        male_ratio: dto.maleRatio ?? Number(organization.male_ratio),
-        note: dto.note ?? null,
-        created_by: userId,
-      },
-      include: this.summaryInclude(userId),
+    const match = await this.databaseService.$transaction(async (tx) => {
+      // Khoá theo TỔ CHỨC: hai request tạo trận cùng lúc thì cả hai đều thấy "chưa có gì trùng"
+      // rồi cùng ghi. Cùng khuôn với khoá theo user ở `vote`, chỉ khác trục.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${organizationId}))`;
+      await this.assertNoOverlap(tx, organizationId, startAt, endAt);
+
+      return tx.match.create({
+        data: {
+          organization_id: organizationId,
+          court_name: dto.courtName,
+          start_at: startAt,
+          end_at: endAt,
+          max_players: dto.maxPlayers,
+          male_ratio: dto.maleRatio ?? Number(organization.male_ratio),
+          note: dto.note ?? null,
+          created_by: userId,
+        },
+        include: this.summaryInclude(userId),
+      });
     });
 
     this.logger.log(`Match ${match.id} created in organization ${organizationId} by ${userId}`);
@@ -173,17 +182,25 @@ export class MatchesService {
    * Output: Trận sau khi đổi.
    *
    *         Cũng là API đứng sau thao tác kéo thả trên lịch (chỉ gửi startAt/endAt). Vì vậy
-   *         cho phép dời sang QUÁ KHỨ: owner nhập bù một buổi đã đá là việc có thật, và kéo
-   *         nhầm thì kéo lại.
+   *         cho phép dời sang QUÁ KHỨ: owner nhập bù một buổi đã đá là việc có thật. Nhưng dời
+   *         xong là chốt — trận lúc đó đã tới giờ nên lần sửa sau bị MATCH_015 chặn.
    *
    *         Chặn khi đã chốt tiền: đổi giờ của một trận đã chia tiền xong không còn nghĩa gì,
-   *         mà lại làm sai lệch thứ người ta đã đối chiếu để trả tiền.
+   *         mà lại làm sai lệch thứ người ta đã đối chiếu để trả tiền. Chặn cả khi trận ĐÃ TỚI
+   *         GIỜ: xem MATCH_015.
+   *
+   *         Dời sang giờ đã có trận khác của cùng tổ chức thì cũng bị chặn (`assertNoOverlap`)
+   *         — kéo thả trên lịch đi qua đúng API này.
    */
   async update(userId: string, matchId: string, dto: UpdateMatchDto): Promise<MatchSummary> {
     const match = await this.requireMatch(matchId);
     await requireOwner(this.databaseService, userId, match.organization_id, ERROR_CODES.MATCH_001);
     if (match.status === 'canceled') throw new AppException(ERROR_CODES.MATCH_003);
     if (match.status === 'settled') throw new AppException(ERROR_CODES.MATCH_011);
+    // Đã tới giờ (đang đá hoặc đá xong) thì hết sửa. Xét GIỜ HIỆN TẠI của trận, không xét giờ
+    // muốn dời tới: một trận sắp tới vẫn dời được về quá khứ (nhập bù buổi đã đá), nhưng sau
+    // đó nó là chuyện đã xảy ra và đóng lại.
+    if (new Date() >= match.start_at) throw new AppException(ERROR_CODES.MATCH_015);
 
     const startAt = dto.startAt ? new Date(dto.startAt) : match.start_at;
     const endAt = dto.endAt ? new Date(dto.endAt) : match.end_at;
@@ -197,17 +214,26 @@ export class MatchesService {
       if (dto.maxPlayers < voteCount) throw new AppException(ERROR_CODES.MATCH_004);
     }
 
-    const updated = await this.databaseService.match.update({
-      where: { id: matchId },
-      data: {
-        ...(dto.courtName !== undefined ? { court_name: dto.courtName } : {}),
-        ...(dto.startAt !== undefined ? { start_at: startAt } : {}),
-        ...(dto.endAt !== undefined ? { end_at: endAt } : {}),
-        ...(dto.maxPlayers !== undefined ? { max_players: dto.maxPlayers } : {}),
-        ...(dto.maleRatio !== undefined ? { male_ratio: dto.maleRatio } : {}),
-        ...(dto.note !== undefined ? { note: dto.note || null } : {}),
-      },
-      include: this.summaryInclude(userId),
+    const updated = await this.databaseService.$transaction(async (tx) => {
+      // Chỉ khoá và kiểm khi GIỜ đổi: sửa tên sân hay ghi chú không thể tạo ra trùng giờ, mà
+      // khoá cả tổ chức cho một lần sửa ghi chú là xếp hàng vô cớ.
+      if (dto.startAt !== undefined || dto.endAt !== undefined) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${match.organization_id}))`;
+        await this.assertNoOverlap(tx, match.organization_id, startAt, endAt, matchId);
+      }
+
+      return tx.match.update({
+        where: { id: matchId },
+        data: {
+          ...(dto.courtName !== undefined ? { court_name: dto.courtName } : {}),
+          ...(dto.startAt !== undefined ? { start_at: startAt } : {}),
+          ...(dto.endAt !== undefined ? { end_at: endAt } : {}),
+          ...(dto.maxPlayers !== undefined ? { max_players: dto.maxPlayers } : {}),
+          ...(dto.maleRatio !== undefined ? { male_ratio: dto.maleRatio } : {}),
+          ...(dto.note !== undefined ? { note: dto.note || null } : {}),
+        },
+        include: this.summaryInclude(userId),
+      });
     });
 
     this.logger.log(`Match ${matchId} updated by ${userId}`);
@@ -221,12 +247,17 @@ export class MatchesService {
    *         Huỷ mềm chứ không xoá: người đã vote cần thấy trận biến mất CÓ LÝ DO, và lịch sử
    *         vote của họ vẫn phải tra được. Trận đã chốt tiền thì không huỷ được — tiền đã
    *         chia rồi, huỷ đi thì khoản nợ của mọi người treo lơ lửng không thuộc về đâu.
+   *
+   *         Trận đã TỚI GIỜ cũng không huỷ được (MATCH_016): xem chú thích của mã lỗi đó.
    */
   async cancel(userId: string, matchId: string): Promise<void> {
     const match = await this.requireMatch(matchId);
     await requireOwner(this.databaseService, userId, match.organization_id, ERROR_CODES.MATCH_001);
     if (match.status === 'settled') throw new AppException(ERROR_CODES.MATCH_011);
     if (match.status === 'canceled') return;
+    // Đã tới giờ thì hết huỷ: huỷ là để nói "buổi này sẽ không diễn ra", còn buổi đã đá thì huỷ
+    // chỉ làm nó biến mất khỏi lịch cùng với dấu vết ai đã đi.
+    if (new Date() >= match.start_at) throw new AppException(ERROR_CODES.MATCH_016);
 
     await this.databaseService.match.update({
       where: { id: matchId },
@@ -537,6 +568,39 @@ export class MatchesService {
    *         Phải là SQL thô vì Prisma không có `FOR UPDATE`. Không có khoá này thì hai người
    *         cùng bấm tham gia ở slot cuối sẽ cùng đếm ra "còn chỗ" rồi cùng ghi.
    */
+  /**
+   * Input: client (hoặc tx), id tổ chức, khoảng giờ mới, và id trận đang sửa nếu có.
+   * Output: Không trả gì; ném MATCH_014 nếu tổ chức đã có trận khác giao giờ.
+   *
+   *         Giao nhau NỬA MỞ, cùng quy ước với `overlaps` và với luật trùng giờ của vote:
+   *         19h-21h và 21h-23h không tính là trùng.
+   *
+   *         Trận đã HUỶ không chiếm giờ: huỷ rồi đặt lại đúng giờ đó là việc hay làm nhất khi
+   *         đổi sân. Trận đã chốt tiền thì vẫn chiếm — nó là một buổi đã đá thật.
+   *
+   *         Chỉ xét TRONG MỘT tổ chức. Hai tổ chức đá cùng giờ là chuyện của họ; còn trùng giờ
+   *         của một CON NGƯỜI thì đã có MATCH_006 lo, xuyên tổ chức.
+   */
+  private async assertNoOverlap(
+    tx: Pick<DatabaseService, 'match'>,
+    organizationId: string,
+    startAt: Date,
+    endAt: Date,
+    excludeMatchId?: string,
+  ): Promise<void> {
+    const conflict = await tx.match.findFirst({
+      where: {
+        organization_id: organizationId,
+        status: { not: 'canceled' },
+        ...(excludeMatchId ? { id: { not: excludeMatchId } } : {}),
+        start_at: { lt: endAt },
+        end_at: { gt: startAt },
+      },
+      select: { id: true },
+    });
+    if (conflict) throw new AppException(ERROR_CODES.MATCH_014);
+  }
+
   private async lockMatch(tx: Pick<DatabaseService, '$queryRaw'>, matchId: string): Promise<MatchCore> {
     const rows = await tx.$queryRaw<MatchCore[]>`
       SELECT id, organization_id, start_at, end_at, max_players, status
@@ -660,7 +724,7 @@ export class MatchesService {
   }
 
   private toPaymentStatus(value: string): ChargePaymentStatus {
-    return value === 'submitted' || value === 'confirmed' ? value : 'unpaid';
+    return value === 'paid' ? 'paid' : 'unpaid';
   }
 
   private toGender(value: string | null): Gender | null {

@@ -27,7 +27,7 @@ export function SidebarDrawerButton() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden" aria-label="Mở menu điều hướng">
+        <Button variant="outline" size="icon" className="md:hidden" aria-label="Mở menu điều hướng">
           <Menu aria-hidden="true" />
         </Button>
       </DialogTrigger>

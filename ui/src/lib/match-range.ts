@@ -16,6 +16,17 @@ export const CALENDAR_VIEWS = [
 
 export type CalendarViewName = (typeof CALENDAR_VIEWS)[number]["type"]
 
+/**
+ * Nhãn điều hướng theo kiểu xem: một nút "lùi/tiến" nói đúng tên kỳ nó nhảy qua thì người
+ * dùng không phải tự suy ra đang lùi một ngày hay một tháng. Nhãn "về kỳ hiện tại" cũng đổi
+ * theo, vì "Hôm nay" ở lịch tháng là một lời hứa sai — bấm vào đó ra cả tháng.
+ */
+export const CALENDAR_NAV_LABELS = {
+  timeGridDay: { prev: "Ngày trước", next: "Ngày sau", current: "Hôm nay" },
+  timeGridWeek: { prev: "Tuần trước", next: "Tuần sau", current: "Tuần này" },
+  dayGridMonth: { prev: "Tháng trước", next: "Tháng sau", current: "Tháng này" },
+} satisfies Record<CalendarViewName, { prev: string; next: string; current: string }>
+
 /** Khoảng ngày dạng ISO — gửi thẳng lên BE. */
 export type CalendarRange = { from: string; to: string }
 
@@ -103,6 +114,18 @@ const monthTitleFormatter = new Intl.DateTimeFormat("vi-VN", { month: "long", ye
  *         có bộ lịch nào để hỏi. `formatRange` cũng chính là thứ FullCalendar v7 dùng bên
  *         trong, nên hai bên ra cùng một chuỗi.
  */
+/**
+ * Input: mốc neo + kiểu xem + mốc "bây giờ".
+ * Output: Kỳ đang xem có phải kỳ chứa hôm nay.
+ *
+ *         So bằng ĐIỂM BẮT ĐẦU của khoảng chứ không so từng ngày: khoảng là thứ đã chuẩn hoá
+ *         sẵn cho cả ba kiểu xem (ngày / tuần từ thứ 2 / lưới 6 tuần), nên không phải viết lại
+ *         luật biên kỳ ở đây lần thứ hai.
+ */
+export function isCurrentPeriod(anchor: Date, view: CalendarViewName, now: number): boolean {
+  return rangeOf(anchor, view).from === rangeOf(new Date(now), view).from
+}
+
 export function rangeTitle(anchor: Date, view: CalendarViewName): string {
   if (view === "timeGridDay") return dayTitleFormatter.format(anchor)
   if (view === "dayGridMonth") return monthTitleFormatter.format(anchor)

@@ -3,22 +3,9 @@
 import { CircleCheck, LogIn, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useVoteMatch } from "@/hooks/use-matches-api"
-import { MATCH_CANCEL_LOCK_HOURS } from "@/schema/match"
+import { useNow } from "@/hooks/use-now"
+import { cancelLockedText, matchPhase, voteClosedText } from "@/lib/match-phase"
 import type { MatchDetail } from "@/types/match"
-
-/**
- * Input: lý do vote đang đóng.
- * Output: Câu giải thích cho người dùng.
- *
- *         Luôn NÓI RA lý do thay vì chỉ làm mờ nút: nút mờ không giải thích được là "hết chỗ"
- *         hay "đã tới giờ", mà hai chuyện đó dẫn tới hai hành động khác nhau.
- */
-function closedReasonText(reason: MatchDetail["voteClosedReason"]): string | null {
-  if (reason === "full") return "Trận đã đủ người."
-  if (reason === "started") return "Trận đã bắt đầu nên không đăng ký được nữa."
-  if (reason === "canceled") return "Trận đã bị huỷ."
-  return null
-}
 
 /**
  * Input: chi tiết trận.
@@ -26,7 +13,9 @@ function closedReasonText(reason: MatchDetail["voteClosedReason"]): string | nul
  */
 export function VotePanel({ match }: { match: MatchDetail }) {
   const vote = useVoteMatch(match.organizationId)
-  const closed = closedReasonText(match.voteClosedReason)
+  const now = useNow()
+  const phase = matchPhase(match, now)
+  const closed = voteClosedText(match.voteClosedReason, phase)
 
   if (match.voted) {
     return (
@@ -48,9 +37,7 @@ export function VotePanel({ match }: { match: MatchDetail }) {
           </Button>
         ) : (
           <p className="text-xs text-muted-foreground">
-            {match.voteClosedReason === "started"
-              ? "Trận đã bắt đầu."
-              : `Không huỷ được khi còn dưới ${MATCH_CANCEL_LOCK_HOURS} tiếng nữa là tới giờ chơi.`}
+            {cancelLockedText(match.voteClosedReason, phase)}
           </p>
         )}
       </div>

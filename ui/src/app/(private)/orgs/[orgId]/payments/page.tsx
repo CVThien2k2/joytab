@@ -8,32 +8,30 @@ import { useOrganizationCharges, usePayments } from "@/hooks/use-payments-api"
 import { useActiveOrganization } from "@/providers/organization-store-provider"
 import { PaymentList } from "./_components/payment-list"
 
-/** Ba cách nhìn cùng một luồng tiền. Member chỉ thấy hai cái đầu. */
-type Tab = "mine" | "history" | "queue"
+/** Hai cách nhìn cùng một luồng tiền: còn phải trả, và đã trả rồi. */
+type Tab = "mine" | "history"
 
 /**
  * Input: Không nhận props — tổ chức đang xem lấy từ store.
  * Output: Trang thanh toán của một tổ chức.
  *
- *         Member: khoản của mình + lịch sử các lần đã gửi.
- *         Owner: thêm hàng đợi đối soát, và đó là tab MỞ SẴN — với chủ tổ chức, việc cần làm
- *         khi vào đây là duyệt chứng từ, không phải xem mình nợ gì.
+ *         Không còn hàng đợi duyệt: người trả tự ghi nhận đã chuyển tiền, nên chủ tổ chức
+ *         không có việc gì phải làm ở đây — chỉ khác member ở chỗ sổ chứng từ hiện của cả tổ
+ *         chức chứ không riêng mình.
+ *
+ *         Vì vậy tab mở sẵn giống nhau cho mọi người: "Khoản của tôi", tức việc của chính mình.
  */
 export default function OrganizationPaymentsPage() {
   const organization = useActiveOrganization()
   const isOwner = organization.role === "owner"
-  const [tab, setTab] = useState<Tab>(isOwner ? "queue" : "mine")
+  const [tab, setTab] = useState<Tab>("mine")
 
   const { data: groups, isPending: chargesPending } = useOrganizationCharges(organization.id)
-  const { data: queue, isPending: queuePending } = usePayments(organization.id, "submitted")
   const { data: history, isPending: historyPending } = usePayments(organization.id)
 
   const tabs: { key: Tab; label: string }[] = [
-    ...(isOwner
-      ? [{ key: "queue" as const, label: `Chờ duyệt${queue ? ` (${queue.length})` : ""}` }]
-      : []),
     { key: "mine", label: "Khoản của tôi" },
-    { key: "history", label: isOwner ? "Tất cả chứng từ" : "Lịch sử của tôi" },
+    { key: "history", label: isOwner ? "Đã trả (cả tổ chức)" : "Tôi đã trả" },
   ]
 
   return (
@@ -55,16 +53,6 @@ export default function OrganizationPaymentsPage() {
       </div>
 
       <div className="mt-4">
-        {tab === "queue" ? (
-          <PaymentList
-            payments={queue ?? []}
-            organizationId={organization.id}
-            isOwner={isOwner}
-            loading={queuePending}
-            emptyText="Không có chứng từ nào đang chờ đối soát."
-          />
-        ) : null}
-
         {tab === "mine" ? (
           chargesPending ? (
             <div className="flex h-32 items-center justify-center rounded-xl border bg-card">
@@ -78,20 +66,16 @@ export default function OrganizationPaymentsPage() {
             </div>
           ) : (
             <div className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
-              Bạn không có khoản nào phải thanh toán ở tổ chức này.
+              Bạn không còn khoản nào phải trả ở tổ chức này.
             </div>
           )
-        ) : null}
-
-        {tab === "history" ? (
+        ) : (
           <PaymentList
             payments={history ?? []}
-            organizationId={organization.id}
-            isOwner={isOwner}
             loading={historyPending}
-            emptyText="Chưa có lần thanh toán nào."
+            emptyText={isOwner ? "Chưa ai thanh toán lần nào." : "Bạn chưa thanh toán lần nào."}
           />
-        ) : null}
+        )}
       </div>
     </main>
   )

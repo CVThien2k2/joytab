@@ -70,21 +70,47 @@ export const ERROR_CODES = {
   MATCH_009: { code: 'MATCH_009', status: 409, message: 'Không huỷ được khi còn dưới 2 giờ nữa là tới giờ chơi.' },
   MATCH_010: { code: 'MATCH_010', status: 409, message: 'Trận đấu chưa bắt đầu, chưa chốt được chi phí.' },
   /**
-   * Sửa chia tiền khi đã có người gửi thanh toán. Một ảnh chuyển khoản có thể đang treo cho
-   * nhiều trận, nên đổi tiền một trận sẽ làm ảnh đó không khớp với bất kỳ tổng nào — owner
-   * phải từ chối lần thanh toán ấy trước.
+   * Sửa chia tiền khi đã có người trả. Một lần chuyển khoản gom nhiều trận, nên đổi tiền một
+   * trận là làm số trên ảnh chứng từ không còn khớp với bất kỳ tổng nào.
+   *
+   * Từ khi bỏ bước duyệt, đây là khoá MỘT CHIỀU: không còn thao tác "từ chối" nào để mở lại.
+   * Ai chốt sai thì phải tự thoả thuận bù trừ ở buổi sau.
    */
-  MATCH_011: { code: 'MATCH_011', status: 409, message: 'Đã có người gửi thanh toán, không sửa được chia tiền.' },
+  MATCH_011: { code: 'MATCH_011', status: 409, message: 'Đã có người thanh toán, không sửa được chia tiền.' },
   MATCH_012: { code: 'MATCH_012', status: 400, message: 'Trận chưa có người tham gia hoặc tổng chi phí bằng 0.' },
   /** Chưa chốt chi phí mà đã hỏi bảng chia tiền. */
   MATCH_013: { code: 'MATCH_013', status: 409, message: 'Trận đấu chưa chốt chi phí.' },
+  /**
+   * Tổ chức đã có một trận khác giao giờ với trận đang tạo/dời — xét TRONG MỘT tổ chức, khác
+   * MATCH_006 (ràng buộc của một con người, xuyên tổ chức).
+   *
+   * Một tổ chức đá một buổi một lúc: hai trận cùng giờ nghĩa là cùng nhóm người được gọi đi
+   * hai nơi, và tiền của buổi đó không biết thuộc trận nào. Trận đã huỷ không chiếm giờ.
+   */
+  MATCH_014: { code: 'MATCH_014', status: 409, message: 'Tổ chức đã có trận khác trùng giờ.' },
+  /**
+   * Sửa một trận đã tới giờ (đang đá hoặc đã đá xong).
+   *
+   * Trước giờ chơi, trận là một KẾ HOẠCH — sửa là chuyện bình thường. Sau đó nó là một buổi
+   * đã/đang diễn ra: đổi sân hay đổi giờ lúc ấy là viết lại thứ mọi người đã đi theo, và là
+   * đổi luôn cơ sở của bảng chia tiền sắp chốt. Muốn nói buổi đó không diễn ra thì HUỶ, đó
+   * mới là thao tác nói đúng chuyện đã xảy ra.
+   */
+  MATCH_015: { code: 'MATCH_015', status: 409, message: 'Trận đã tới giờ, không sửa được nữa.' },
+  /**
+   * Huỷ một trận đã tới giờ (đang đá hoặc đã đá xong).
+   *
+   * Trận huỷ không còn hiện trên lịch, nên huỷ một buổi ĐÃ ĐÁ là xoá mất dấu vết của buổi đó:
+   * danh sách người đi và lịch sử đăng ký vẫn nằm trong DB nhưng không còn đường nào đi tới.
+   * Huỷ là để nói "buổi này sẽ không diễn ra" — một buổi đã diễn ra thì không còn gì để nói câu
+   * đó nữa.
+   */
+  MATCH_016: { code: 'MATCH_016', status: 409, message: 'Trận đã tới giờ, không huỷ được nữa.' },
 
   /** Lần thanh toán không tồn tại, hoặc không thuộc tổ chức/người đang hỏi. */
   PAY_001: { code: 'PAY_001', status: 404, message: 'Không tìm thấy lần thanh toán.' },
-  /** Có khoản trong danh sách đã nằm ở một lần thanh toán khác, hoặc không phải của người gửi. */
-  PAY_002: { code: 'PAY_002', status: 409, message: 'Có khoản đã được gửi thanh toán rồi.' },
-  /** Duyệt/từ chối một lần thanh toán đã được xử lý xong. */
-  PAY_003: { code: 'PAY_003', status: 409, message: 'Lần thanh toán này đã được xử lý.' },
+  /** Có khoản trong danh sách đã trả rồi, hoặc không phải của người gửi. */
+  PAY_002: { code: 'PAY_002', status: 409, message: 'Có khoản đã được thanh toán rồi.' },
   PAY_004: { code: 'PAY_004', status: 400, message: 'Chưa chọn khoản nào để thanh toán.' },
   /** Tổ chức chưa có QR — không có chỗ để chuyển tiền tới. */
   PAY_005: { code: 'PAY_005', status: 409, message: 'Tổ chức chưa cấu hình mã QR thanh toán.' },

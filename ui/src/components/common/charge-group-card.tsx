@@ -2,33 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { CircleAlert, Clock3, CircleCheck } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { PayDialog } from "@/components/common/pay-dialog"
 import { formatDateTime, formatMoney } from "@/lib/format"
-import type { OrganizationChargeGroup, UserCharge } from "@/types/payment"
-
-/** Nhãn trạng thái NHÌN TỪ PHÍA NGƯỜI TRẢ: gửi rồi là đã trả xong, phần đối soát là việc của chủ tổ chức. */
-function statusBadge(charge: UserCharge) {
-  if (charge.paymentStatus === "confirmed") {
-    return (
-      <Badge variant="secondary">
-        <CircleCheck aria-hidden="true" />
-        Đã đối soát
-      </Badge>
-    )
-  }
-  if (charge.paymentStatus === "submitted") {
-    return (
-      <Badge variant="outline">
-        <Clock3 aria-hidden="true" />
-        Đã thanh toán
-      </Badge>
-    )
-  }
-  return null
-}
+import type { OrganizationChargeGroup } from "@/types/payment"
 
 /**
  * Input: công nợ của user trong MỘT tổ chức.
@@ -43,6 +20,8 @@ function statusBadge(charge: UserCharge) {
  */
 export function ChargeGroupCard({ group }: { group: OrganizationChargeGroup }) {
   const [payOpen, setPayOpen] = useState(false)
+  // BE chỉ trả về khoản CHƯA trả (trả rồi thì thuộc sổ chứng từ), nhưng vẫn kiểm ở đây thay vì
+  // tin vào điều đó: một thẻ "đang nợ 0đ" kèm nút thanh toán là thứ không ai giải thích được.
   const hasUnpaid = group.charges.some((charge) => charge.paymentStatus === "unpaid")
 
   return (
@@ -56,9 +35,7 @@ export function ChargeGroupCard({ group }: { group: OrganizationChargeGroup }) {
             {group.organizationName}
           </Link>
           <p className="text-xs text-muted-foreground">
-            {hasUnpaid
-              ? `Đang nợ ${formatMoney(group.unpaidTotal)}đ`
-              : "Đã thanh toán hết, chờ đối soát"}
+            {hasUnpaid ? `Đang nợ ${formatMoney(group.unpaidTotal)}đ` : "Đã trả hết"}
           </p>
         </div>
 
@@ -86,15 +63,8 @@ export function ChargeGroupCard({ group }: { group: OrganizationChargeGroup }) {
                 {charge.courtName}
               </Link>
               <p className="text-xs text-muted-foreground">{formatDateTime(charge.startAt)}</p>
-              {charge.rejectReason ? (
-                <p className="mt-1 flex items-start gap-1 text-xs text-destructive">
-                  <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                  <span>Chủ tổ chức báo chưa nhận được: {charge.rejectReason}</span>
-                </p>
-              ) : null}
             </div>
 
-            {statusBadge(charge)}
             <span className="shrink-0 text-sm font-semibold tabular-nums">
               {formatMoney(charge.amount)}đ
             </span>

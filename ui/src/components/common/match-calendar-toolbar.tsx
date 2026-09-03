@@ -4,7 +4,16 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CALENDAR_VIEWS, rangeTitle, shiftAnchor, type CalendarViewName } from "@/lib/match-range"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useNow } from "@/hooks/use-now"
+import {
+  CALENDAR_NAV_LABELS,
+  CALENDAR_VIEWS,
+  isCurrentPeriod,
+  rangeTitle,
+  shiftAnchor,
+  type CalendarViewName,
+} from "@/lib/match-range"
 
 export type MatchCalendarToolbarProps = {
   anchor: Date
@@ -12,22 +21,27 @@ export type MatchCalendarToolbarProps = {
   loading?: boolean
   onAnchorChange: (anchor: Date) => void
   onViewChange: (view: CalendarViewName) => void
-  /** Nút của trang (đổi cách xem, tạo lịch). */
+  /** Nút của trang (tạo lịch). */
   actions?: React.ReactNode
 }
 
 /**
  * Input: kỳ đang xem + các lệnh đổi kỳ.
- * Output: Thanh lọc ngày, dùng chung cho cả bộ lịch lẫn danh sách.
+ * Output: Thanh lọc ngày của bộ lịch.
  *
  *         Nằm ở TRANG chứ không nằm trong bộ lịch, và không đụng tới `CalendarController`:
- *         chế độ danh sách không có bộ lịch nào để điều khiển, mà một thanh lọc chỉ chạy được
- *         ở một trong hai chế độ thì không phải là thanh lọc của trang. Trang giữ mốc neo, bộ
- *         lịch nhận nó qua prop `date` — tức bộ lịch là thành phần ĐƯỢC ĐIỀU KHIỂN.
+ *         trang giữ mốc neo, bộ lịch nhận nó qua prop `date` — tức bộ lịch là thành phần ĐƯỢC
+ *         ĐIỀU KHIỂN. Nhờ vậy khoảng gửi lên BE và kỳ đang vẽ luôn là cùng một giá trị, chứ
+ *         không phải hai bản sao phải giữ cho khớp nhau.
  *
- *         Bộ ba kiểu xem dùng Tabs thay vì ba nút rời, theo đúng component mẫu trong registry
- *         shadcn của FullCalendar: chúng loại trừ nhau, và Tabs nói ra điều đó bằng cả hình
- *         dạng lẫn vai trò cho trình đọc màn hình.
+ *         Ba nút đổi kỳ dính liền thành MỘT cụm, xếp theo đúng trục thời gian: lùi ‹ — hiện tại —
+ *         tiến ›. "Hiện tại" ở giữa vì nó là mốc gốc mà hai chiều kia đi ra từ đó, và vì đặt
+ *         nó ở giữa thì cả ba đích đến đều nằm trong một quãng chuột ngắn.
+ *
+ *         Cụm này có bề rộng CỐ ĐỊNH theo kiểu xem, tách khỏi tiêu đề: tiêu đề dài ngắn tuỳ
+ *         kỳ ("Tháng 8, 2026" so với "Thứ Bảy, 30 tháng 8, 2026"), nên nếu kẹp hai mũi vào hai
+ *         đầu tiêu đề thì mỗi lần bấm là mũi bên phải nhảy đi một đoạn — lật vài kỳ liên tiếp
+ *         sẽ bấm trượt. Nút không chạy thì lật kỳ chỉ cần ngắm một lần.
  */
 export function MatchCalendarToolbar({
   anchor,
@@ -37,30 +51,60 @@ export function MatchCalendarToolbar({
   onViewChange,
   actions,
 }: MatchCalendarToolbarProps) {
+  const now = useNow()
+  const labels = CALENDAR_NAV_LABELS[view]
+  // Đang ở kỳ chứa hôm nay thì nút giữa hết việc. Vô hiệu hoá thay vì để bấm không-làm-gì:
+  // nó thành luôn câu trả lời cho "tôi đang ở đâu" mà không cần thêm chữ nào trên thanh.
+  const atCurrent = isCurrentPeriod(anchor, view, now)
+
   return (
     <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1">
+      {/* Ba nút cùng viền, dính vào nhau bằng `-ml-px` nên hai viền cạnh nhau chỉ còn một
+          nét: cả cụm vẫn đọc ra là MỘT control, mà từng nút vẫn có viền riêng chứ không phải
+          nút chìm. `focus-visible:relative z-10` để vòng focus không bị nút bên cạnh cắt mất
+          một cạnh — nút sau nằm trên nút trước theo thứ tự DOM. */}
+      <div className="flex items-center">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="rounded-r-none focus-visible:relative focus-visible:z-10"
+              aria-label={labels.prev}
+              onClick={() => onAnchorChange(shiftAnchor(anchor, view, -1))}
+            >
+              <ChevronLeft className="size-4" aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{labels.prev}</TooltipContent>
+        </Tooltip>
+
         <Button
           type="button"
           variant="outline"
-          size="icon"
-          aria-label="Kỳ trước"
-          onClick={() => onAnchorChange(shiftAnchor(anchor, view, -1))}
+          className="-ml-px min-w-22 rounded-none focus-visible:relative focus-visible:z-10"
+          disabled={atCurrent}
+          onClick={() => onAnchorChange(new Date())}
         >
-          <ChevronLeft className="size-4" aria-hidden="true" />
+          {labels.current}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="Kỳ sau"
-          onClick={() => onAnchorChange(shiftAnchor(anchor, view, 1))}
-        >
-          <ChevronRight className="size-4" aria-hidden="true" />
-        </Button>
-        <Button type="button" variant="outline" onClick={() => onAnchorChange(new Date())}>
-          Hôm nay
-        </Button>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="-ml-px rounded-l-none focus-visible:relative focus-visible:z-10"
+              aria-label={labels.next}
+              onClick={() => onAnchorChange(shiftAnchor(anchor, view, 1))}
+            >
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{labels.next}</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Tiêu đề suy ra từ "bây giờ" của MÁY ĐANG XEM, nên server và client dựng ra hai chuỗi

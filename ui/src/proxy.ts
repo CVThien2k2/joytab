@@ -41,7 +41,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const isLoginPage = request.nextUrl.pathname === LOGIN_PATH
 
   if (!refreshToken) {
-    return isLoginPage ? NextResponse.next() : redirectTo(request, LOGIN_PATH, request.nextUrl.pathname)
+    return isLoginPage
+      ? NextResponse.next()
+      : redirectTo(request, LOGIN_PATH, request.nextUrl.pathname)
   }
   if (!request.cookies.get(ACCESS_COOKIE)) {
     return refreshAtProxy(request, refreshToken)
@@ -70,9 +72,9 @@ function routeByOnboarding(
   if (needsOnboarding) {
     return isOnboardingPage
       ? (response ?? NextResponse.next())
-      // Giữ đích qua bước khai thông tin: user bấm link mời khi chưa onboarding thì khai
-      // xong phải về đúng link đó, không rơi về `/`.
-      : redirectTo(request, ONBOARDING_PATH, pathname)
+      : // Giữ đích qua bước khai thông tin: user bấm link mời khi chưa onboarding thì khai
+        // xong phải về đúng link đó, không rơi về `/`.
+        redirectTo(request, ONBOARDING_PATH, pathname)
   }
   if (isOnboardingPage || isLoginPage) {
     return redirectTo(request, HOME_PATH)

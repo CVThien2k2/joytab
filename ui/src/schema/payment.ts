@@ -4,14 +4,8 @@ import { chargePaymentStatusSchema } from "@/schema/match"
 
 /** Mirror của BE (api/src/payments/payments.constants.ts). */
 export const MAX_PAYMENT_NOTE_LENGTH = 300
-export const MAX_REJECT_REASON_LENGTH = 300
 
-export const paymentStatusSchema = z.enum(["submitted", "confirmed", "rejected"])
-
-/**
- * Một khoản phải trả của user. `rejectReason` chỉ có khi owner đã báo chưa nhận được — đó là
- * lời giải thích duy nhất cho việc khoản này quay lại danh sách.
- */
+/** Một khoản phải trả của user, kèm ngữ cảnh trận để hiển thị. */
 export const userChargeSchema = z.object({
   chargeId: z.string(),
   matchId: z.string(),
@@ -19,7 +13,6 @@ export const userChargeSchema = z.object({
   startAt: z.string(),
   amount: z.number(),
   paymentStatus: chargePaymentStatusSchema,
-  rejectReason: z.string().nullable(),
 })
 
 /**
@@ -33,6 +26,10 @@ export const organizationChargeGroupSchema = z.object({
   charges: z.array(userChargeSchema),
 })
 
+/**
+ * Một lần chuyển khoản đã ghi nhận. Không có trạng thái: không ai duyệt, nên một row tồn tại
+ * đã nghĩa là "đã chuyển".
+ */
 export const paymentSchema = z.object({
   id: z.string(),
   organizationId: z.string(),
@@ -41,10 +38,7 @@ export const paymentSchema = z.object({
   avatarUrl: z.string().nullable(),
   proofUrl: z.string(),
   note: z.string().nullable(),
-  status: paymentStatusSchema,
-  rejectReason: z.string().nullable(),
   submittedAt: z.string(),
-  confirmedAt: z.string().nullable(),
   total: z.number(),
   items: z.array(
     z.object({
@@ -61,12 +55,3 @@ export const chargeGroupListResponseSchema = envelope(
 )
 export const paymentListResponseSchema = envelope(z.object({ payments: z.array(paymentSchema) }))
 export const paymentResponseSchema = envelope(z.object({ payment: paymentSchema }))
-
-/** Form từ chối: lý do BẮT BUỘC — user không tự rút lại được nên đây là đường duy nhất báo họ. */
-export const rejectPaymentFormSchema = z.object({
-  reason: z
-    .string()
-    .trim()
-    .min(1, "Vui lòng nói rõ vì sao chưa nhận được")
-    .max(MAX_REJECT_REASON_LENGTH, `Lý do tối đa ${MAX_REJECT_REASON_LENGTH} ký tự`),
-})

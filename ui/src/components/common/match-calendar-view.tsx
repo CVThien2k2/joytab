@@ -19,6 +19,7 @@ import { useTheme } from "next-themes"
 import { toast } from "sonner"
 import { MatchChip, matchOf } from "@/components/common/match-chip"
 import { useNow } from "@/hooks/use-now"
+import { matchPhase } from "@/lib/match-phase"
 import type { CalendarViewName } from "@/lib/match-range"
 import type { MatchSummary } from "@/types/match"
 
@@ -40,7 +41,10 @@ export type MatchCalendarProps = {
   /** Kỳ đang xem. Bộ lịch ĐƯỢC ĐIỀU KHIỂN — trang mới là nơi giữ hai giá trị này. */
   anchor: Date
   view: CalendarViewName
-  /** Owner mới được kéo thả và bấm vào ô trống để tạo lịch. */
+  /**
+   * Owner mới được kéo thả và bấm vào ô trống để tạo lịch. Cờ này chỉ nói về QUYỀN; còn trận
+   * nào dời được thì `handleMove` xét lúc thả — mọi chip đều nhấc lên được.
+   */
   editable?: boolean
   onSelectMatch: (matchId: string) => void
   onCreateAt?: (params: { start: Date; end: Date }) => void
@@ -149,12 +153,9 @@ export default function MatchCalendarView({
         title: match.courtName,
         start: match.startAt,
         end: match.endAt,
-        // Trận đã chốt tiền hoặc đã huỷ thì đổi giờ là vô nghĩa, và BE cũng từ chối. Khoá
-        // ngay trên event chứ không khoá cả lịch, vì các trận khác vẫn kéo được.
-        editable: editable && match.status === "open",
         extendedProps: { match },
       })),
-    [matches, editable],
+    [matches],
   )
 
   // Mở lịch ra là thấy quanh giờ hiện tại, không phải 6h sáng. Trừ một tiếng để vẫn còn thấy
@@ -166,9 +167,14 @@ export default function MatchCalendarView({
 
   const renderEvent = useCallback(
     (info: EventDisplayInfo) => (
-      <MatchChip info={info} organizationId={organizationId} onOpenDetail={onSelectMatch} />
+      <MatchChip
+        info={info}
+        organizationId={organizationId}
+        editable={editable}
+        onOpenDetail={onSelectMatch}
+      />
     ),
-    [organizationId, onSelectMatch],
+    [organizationId, editable, onSelectMatch],
   )
 
   const handleSelect = useCallback(
@@ -189,6 +195,17 @@ export default function MatchCalendarView({
     [onCreateAt, now],
   )
 
+  /**
+   * Thả tay sau khi kéo (hoặc giãn) một chip.
+   *
+   * MỌI chip đều kéo được, kể cả trận đã tới giờ hay đã chốt tiền — rồi mới từ chối lúc thả.
+   * Cố ý: một chip không nhấc lên được thì người dùng không biết là "không được phép" hay là
+   * "mình bấm chưa đúng chỗ", và cả lưới thành nửa kéo được nửa không. Kéo được rồi bật về kèm
+   * một câu giải thích thì câu trả lời rõ ràng và chỉ mất một cú kéo.
+   *
+   * `match` đọc từ `extendedProps` nên vẫn là giờ GỐC của trận, không phải giờ vừa kéo tới —
+   * đúng thứ cần để xét trận đã tới giờ hay chưa.
+   */
   const handleMove = useCallback(
     (info: EventDropInfo | EventResizeDoneInfo) => {
       const start = info.event.start
@@ -198,9 +215,23 @@ export default function MatchCalendarView({
         info.revert()
         return
       }
+
+      // Cùng luật với BE (MATCH_011 / MATCH_015), nói ra ở đây để không phải đi một vòng
+      // request chỉ để nhận về đúng câu này.
+      if (match.status === "settled") {
+        toast.warning("Trận đã chốt tiền, không dời được nữa")
+        info.revert()
+        return
+      }
+      if (matchPhase(match, now) !== "upcoming") {
+        toast.warning("Trận đã tới giờ, không dời được nữa")
+        info.revert()
+        return
+      }
+
       onMove({ match, start, end, revert: info.revert })
     },
-    [onMove],
+    [onMove, now],
   )
 
   // Ngày đã qua: mờ đi. Chỉ tính theo NGÀY chứ không theo giờ — trong lịch tuần, một cột là
@@ -233,9 +264,9 @@ export default function MatchCalendarView({
         // đọc được cả giờ lẫn tên sân, còn chấm thì chỉ nói "có gì đó ở đây".
         eventDisplay="block"
         eventContent={renderEvent}
-        // Chip tô đặc bằng primary, đúng như nút của app. Dùng `!` vì theme tô nền event bằng
-        // một lớp pha nhạt từ `--fc-event-color`, mà đây là chuyện của app chứ không phải của
-        // theme — ghi đè thẳng thay vì bẻ bộ biến của thư viện cho ra một thứ nó không định làm.
+        // Chip tô đặc bằng primary, đúng như nút của app — MỌI chip cùng màu, giai đoạn nói bằng
+        // cái nhãn bên trong chứ không bằng màu nền. Dùng `!` vì theme tô nền event bằng một lớp
+        // pha nhạt từ `--fc-event-color`, mà đây là chuyện của app chứ không phải của theme.
         eventClass="bg-primary! text-primary-foreground! border-primary!"
         dayCellClass={pastClass}
         dayLaneClass={pastClass}
@@ -248,8 +279,20 @@ export default function MatchCalendarView({
         expandRows
         dayMaxEvents={3}
         moreLinkText={(count) => `+${count} trận`}
+        // Bật kéo thả ở TẦNG LỊCH, không gắn `editable` lên từng event nữa: mọi chip nhấc lên
+        // được như nhau, việc từ chối là của `handleMove`.
+        editable={editable}
         selectable={editable && Boolean(onCreateAt)}
         selectMirror
+        // Một tổ chức không đá hai buổi cùng lúc (BE ném MATCH_014). Chặn ngay trên lưới thì
+        // người ta biết trước khi thả tay, thay vì thả xong mới ăn một toast lỗi.
+        //
+        // `selectOverlap` chỉ tắt ở lịch tuần/ngày: ở đó vùng quét chọn đúng bằng khoảng giờ
+        // sẽ tạo. Lịch THÁNG thì một cú bấm là chọn cả ngày, mà cả ngày thì luôn giao với trận
+        // 19h của ngày đó — tắt ở đó là cấm luôn việc thêm buổi sáng vào một ngày đã có buổi
+        // tối. Trận đã huỷ không chiếm giờ, và chúng cũng không có mặt trên lưới.
+        selectOverlap={view === "dayGridMonth"}
+        eventOverlap={false}
         eventClick={(info) => onSelectMatch(info.event.id)}
         select={handleSelect}
         eventDrop={handleMove}

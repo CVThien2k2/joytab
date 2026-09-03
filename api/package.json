@@ -21,6 +21,7 @@
     "db:migrate:status": "prisma migrate status",
     "db:migrate:reset": "prisma migrate reset",
     "db:seed": "prisma db seed",
+    "db:seed:matches": "ts-node --transpile-only prisma/seed-matches.ts",
     "db:push": "prisma db push",
     "db:pull": "prisma db pull",
     "db:studio": "prisma studio",

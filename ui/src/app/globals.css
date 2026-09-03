@@ -196,8 +196,12 @@
   --fc-breezy-now: var(--destructive);
 }
 
-/* Ngày đã qua: làm mờ chứ không đổi nền, để lưới không loang lổ. Có nó thì người ta thấy
-   trước là bấm vào đây không tạo được lịch, chứ không phải bấm rồi mới ăn toast. */
+/* Ngày đã qua: nền chìm đi một chút, KHÔNG dùng `opacity`.
+   
+   `opacity` trên ô ngày làm mờ luôn mọi thứ bên trong nó — ở lịch tháng chip là con của ô, nên
+   một buổi đã đá xong hiện ra nhạt nhoà. Mà buổi đã đá xong vẫn là thứ cần đọc rõ (chốt tiền
+   chưa, ai đã đi), và giai đoạn của nó đã có nhãn + màu riêng nói ra rồi. Nền chìm vẫn giữ
+   được lời nhắc "bấm vào đây không tạo được lịch". */
 .match-day-past {
-  opacity: 0.55;
+  background-color: color-mix(in oklch, var(--muted) 55%, transparent);
 }

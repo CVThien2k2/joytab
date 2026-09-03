@@ -1,13 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import {
-  CreatePaymentDto,
-  ListPaymentsQueryDto,
-  PaymentOrganizationParamDto,
-  PaymentParamDto,
-  RejectPaymentDto,
-} from './payments.dto';
+import { CreatePaymentDto, PaymentOrganizationParamDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
 
 /**
@@ -33,18 +27,17 @@ export class PaymentsController {
   }
 
   /**
-   * Input: cookie `at` + id tổ chức + ?status.
+   * Input: cookie `at` + id tổ chức.
    * Output: { payments } — owner thấy của cả tổ chức, member chỉ thấy của mình (service ép,
    *         không phụ thuộc tham số client gửi).
+   *
+   *         Không còn ?status: mọi row ở đây đều là một lần đã chuyển tiền, không có hàng đợi
+   *         nào để lọc ra.
    */
   @Get('payments')
-  async list(
-    @Req() request: Request & { userId: string },
-    @Param() params: PaymentOrganizationParamDto,
-    @Query() query: ListPaymentsQueryDto,
-  ) {
+  async list(@Req() request: Request & { userId: string }, @Param() params: PaymentOrganizationParamDto) {
     return {
-      payments: await this.paymentsService.list(request.userId, params.organizationId, query),
+      payments: await this.paymentsService.list(request.userId, params.organizationId),
     };
   }
 
@@ -63,44 +56,6 @@ export class PaymentsController {
   ) {
     return {
       payment: await this.paymentsService.create(request.userId, params.organizationId, dto),
-    };
-  }
-
-  /**
-   * Input: cookie `at` + id tổ chức + id lần thanh toán.
-   * Output: { payment } — sau khi duyệt. Mọi khoản trong đó thành 'confirmed'. Chỉ owner.
-   */
-  @Post('payments/:paymentId/confirm')
-  async confirm(@Req() request: Request & { userId: string }, @Param() params: PaymentParamDto) {
-    return {
-      payment: await this.paymentsService.confirm(request.userId, params.organizationId, params.paymentId),
-    };
-  }
-
-  /**
-   * Input: cookie `at` + id tổ chức + id lần thanh toán + { reason }.
-   * Output: { payment } — bị từ chối, các khoản quay lại danh sách phải trả kèm lý do.
-   *         Cũng là cửa duy nhất để mở khoá việc sửa lại chia tiền của trận liên quan.
-   */
-  @Post('payments/:paymentId/reject')
-  async reject(
-    @Req() request: Request & { userId: string },
-    @Param() params: PaymentParamDto,
-    @Body() dto: RejectPaymentDto,
-  ) {
-    return {
-      payment: await this.paymentsService.reject(request.userId, params.organizationId, params.paymentId, dto.reason),
-    };
-  }
-
-  /**
-   * Input: cookie `at` + id tổ chức + id lần thanh toán.
-   * Output: { payment } — quay về hàng đợi chờ duyệt. Dùng khi owner bấm duyệt nhầm.
-   */
-  @Delete('payments/:paymentId/confirm')
-  async unconfirm(@Req() request: Request & { userId: string }, @Param() params: PaymentParamDto) {
-    return {
-      payment: await this.paymentsService.unconfirm(request.userId, params.organizationId, params.paymentId),
     };
   }
 }

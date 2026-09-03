@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from "react"
 import { Plus, Trash2 } from "lucide-react"
+import { AccountAvatar } from "@/components/common/account-avatar"
+import { LoadingOverlay } from "@/components/common/loading-overlay"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -13,7 +16,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { LoadingOverlay } from "@/components/common/loading-overlay"
 import { useSettleMatch } from "@/hooks/use-matches-api"
 import { formatMoney } from "@/lib/format"
 import { splitExpenses } from "@/lib/split"
@@ -24,6 +26,17 @@ import type { MatchDetail, MatchExpense } from "@/types/match"
 type ExpenseRow = { name: string; quantity: string; unitPrice: string }
 
 const EMPTY_ROW: ExpenseRow = { name: "", quantity: "1", unitPrice: "" }
+
+/**
+ * Bề ngang các cột của một dòng chi phí, khai một lần rồi dùng cho cả hàng tiêu đề lẫn từng
+ * dòng — hai bảng class rời nhau là hai cột lệch nhau ngay lần sửa đầu tiên.
+ *
+ * Dưới `sm` là lưới 2 cột: tên trải hết hàng đầu, số lượng và đơn giá chia nhau hàng thứ hai,
+ * thành tiền và nút xoá ở hàng cuối. Bảng ngang cứng như trước phải đặt `min-w-500px`, nên trên
+ * điện thoại người ta vừa gõ vừa phải kéo ngang.
+ */
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_4.5rem_8rem_6.5rem_2.25rem] sm:items-center sm:gap-3"
 
 function toRows(expenses: MatchExpense[]): ExpenseRow[] {
   if (expenses.length === 0) return [{ ...EMPTY_ROW }]
@@ -39,12 +52,23 @@ function toRows(expenses: MatchExpense[]): ExpenseRow[] {
  * Output: Dialog chốt chi phí: nhập các khoản chi, đặt hệ số nam, xem trước tiền từng người
  *         rồi xác nhận.
  *
+ *         Ba khối theo đúng thứ tự người ta làm: chi những gì → chia theo hệ số nào → ai trả
+ *         bao nhiêu. Khối cuối chỉ để ĐỌC, nên nó nằm dưới hai khối gõ chứ không xen vào giữa.
+ *
  *         Bảng preview tính NGAY tại client bằng đúng công thức của BE (lib/split.ts) để gõ
  *         tới đâu thấy tới đó. Nhưng con số được LƯU luôn là con số BE tính lại khi xác nhận —
  *         client không quyết định tiền.
  *
  *         Ô "chi phí" là ĐƠN GIÁ, cột thành tiền hiện ngay bên cạnh: mua 10 chai nước thì nhập
  *         giá một chai là tự nhiên, còn nhân nhẩm rồi gõ tổng là chỗ dễ sai nhất.
+ *
+ *         Ruột cuộn trong `DialogBody`, không cuộn cả hộp: bảng chia tiền cho 12 người thì dài
+ *         hơn màn hình, mà cuộn cả hộp là nút "Xác nhận" trôi ra ngoài khung hình.
+ *
+ *         State các dòng chi nạp từ props lúc MOUNT và không đồng bộ lại sau đó — chỗ gọi phải
+ *         đổi `key` mỗi lần mở để component dựng lại với dữ liệu mới nhất (xem SettlementSection).
+ *         Cách này thay cho một effect reset theo `open`: hộp thoại vẫn nằm sẵn trong cây để có
+ *         animation đóng/mở, mà không phải set state trong effect.
  */
 export function SettlementDialog({
   match,
@@ -85,8 +109,9 @@ export function SettlementDialog({
     })
   }, [rows, match.participants, ratioValid, ratioNumber])
 
-  const nameByUser = new Map(
-    match.participants.map((participant) => [participant.userId, participant.fullName]),
+  const participantByUser = useMemo(
+    () => new Map(match.participants.map((participant) => [participant.userId, participant])),
+    [match.participants],
   )
 
   function updateRow(index: number, patch: Partial<ExpenseRow>): void {
@@ -109,7 +134,7 @@ export function SettlementDialog({
         onOpenChange(next)
       }}
     >
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="sm:max-w-3xl">
         {settle.isPending ? <LoadingOverlay label="Đang chốt chi phí" /> : null}
 
         <DialogHeader>
@@ -120,81 +145,85 @@ export function SettlementDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
-          <div className="space-y-2">
+        <DialogBody className="space-y-5 py-1">
+          <section className="space-y-2">
             <Label>Các khoản chi</Label>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-125 text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-muted-foreground">
-                    <th className="pb-2 font-medium">Tên khoản</th>
-                    <th className="w-24 pb-2 font-medium">Số lượng</th>
-                    <th className="w-36 pb-2 font-medium">Đơn giá</th>
-                    <th className="w-32 pb-2 text-right font-medium">Thành tiền</th>
-                    <th className="w-10 pb-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, index) => {
-                    const lineTotal = (Number(row.quantity) || 0) * (Number(row.unitPrice) || 0)
-                    return (
-                      <tr key={index}>
-                        <td className="py-1 pr-2">
-                          <Input
-                            value={row.name}
-                            placeholder="Tiền sân"
-                            onChange={(event) => updateRow(index, { name: event.target.value })}
-                          />
-                        </td>
-                        <td className="py-1 pr-2">
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            min={1}
-                            value={row.quantity}
-                            onChange={(event) => updateRow(index, { quantity: event.target.value })}
-                          />
-                        </td>
-                        <td className="py-1 pr-2">
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            step={1000}
-                            placeholder="120000"
-                            value={row.unitPrice}
-                            onChange={(event) =>
-                              updateRow(index, { unitPrice: event.target.value })
-                            }
-                          />
-                        </td>
-                        <td className="py-1 pr-2 text-right tabular-nums">
-                          {formatMoney(lineTotal)}đ
-                        </td>
-                        <td className="py-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Xoá dòng"
-                            disabled={rows.length === 1}
-                            onClick={() =>
-                              setRows((current) =>
-                                current.filter((_row, rowIndex) => rowIndex !== index),
-                              )
-                            }
-                          >
-                            <Trash2 className="size-4" aria-hidden="true" />
-                          </Button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+
+            <div className={`${ROW_GRID} hidden px-1 text-xs text-muted-foreground sm:grid`}>
+              <span>Tên khoản</span>
+              <span>Số lượng</span>
+              <span>Đơn giá</span>
+              <span className="text-right">Thành tiền</span>
+              <span />
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-2 sm:space-y-1.5">
+              {rows.map((row, index) => {
+                const lineTotal = (Number(row.quantity) || 0) * (Number(row.unitPrice) || 0)
+                return (
+                  <div
+                    key={index}
+                    className={`${ROW_GRID} rounded-xl border p-2 sm:rounded-none sm:border-0 sm:p-0`}
+                  >
+                    <Input
+                      aria-label="Tên khoản"
+                      className="col-span-2 sm:col-span-1"
+                      value={row.name}
+                      placeholder="Tiền sân"
+                      onChange={(event) => updateRow(index, { name: event.target.value })}
+                    />
+                    <Input
+                      aria-label="Số lượng"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      value={row.quantity}
+                      onChange={(event) => updateRow(index, { quantity: event.target.value })}
+                    />
+                    {/* Input trần, không `type="number"`: nút tăng/giảm của browser vô dụng ở đây
+                        (nhích 1.000đ một lần cho một con số gõ tay), mà lại chiếm chỗ trong ô và
+                        đổi số khi lăn chuột lúc đang cuộn hộp thoại. `inputMode` vẫn cho bàn phím
+                        số trên điện thoại; lọc bỏ ký tự không phải chữ số để `Number()` ở chỗ
+                        tính tiền luôn nhận được số thật. */}
+                    <Input
+                      aria-label="Đơn giá"
+                      inputMode="numeric"
+                      placeholder="120000"
+                      value={row.unitPrice}
+                      onChange={(event) =>
+                        updateRow(index, { unitPrice: event.target.value.replace(/\D/g, "") })
+                      }
+                    />
+                    {/* Cũng là một ô input để cả hàng thẳng một mạch — chữ trong ô text trần
+                        không bao giờ khớp đáy với input bên cạnh. Nhưng `readOnly`: đây là số
+                        MÁY nhân ra, gõ vào nó thì gõ vào đâu? Chưa đủ dữ liệu thì để TRỐNG, hiện
+                        "0đ" ở mọi dòng mới chỉ là một con số vô nghĩa bắt mắt phải bỏ qua. */}
+                    <Input
+                      aria-label="Thành tiền"
+                      readOnly
+                      tabIndex={-1}
+                      className="bg-muted/40 text-muted-foreground tabular-nums sm:text-right"
+                      value={lineTotal > 0 ? `${formatMoney(lineTotal)}đ` : ""}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="justify-self-end"
+                      aria-label="Xoá dòng"
+                      disabled={rows.length === 1}
+                      onClick={() =>
+                        setRows((current) => current.filter((_row, rowIndex) => rowIndex !== index))
+                      }
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
               <Button
                 type="button"
                 variant="outline"
@@ -202,62 +231,91 @@ export function SettlementDialog({
                 disabled={rows.length >= MAX_EXPENSE_LINES}
                 onClick={() => setRows((current) => [...current, { ...EMPTY_ROW }])}
               >
-                <Plus className="size-4" aria-hidden="true" />
+                <Plus aria-hidden="true" />
                 Thêm khoản
               </Button>
-              <p className="text-sm">
-                Tổng chi: <span className="font-bold tabular-nums">{formatMoney(preview.total)}đ</span>
+              <p className="text-sm text-muted-foreground">
+                Tổng chi{" "}
+                <span className="text-base font-bold text-foreground tabular-nums">
+                  {formatMoney(preview.total)}đ
+                </span>
               </p>
             </div>
-          </div>
+          </section>
 
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border p-3">
-            <div className="space-y-1">
-              <Label htmlFor="settle-ratio">Hệ số nam</Label>
+          <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-muted/40 p-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="settle-ratio" className="shrink-0">
+                Hệ số nam
+              </Label>
               <Input
                 id="settle-ratio"
                 type="number"
                 step="0.1"
                 inputMode="decimal"
-                className="w-32"
+                className="w-24"
                 value={maleRatio}
                 aria-invalid={!ratioValid}
                 onChange={(event) => setMaleRatio(event.target.value)}
               />
             </div>
-            <p className="flex-1 text-xs text-muted-foreground">
+            <p className="min-w-50 flex-1 text-xs text-muted-foreground">
               Nữ là mốc 1. Hệ số {ratioValid ? ratioNumber : "1.2"} nghĩa là nam đóng gấp{" "}
               {ratioValid ? ratioNumber : "1.2"} lần nữ. Người chưa khai giới tính tính như nam.
             </p>
-          </div>
+          </section>
 
-          <div className="space-y-2">
-            <Label>Chia cho {match.participants.length} người</Label>
-            <ul className="divide-y rounded-lg border">
-              {preview.charges.map((charge) => (
-                <li key={charge.userId} className="flex items-center gap-3 px-3 py-2">
-                  <span className="min-w-0 flex-1 truncate text-sm">
-                    {nameByUser.get(charge.userId) ?? "Thành viên"}
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">×{charge.ratio}</span>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums">
-                    {formatMoney(charge.amount)}đ
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {preview.surplus > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Làm tròn lên nghìn nên thu dư{" "}
-                <span className="font-semibold">{formatMoney(preview.surplus)}đ</span> — phần này
-                vào quỹ.
+          <section className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label>Chia cho {match.participants.length} người</Label>
+              {preview.surplus > 0 ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  Làm tròn lên nghìn nên thu dư {formatMoney(preview.surplus)}đ vào quỹ
+                </span>
+              ) : null}
+            </div>
+
+            {match.participants.length === 0 ? (
+              <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+                Trận này không có ai đăng ký nên không chia được tiền.
               </p>
-            ) : null}
-          </div>
-        </div>
+            ) : preview.total === 0 ? (
+              <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+                Nhập khoản chi ở trên để xem trước tiền từng người.
+              </p>
+            ) : (
+              <ul className="divide-y rounded-xl border">
+                {preview.charges.map((charge) => {
+                  const participant = participantByUser.get(charge.userId)
+                  const name = participant?.fullName ?? "Thành viên"
+                  return (
+                    <li key={charge.userId} className="flex items-center gap-3 px-3 py-2">
+                      <AccountAvatar name={name} src={participant?.avatarUrl} size={28} />
+                      <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                        ×{charge.ratio}
+                      </span>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">
+                        {formatMoney(charge.amount)}đ
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+        </DialogBody>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <p className="mr-auto hidden self-center text-xs text-muted-foreground sm:block">
+            {formatMoney(preview.total)}đ cho {match.participants.length} người
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={settle.isPending}
+            onClick={() => onOpenChange(false)}
+          >
             Huỷ
           </Button>
           <Button

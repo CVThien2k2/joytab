@@ -27,8 +27,9 @@ import type { OrganizationChargeGroup } from "@/types/payment"
  *         Mặc định TICK HẾT: người ta vào đây để trả cho xong, không phải để chọn lựa. Ai muốn
  *         trả một phần thì bỏ tick, đó mới là việc hiếm.
  *
- *         Gửi xong là xong — không có nút sửa hay huỷ. Khoản chỉ quay lại danh sách phải trả
- *         khi chủ tổ chức báo chưa nhận được, và lúc đó kèm lý do.
+ *         Gửi xong là các khoản đó ĐÃ TRẢ ngay — không ai duyệt, và không có nút sửa hay huỷ.
+ *         Ảnh chuyển khoản vẫn bắt buộc: nó không còn để ai xét, mà để cả nhóm đối chiếu khi
+ *         về sau có người hỏi lại.
  */
 export function PayDialog({
   group,
@@ -72,7 +73,8 @@ export function PayDialog({
         <DialogHeader>
           <DialogTitle>Thanh toán · {group.organizationName}</DialogTitle>
           <DialogDescription>
-            Chuyển khoản theo mã QR bên dưới rồi tải ảnh xác nhận lên. Chủ tổ chức sẽ đối soát.
+            Chuyển khoản theo mã QR bên dưới rồi tải ảnh xác nhận lên. Gửi xong là các khoản này
+            được ghi nhận đã trả.
           </DialogDescription>
         </DialogHeader>
 
@@ -166,7 +168,7 @@ export function PayDialog({
             }
           >
             {createPayment.isPending ? <Spinner className="size-4" /> : null}
-            Gửi thanh toán
+            Tôi đã chuyển khoản
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -3,29 +3,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { getApiErrorMessage } from "@/api/error"
-import {
-  confirmPayment,
-  createPayment,
-  fetchOrganizationCharges,
-  fetchPayments,
-  rejectPayment,
-  unconfirmPayment,
-} from "@/api/payments"
+import { createPayment, fetchOrganizationCharges, fetchPayments } from "@/api/payments"
 import { matchQueryKeys } from "@/hooks/use-matches-api"
-import type { PaymentStatus } from "@/types/payment"
 
 export const paymentQueryKeys = {
   charges: () => ["charges"] as const,
   organizationCharges: (organizationId: string) =>
     [...paymentQueryKeys.charges(), "organization", organizationId] as const,
   payments: (organizationId: string) => ["payments", organizationId] as const,
-  paymentList: (organizationId: string, status?: PaymentStatus) =>
-    [...paymentQueryKeys.payments(organizationId), status ?? "all"] as const,
 }
 
 /**
- * Làm mới mọi thứ một thay đổi về tiền có thể đụng tới: công nợ (hai góc nhìn), danh sách
- * lần thanh toán, và bảng chia tiền của trận (trạng thái từng khoản nằm trong đó).
+ * Làm mới mọi thứ một thay đổi về tiền có thể đụng tới: công nợ, sổ chứng từ, và bảng chia tiền
+ * của trận (trạng thái từng khoản nằm trong đó).
  */
 function invalidatePaymentData(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -47,14 +37,14 @@ export function useOrganizationCharges(organizationId: string) {
 }
 
 /**
- * Input: id tổ chức + trạng thái cần lọc.
- * Output: Query danh sách lần thanh toán. Owner nhận của cả tổ chức, member chỉ của mình —
- *         BE quyết, hook không cần biết vai trò.
+ * Input: id tổ chức.
+ * Output: Query sổ chứng từ. Owner nhận của cả tổ chức, member chỉ của mình — BE quyết, hook
+ *         không cần biết vai trò.
  */
-export function usePayments(organizationId: string, status?: PaymentStatus) {
+export function usePayments(organizationId: string) {
   return useQuery({
-    queryKey: paymentQueryKeys.paymentList(organizationId, status),
-    queryFn: () => fetchPayments({ organizationId, status }),
+    queryKey: paymentQueryKeys.payments(organizationId),
+    queryFn: () => fetchPayments(organizationId),
     staleTime: 15_000,
   })
 }
@@ -70,61 +60,12 @@ export function useCreatePayment(organizationId: string, onSuccess?: () => void)
     mutationFn: (params: { chargeIds: string[]; proofUrl: string; note?: string }) =>
       createPayment({ organizationId, ...params }),
     onSuccess: () => {
-      toast.success("Đã gửi thanh toán, chờ chủ tổ chức đối soát")
+      toast.success("Đã ghi nhận thanh toán")
       onSuccess?.()
       invalidatePaymentData(queryClient, organizationId)
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, "Không gửi được thanh toán. Vui lòng thử lại."))
-    },
-  })
-}
-
-export function useConfirmPayment(organizationId: string) {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (paymentId: string) => confirmPayment({ organizationId, paymentId }),
-    onSuccess: () => {
-      toast.success("Đã xác nhận nhận được tiền")
-      invalidatePaymentData(queryClient, organizationId)
-    },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error, "Không duyệt được. Vui lòng thử lại."))
-    },
-  })
-}
-
-/** Từ chối: các khoản quay lại danh sách phải trả của người gửi, kèm lý do. */
-export function useRejectPayment(organizationId: string, onSuccess?: () => void) {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (params: { paymentId: string; reason: string }) =>
-      rejectPayment({ organizationId, ...params }),
-    onSuccess: () => {
-      toast.success("Đã báo chưa nhận được tiền")
-      onSuccess?.()
-      invalidatePaymentData(queryClient, organizationId)
-    },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error, "Không gửi được phản hồi. Vui lòng thử lại."))
-    },
-  })
-}
-
-/** Bỏ duyệt — đưa về hàng đợi chờ đối soát, không đẩy ngược thành nợ của người đã trả. */
-export function useUnconfirmPayment(organizationId: string) {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (paymentId: string) => unconfirmPayment({ organizationId, paymentId }),
-    onSuccess: () => {
-      toast.success("Đã bỏ duyệt, khoản này quay lại hàng chờ")
-      invalidatePaymentData(queryClient, organizationId)
-    },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error, "Không bỏ duyệt được. Vui lòng thử lại."))
     },
   })
 }

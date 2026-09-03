@@ -25,8 +25,14 @@ import type { MatchRescheduleValues } from "@/types/match"
 
 export type MatchRescheduleDialogProps = {
   organizationId: string
-  /** Lần kéo thả đang chờ xác nhận; `null` = không có gì để hỏi. */
+  /**
+   * Lần kéo thả gần nhất. Cha GIỮ NGUYÊN giá trị này sau khi đóng và chỉ hạ `open`: hộp thoại
+   * còn 150ms animation ra, mà xoá dữ liệu ngay thì trong 150ms đó chữ trong hộp trống trơn —
+   * thấy rõ như một cú nháy.
+   */
   request: MatchMoveRequest | null
+  /** Có đang mở hay không. Tách khỏi `request` đúng vì lý do trên. */
+  open: boolean
   /** Đóng dialog. `committed` = đã lưu xong, KHÔNG được trả chip về chỗ cũ nữa. */
   onClose: (committed: boolean) => void
 }
@@ -50,6 +56,7 @@ export type MatchRescheduleDialogProps = {
 export function MatchRescheduleDialog({
   organizationId,
   request,
+  open,
   onClose,
 }: MatchRescheduleDialogProps) {
   const form = useForm<MatchRescheduleValues>({
@@ -92,7 +99,7 @@ export function MatchRescheduleDialog({
 
   return (
     <Dialog
-      open={Boolean(request)}
+      open={open}
       onOpenChange={(next) => {
         if (next || updateMatch.isPending) return
         onClose(false)

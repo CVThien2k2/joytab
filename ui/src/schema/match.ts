@@ -26,7 +26,8 @@ export const matchStatusSchema = z.enum(MATCH_STATUSES)
 /** Vì sao vote đang đóng; null = đang mở. */
 export const voteClosedReasonSchema = z.enum(["full", "started", "canceled"]).nullable()
 
-export const chargePaymentStatusSchema = z.enum(["unpaid", "submitted", "confirmed"])
+/** Hai mức, không có "chờ đối soát": người trả tự ghi nhận, không ai duyệt. */
+export const chargePaymentStatusSchema = z.enum(["unpaid", "paid"])
 
 export const genderSchema = z.enum(["male", "female", "other"])
 

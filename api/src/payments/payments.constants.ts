@@ -2,19 +2,13 @@
  * Nguồn sự thật duy nhất cho hằng số của luồng thanh toán.
  */
 
-/** Trạng thái một lần chuyển khoản. Lưu VarChar nên đây là nơi duy nhất liệt kê. */
-export const PAYMENT_STATUSES = ['submitted', 'confirmed', 'rejected'] as const;
-
-/** Trạng thái trả tiền của một khoản. */
-export const CHARGE_PAYMENT_STATUSES = ['unpaid', 'submitted', 'confirmed'] as const;
+/**
+ * Trạng thái trả tiền của một khoản. Hai mức, và không có mức nào ở giữa: người trả tự ghi
+ * nhận đã chuyển tiền, không ai duyệt.
+ */
+export const CHARGE_PAYMENT_STATUSES = ['unpaid', 'paid'] as const;
 
 export const MAX_PAYMENT_NOTE_LENGTH = 300;
-
-/**
- * Owner PHẢI nói vì sao khi báo chưa nhận được: user chỉ có một thao tác là GỬI, không tự rút
- * lại được, nên lý do là thứ duy nhất giúp họ biết phải làm gì tiếp.
- */
-export const MAX_REJECT_REASON_LENGTH = 300;
 
 /**
  * Số khoản tối đa gom vào một lần chuyển khoản. Người chơi 3-4 buổi mới trả một lần, nên

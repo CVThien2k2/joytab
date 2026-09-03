@@ -58,8 +58,12 @@ function DialogOverlay({
  * animation đánh nhau.
  */
 const dialogContentVariants = {
+  // `has-data-[slot=dialog-body]`: hộp thoại nào có phần ruột cuộn thì tự đổi sang bố cục ba
+  // hàng — đầu và chân đứng yên, chỉ khúc giữa trượt. Khai ở đây chứ không để mỗi chỗ gọi tự
+  // thêm `grid-rows-…`: ba bản chép tay là ba chỗ sẽ trôi ra khác nhau. Hàng thứ ba cao 0 khi
+  // không có chân, nên cùng một bộ class dùng được cho cả hai kiểu.
   center:
-    "top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl p-4 sm:max-w-sm data-open:zoom-in-95 data-closed:zoom-out-95",
+    "top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl p-4 sm:max-w-sm data-open:zoom-in-95 data-closed:zoom-out-95 has-data-[slot=dialog-body]:max-h-[92svh] has-data-[slot=dialog-body]:grid-rows-[auto_minmax(0,1fr)_auto]",
   left: "top-0 left-0 flex h-full w-68 max-w-[85%] flex-col border-r data-open:slide-in-from-left data-closed:slide-out-to-left",
 } as const
 
@@ -110,6 +114,26 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="dialog-header"
       className={cn("flex flex-col gap-2", className)}
+      {...props}
+    />
+  )
+}
+
+/**
+ * Phần ruột CUỘN của hộp thoại.
+ *
+ * Có nó thì tiêu đề và hàng nút đứng yên khi cuộn — hộp thoại chốt chi phí dài hơn màn hình,
+ * mà cuộn cả hộp thì nút "Xác nhận" trôi ra khỏi khung hình và người ta phải cuộn ngược lại
+ * mới bấm được.
+ *
+ * `-mx-4 px-4` để vùng cuộn ăn hết bề ngang (thanh cuộn nằm sát mép trong) mà chữ vẫn thẳng
+ * hàng với tiêu đề bên trên.
+ */
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn("-mx-4 min-h-0 overflow-y-auto px-4", className)}
       {...props}
     />
   )
@@ -176,6 +200,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

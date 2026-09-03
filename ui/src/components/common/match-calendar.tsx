@@ -14,7 +14,7 @@ export type { MatchCalendarProps, MatchMoveRequest }
  *
  * Khung chờ co giãn y hệt bộ lịch thật (`flex-1 min-h-0`) chứ không cao cố định: lịch ăn hết
  * chiều cao còn lại của cửa sổ, nên một khung chờ cao cố định sẽ làm trang giật một nhịp đúng
- * lúc chunk về. Cũng không có viền, vì bộ lịch thật cũng không có.
+ * lúc chunk về.
  */
 export const MatchCalendar = dynamic<MatchCalendarProps>(
   () => import("@/components/common/match-calendar-view"),
