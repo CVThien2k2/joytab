@@ -31,7 +31,8 @@ import { TooltipProvider } from "@/components/ui/tooltip"
  *         TooltipProvider bọc ở đây chứ không ở từng chỗ dùng: rail cần tooltip cho cả nav lẫn
  *         nút tài khoản, một provider cho cả khung thì độ trễ hover giống nhau ở mọi hàng.
  *
- *         Là server component: mọi thứ tương tác bên trong đã tự là client component.
+ *         Không có `"use client"`: mọi thứ tương tác bên trong đã tự khai. Nó vẫn nằm trong
+ *         bundle client vì layout dựng nó là client component.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (

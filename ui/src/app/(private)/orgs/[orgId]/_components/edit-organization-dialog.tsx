@@ -46,7 +46,7 @@ import type {
  *
  *         `reset` khi mở lại để form luôn bắt đầu từ tên HIỆN TẠI: user đổi tên, huỷ, mở lại thì
  *         phải thấy tên thật trong DB chứ không phải thứ họ gõ dở lần trước. Cũng cần khi tên đổi
- *         từ nơi khác (tab khác) rồi `router.refresh()` bơm giá trị mới vào.
+ *         từ nơi khác (tab khác) rồi query `organizations` bơm giá trị mới vào.
  */
 export function EditOrganizationDialog({
   organization,

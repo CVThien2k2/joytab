@@ -1,6 +1,10 @@
+import axios from "axios"
 import { apiClient } from "@/api/client"
 import {
+  activeOrganizationResponseSchema,
+  organizationListResponseSchema,
   organizationMemberListResponseSchema,
+  organizationPreviewResponseSchema,
   organizationResponseSchema,
 } from "@/schema/organization"
 import type {
@@ -8,8 +12,71 @@ import type {
   JoinOrganizationPayload,
   Organization,
   OrganizationMember,
+  OrganizationPreview,
   Pagination,
 } from "@/types/organization"
+
+/** Danh sách tổ chức + tổ chức xem lần gần nhất, đi cùng nhau vì cùng một lượt gọi. */
+export type OrganizationList = {
+  organizations: Organization[]
+  activeOrganizationId: string | null
+}
+
+/**
+ * Input: Không nhận tham số; dùng cookie `at` + `org` hiện tại.
+ * Output: Tổ chức của user (cũ nhất trước) kèm id tổ chức xem lần gần nhất.
+ *
+ *         Mảng rỗng là kết quả HỢP LỆ (user mới, chưa vào tổ chức nào) — không phải lỗi.
+ *
+ *         `activeOrganizationId` do BE đọc từ cookie `org` rồi đối chiếu với chính danh sách
+ *         này: cookie httpOnly nên client không đọc được, mà cũng không nên tin nếu đọc được
+ *         (user có thể đã rời tổ chức đó từ máy khác).
+ */
+export async function fetchOrganizations(): Promise<OrganizationList> {
+  const response = await apiClient.get("/organizations")
+  return organizationListResponseSchema.parse(response.data).data
+}
+
+/**
+ * Input: id tổ chức user vừa chuyển sang.
+ * Output: Ghi cookie `org` ở BE để lần vào app sau về đúng tổ chức này.
+ *
+ *         Không điều hướng và không đổi store — đó là việc của nơi gọi. Tách ra vì URL
+ *         `/orgs/[orgId]` mới là nguồn sự thật của "đang xem tổ chức nào"; cookie chỉ là bộ nhớ.
+ */
+export async function setActiveOrganization(organizationId: string): Promise<string> {
+  const response = await apiClient.post("/organizations/active", { organizationId })
+  return activeOrganizationResponseSchema.parse(response.data).data.activeOrganizationId
+}
+
+/** Mã lỗi nghiệp vụ của BE cho "mã sai hoặc tổ chức đang đóng cửa" (api ERROR_CODES.ORG_002). */
+export const JOIN_CODE_UNUSABLE_CODE = "ORG_002"
+
+/**
+ * Input: Lỗi bất kỳ từ lượt xem trước lời mời.
+ * Output: true nếu đây là "link mời không dùng được" chứ không phải sự cố.
+ *
+ *         400 tính là không dùng được: mã sai định dạng ngay từ URL thì với người dùng cũng
+ *         chỉ là một cái link hỏng, không cần thấy màn hình lỗi đỏ.
+ */
+export function isJoinCodeUnusable(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false
+  const code = (error.response?.data as { code?: string } | undefined)?.code
+  return code === JOIN_CODE_UNUSABLE_CODE || error.response?.status === 400
+}
+
+/**
+ * Input: Mã tham gia lấy từ URL của link mời (/join/ABCD1234).
+ * Output: Tên + số thành viên + đã là thành viên chưa, để dựng màn hình xác nhận.
+ *
+ *         Mã sai / tổ chức đóng cửa thì BE trả ORG_002 — nơi gọi phân biệt bằng mã lỗi đó
+ *         (xem hooks/use-organizations-api.ts), vì đây là kết quả BÌNH THƯỜNG của một link cũ
+ *         chứ không phải sự cố.
+ */
+export async function fetchOrganizationPreview(joinCode: string): Promise<OrganizationPreview> {
+  const response = await apiClient.get(`/organizations/by-code/${encodeURIComponent(joinCode)}`)
+  return organizationPreviewResponseSchema.parse(response.data).data.organization
+}
 
 /**
  * Input: Tên tổ chức đã qua validate.

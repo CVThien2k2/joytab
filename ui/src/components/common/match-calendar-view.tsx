@@ -4,8 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Calendar, useCalendarController } from "@fullcalendar/react"
 import type {
   DateSelectInfo,
-  DayCellInfo,
-  DayLaneInfo,
   EventDisplayInfo,
   EventDropInfo,
   EventResizeDoneInfo,
@@ -19,6 +17,7 @@ import { useTheme } from "next-themes"
 import { toast } from "sonner"
 import { MatchChip, matchOf } from "@/components/common/match-chip"
 import { useNow } from "@/hooks/use-now"
+import { MATCH_ATTENDANCE_EVENT_CLASS, matchAttendance } from "@/lib/match-attendance"
 import { matchPhase } from "@/lib/match-phase"
 import type { CalendarViewName } from "@/lib/match-range"
 import type { MatchSummary } from "@/types/match"
@@ -165,6 +164,20 @@ export default function MatchCalendarView({
     return `${`${hour}`.padStart(2, "0")}:00:00`
   }, [now])
 
+  /**
+   * Nền chip theo trạng thái ĐĂNG KÝ CỦA NGƯỜI ĐANG XEM, không phải một màu chung cho tất cả.
+   * Bảng ba kiểu nền và lý do chọn đặc/rỗng thay vì ba màu nằm ở `MATCH_ATTENDANCE_EVENT_CLASS`.
+   *
+   * Bóng mờ lúc quét chọn và lúc kéo thả cũng chạy qua đây nhưng `extendedProps` rỗng
+   * (`matchOf` trả `null`) — cho chúng khối đặc như cũ: chúng đang nói "vùng bạn đang chọn",
+   * chưa có trận nào để mà xét đã đăng ký hay chưa.
+   */
+  const eventClass = useCallback((info: EventDisplayInfo) => {
+    const match = matchOf(info.event)
+    if (!match) return MATCH_ATTENDANCE_EVENT_CLASS.joined
+    return MATCH_ATTENDANCE_EVENT_CLASS[matchAttendance(match)]
+  }, [])
+
   const renderEvent = useCallback(
     (info: EventDisplayInfo) => (
       <MatchChip
@@ -234,14 +247,6 @@ export default function MatchCalendarView({
     [onMove, now],
   )
 
-  // Ngày đã qua: mờ đi. Chỉ tính theo NGÀY chứ không theo giờ — trong lịch tuần, một cột là
-  // một ngày, không có cách nào làm mờ nửa trên của cột mà lưới vẫn còn đọc được.
-  const pastClass = useCallback(
-    (info: DayCellInfo | DayLaneInfo) =>
-      info.date.getTime() < startOfDay(now) ? "match-day-past" : null,
-    [now],
-  )
-
   return (
     // `[&>*]` nhắm đúng phần tử gốc mà FullCalendar dựng. Cần nó vì v7 gán `height: 100%`
     // inline lên gốc, mà phần trăm không giải được khi cha là block lấy chiều cao từ flex —
@@ -264,12 +269,9 @@ export default function MatchCalendarView({
         // đọc được cả giờ lẫn tên sân, còn chấm thì chỉ nói "có gì đó ở đây".
         eventDisplay="block"
         eventContent={renderEvent}
-        // Chip tô đặc bằng primary, đúng như nút của app — MỌI chip cùng màu, giai đoạn nói bằng
-        // cái nhãn bên trong chứ không bằng màu nền. Dùng `!` vì theme tô nền event bằng một lớp
-        // pha nhạt từ `--fc-event-color`, mà đây là chuyện của app chứ không phải của theme.
-        eventClass="bg-primary! text-primary-foreground! border-primary!"
-        dayCellClass={pastClass}
-        dayLaneClass={pastClass}
+        // Nền chip nói về TÔI (đã đăng ký chưa), nhãn bên trong nói về TRẬN (giai đoạn) — hai
+        // câu hỏi khác nhau nên hiện ở hai chỗ khác nhau. Xem `eventClass` ở trên.
+        eventClass={eventClass}
         // Việt Nam không có giờ mùa hè nên không phải lo giờ nhảy; giữ múi giờ máy người dùng.
         slotDuration={SLOT_DURATION}
         slotMinTime="06:00:00"

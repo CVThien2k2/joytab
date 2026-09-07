@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ChargeGroupCard } from "@/components/common/charge-group-card"
 import { Spinner } from "@/components/ui/spinner"
 import { useOrganizationCharges, usePayments } from "@/hooks/use-payments-api"
-import { useActiveOrganization } from "@/providers/organization-store-provider"
+import { useActiveOrganization } from "@/stores/organization-store"
 import { PaymentList } from "./_components/payment-list"
 
 /** Hai cách nhìn cùng một luồng tiền: còn phải trả, và đã trả rồi. */

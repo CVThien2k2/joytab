@@ -1,10 +1,18 @@
 import axios from "axios"
 import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:9000"
 
 /** Endpoint refresh — không bao giờ được tự refresh lại chính nó (vòng lặp vô hạn). */
 const REFRESH_URL = "/auth/refresh"
+
+/**
+ * Endpoint KHÔNG xoay token khi 401 và KHÔNG bị đá về /logout:
+ *  - /auth/refresh: xoay chính nó thì thành vòng lặp; refresh fail là caller tự quyết.
+ *  - /auth/logout: 401 ở đây là chuyện bình thường (phiên đã chết) và nó đang được gọi TỪ
+ *    trang /logout — đá về /logout nữa là tự nạp lại trang đó mãi không thôi.
+ */
+const NO_RETRY_URLS = [REFRESH_URL, "/auth/logout"]
 
 /** Access token hết hạn — mã DUY NHẤT đáng để thử refresh. */
 const ACCESS_TOKEN_EXPIRED_CODE = "AUTH_005"
@@ -16,10 +24,11 @@ type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean }
  * Input: Không nhận input runtime; dùng NEXT_PUBLIC_API_BASE_URL.
  * Output: axios instance dùng chung — luôn gửi kèm cookie `at`/`rt` (withCredentials).
  *
- * Xử lý 401:
+ * Xử lý 401 — đây là chỗ DUY NHẤT lo việc token còn hạn hay không (proxy chỉ đọc cookie để
+ * định hướng, không gọi BE):
  *  - code AUTH_005 (AT hết hạn) → gọi /auth/refresh rồi retry đúng request đó một lần.
- *  - code khác (AUTH_001 token rác/thiếu, AUTH_006 RT chết) → clear store, về /login.
- *  - Riêng /auth/refresh: refresh fail thì không có gì để thử lại, caller tự quyết.
+ *  - code khác (AUTH_001 token rác/thiếu, AUTH_006 RT chết) → về /logout.
+ *  - /auth/refresh và /auth/logout: xem NO_RETRY_URLS.
  */
 function createApiClient(): AxiosInstance {
   const instance = axios.create({
@@ -52,17 +61,24 @@ function createApiClient(): AxiosInstance {
     return refreshPromise
   }
 
+  /** Đã kết luận phiên chết thì thôi thử lại, khỏi nạp lại trang nhiều lần. */
+  let sessionEnded = false
+
   /**
    * Input: Không nhận tham số.
-   * Output: Đưa browser về /login bằng full page load.
+   * Output: Đưa browser về /logout bằng full page load.
    *
-   * Không xoá store ở đây: store giờ tạo theo request qua context (không còn instance toàn
-   * cục để với tới từ ngoài React), và full page load thì cũng dựng lại store từ đầu.
+   * KHÔNG đi thẳng /login: `rt` lúc này có thể vẫn còn trong browser (nó chết ở phía BE chứ
+   * không phải hết hạn ở client), mà gác cổng thấy còn `rt` là đá /login về `/` → quay lại
+   * đúng trang vừa lỗi và lặp vô tận. /logout cắt cookie trước rồi mới sang /login.
+   *
+   * Không xoá store ở đây: store tạo theo request qua context (không còn instance toàn cục để
+   * với tới từ ngoài React), và full page load thì cũng dựng lại store từ đầu.
    */
-  function forceLogin(): void {
-    if (typeof window !== "undefined") {
-      window.location.href = "/login"
-    }
+  function endSession(): void {
+    if (sessionEnded || typeof window === "undefined") return
+    sessionEnded = true
+    window.location.href = "/logout"
   }
 
   instance.interceptors.response.use(
@@ -75,28 +91,25 @@ function createApiClient(): AxiosInstance {
       const config = error.config as RetriableConfig | undefined
       const url = config?.url ?? ""
 
-      // /auth/refresh tự chịu trách nhiệm: refresh thất bại thì không có gì để thử lại.
-      // /auth/me giờ chỉ do Next server gọi (không qua axios), giữ trong danh sách này để
-      // nếu sau có ai gọi từ client thì cũng không kéo nhau vào vòng refresh.
-      if (url.includes(REFRESH_URL) || url.includes("/auth/me")) {
+      if (NO_RETRY_URLS.some((path) => url.includes(path))) {
         return Promise.reject(error)
       }
 
       const code = (error.response.data as { code?: string } | undefined)?.code
       if (code !== ACCESS_TOKEN_EXPIRED_CODE) {
-        forceLogin()
+        endSession()
         return Promise.reject(error)
       }
 
       if (!config || config._retried) {
-        forceLogin()
+        endSession()
         return Promise.reject(error)
       }
 
       try {
         await refreshOnce()
       } catch {
-        forceLogin()
+        endSession()
         return Promise.reject(error)
       }
 

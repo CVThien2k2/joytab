@@ -4,11 +4,23 @@ import type { CurrentUser } from "@/types/auth"
 import type { UpdateProfilePayload } from "@/types/profile"
 
 /**
- * Input: Không nhận tham số; dùng cookie `rt` hiện tại.
- * Output: Đăng xuất — BE revoke refresh token + xoá cả 2 cookie. Luôn thành công.
+ * Input: Không nhận tham số; dùng cookie `at` hiện tại.
+ * Output: User đang đăng nhập. Đây là lượt gọi bootstrap của cả khu đã đăng nhập (SessionGate),
+ *         chạy ở CLIENT — không còn server component nào gọi /auth/me.
  *
- * Không còn hàm fetchMe/refresh ở đây: /auth/me do Next server gọi (app/(private)/page.tsx)
- * và /auth/refresh do proxy của FE + interceptor của api/client.ts tự lo.
+ *         Không tự xử lý 401: apiClient xoay token rồi chạy lại request này, xoay hỏng thì đưa
+ *         về /logout.
+ */
+export async function fetchMe(): Promise<CurrentUser> {
+  const response = await apiClient.get("/auth/me")
+  return meResponseSchema.parse(response.data).data
+}
+
+/**
+ * Input: Không nhận tham số; dùng cookie `rt` hiện tại.
+ * Output: Đăng xuất — BE revoke refresh token + xoá cookie phiên. Luôn thành công.
+ *
+ * Chỉ trang /logout gọi hàm này; /auth/refresh do interceptor của api/client.ts tự lo.
  */
 export async function logout(): Promise<void> {
   await apiClient.post("/auth/logout")

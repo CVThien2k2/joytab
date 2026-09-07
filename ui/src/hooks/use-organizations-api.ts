@@ -1,6 +1,12 @@
 "use client"
 
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getApiErrorMessage } from "@/api/error"
@@ -8,8 +14,11 @@ import {
   createOrganization,
   deleteOrganization,
   fetchOrganizationMembers,
+  fetchOrganizationPreview,
+  fetchOrganizations,
   joinOrganizationByCode,
   removeOrganizationMember,
+  setActiveOrganization,
   updateJoinByCodeEnabled,
   updateOrganization,
   updatePaymentQr,
@@ -17,8 +26,57 @@ import {
 } from "@/api/organizations"
 import type { Organization } from "@/types/organization"
 
-/** Router của Next — chỉ cần đúng hàm refresh nên khai hẹp lại cho dễ đọc. */
-type RefreshableRouter = { refresh: () => void }
+/**
+ * Khoá cache của tổ chức. Danh sách này là dữ liệu bootstrap của cả khu đã đăng nhập (sidebar,
+ * nút chuyển tổ chức, tổ chức đang xem) nên mọi mutation đổi nó đều invalidate đúng khoá này.
+ */
+export const organizationQueryKeys = {
+  list: ["organizations", "list"] as const,
+  preview: (joinCode: string) => ["organizations", "preview", joinCode] as const,
+}
+
+/**
+ * Input: Không nhận tham số.
+ * Output: Query GET /organizations — danh sách tổ chức + tổ chức xem lần gần nhất.
+ *
+ *         `retry: false` và `staleTime` dài, cùng lý do như useMe: 401 đã do apiClient lo, còn
+ *         danh sách tổ chức chỉ đổi khi user tạo/tham gia/rời — những chỗ đó tự invalidate.
+ */
+export function useOrganizations() {
+  return useQuery({
+    queryKey: organizationQueryKeys.list,
+    queryFn: fetchOrganizations,
+    retry: false,
+    staleTime: 5 * 60_000,
+  })
+}
+
+/**
+ * Input: Mã tham gia trên URL của link mời.
+ * Output: Query xem trước lời mời.
+ *
+ *         `retry: false`: mã sai (ORG_002) là câu trả lời dứt khoát của BE, gọi lại vẫn thế —
+ *         mà route này còn bị throttle 10 lượt/phút.
+ */
+export function useOrganizationPreview(joinCode: string) {
+  return useQuery({
+    queryKey: organizationQueryKeys.preview(joinCode),
+    queryFn: () => fetchOrganizationPreview(joinCode),
+    retry: false,
+  })
+}
+
+/**
+ * Input: Không nhận tham số.
+ * Output: Mutation ghi cookie `org` (nhớ tổ chức vừa chuyển sang).
+ *
+ *         Im lặng: không toast, không invalidate. Đây chỉ là ghi nhớ cho lần vào app sau —
+ *         người dùng đã thấy kết quả bằng việc trang đổi sang tổ chức mới. Lỗi cũng bỏ qua:
+ *         tệ nhất là lần sau vào rơi về tổ chức cũ, không đáng chặn việc chuyển trang.
+ */
+export function useSetActiveOrganization() {
+  return useMutation({ mutationFn: setActiveOrganization })
+}
 
 /**
  * Khoá cache của danh sách thành viên. Khai một chỗ để mutation invalidate đúng thứ mà query
@@ -42,10 +100,9 @@ export const memberQueryKeys = {
  * Input: id tổ chức + trang + từ khoá.
  * Output: Query một trang thành viên.
  *
- *         Đây là dữ liệu DUY NHẤT của khu vực tổ chức fetch từ client — user (/auth/me) và
- *         danh sách tổ chức (/organizations) vẫn do server component lấy để lần render đầu đã
- *         có sẵn. Riêng danh sách thành viên nằm sau một tab và còn phân trang/tìm kiếm, nên để
- *         React Query giữ cache: quay lại trang cũ trong 30 giây là hiện ngay.
+ *         Khác `useOrganizations` ở nhịp làm mới: danh sách thành viên nằm sau một tab và còn
+ *         phân trang/tìm kiếm, nên `staleTime` ngắn hơn — quay lại trang cũ trong 30 giây là
+ *         hiện ngay, còn sau đó thì gọi lại.
  *
  *         `keepPreviousData`: đổi trang thì giữ dữ liệu trang cũ trên màn hình cho tới khi
  *         trang mới về — không có nó thì bảng rỗng một nhịp và cả khung co lại rồi giãn ra.
@@ -69,18 +126,18 @@ export function useOrganizationMembers(params: MemberListParams) {
  *         Chỉ gửi `name`, KHÔNG gửi kèm `joinByCodeEnabled`: BE coi mỗi field là một ý định
  *         riêng, gửi kèm công tắc là vô tình xoay mã tham gia và làm chết mọi liên kết mời.
  *
- *         Làm mới bằng `router.refresh()`: danh sách tổ chức do server component fetch rồi bơm
- *         vào store, không nằm trong cache react-query.
+ *         Làm mới bằng invalidate danh sách tổ chức: tên hiện ở sidebar và ở nút chuyển tổ
+ *         chức, cả hai đọc từ store được dựng từ chính query đó.
  */
 export function useUpdateOrganization(onSuccess?: () => void) {
-  const router = useRouter()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: updateOrganization,
     onSuccess: (organization) => {
       toast.success(`Đã lưu thông tin "${organization.name}"`)
       onSuccess?.()
-      router.refresh()
+      void queryClient.invalidateQueries({ queryKey: organizationQueryKeys.list })
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, "Không lưu được thông tin tổ chức. Vui lòng thử lại."))
@@ -92,12 +149,10 @@ export function useUpdateOrganization(onSuccess?: () => void) {
  * Input: id tổ chức + callback đóng dialog (tuỳ chọn).
  * Output: Mutation xoá một người khỏi tổ chức — owner đuổi thành viên.
  *
- *         Làm mới HAI nơi vì cùng một hành động đổi hai loại dữ liệu: `invalidateQueries` cho
- *         danh sách thành viên (React Query giữ), và `router.refresh()` cho `memberCount` trong
- *         danh sách tổ chức (server component giữ, hiện ở sidebar và trang Thông tin tổ chức).
+ *         Làm mới HAI khoá vì cùng một hành động đổi hai loại dữ liệu: danh sách thành viên,
+ *         và `memberCount` trong danh sách tổ chức (hiện ở sidebar và trang Thông tin tổ chức).
  */
 export function useRemoveOrganizationMember(organizationId: string, onSuccess?: () => void) {
-  const router = useRouter()
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -106,7 +161,7 @@ export function useRemoveOrganizationMember(organizationId: string, onSuccess?: 
       toast.success("Đã xoá thành viên khỏi tổ chức")
       onSuccess?.()
       void queryClient.invalidateQueries({ queryKey: memberQueryKeys.all(organizationId) })
-      router.refresh()
+      void queryClient.invalidateQueries({ queryKey: organizationQueryKeys.list })
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, "Không xoá được thành viên. Vui lòng thử lại."))
@@ -124,13 +179,14 @@ export function useRemoveOrganizationMember(organizationId: string, onSuccess?: 
  */
 export function useLeaveOrganization(organization: { id: string; name: string }, userId: string) {
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: () => removeOrganizationMember({ organizationId: organization.id, userId }),
     onSuccess: () => {
       toast.success(`Đã rời "${organization.name}"`)
+      void queryClient.invalidateQueries({ queryKey: organizationQueryKeys.list })
       router.replace("/")
-      router.refresh()
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, "Không rời được tổ chức. Vui lòng thử lại."))
@@ -144,13 +200,14 @@ export function useLeaveOrganization(organization: { id: string; name: string },
  */
 export function useDeleteOrganization(organization: { id: string; name: string }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: () => deleteOrganization(organization.id),
     onSuccess: () => {
       toast.success(`Đã xoá tổ chức "${organization.name}"`)
+      void queryClient.invalidateQueries({ queryKey: organizationQueryKeys.list })
       router.replace("/")
-      router.refresh()
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, "Không xoá được tổ chức. Vui lòng thử lại."))
@@ -163,11 +220,11 @@ export function useDeleteOrganization(organization: { id: string; name: string }
  * Output: Mutation tạo tổ chức.
  */
 export function useCreateOrganization(onSuccess?: () => void) {
-  const router = useRouter()
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: createOrganization,
     ...buildHandlers({
-      router,
+      queryClient,
       successMessage: (organization) => `Đã tạo tổ chức "${organization.name}"`,
       fallbackError: "Tạo tổ chức thất bại. Vui lòng thử lại.",
       onSuccess,
@@ -180,11 +237,11 @@ export function useCreateOrganization(onSuccess?: () => void) {
  * Output: Mutation tham gia tổ chức bằng mã.
  */
 export function useJoinOrganization(onSuccess?: () => void) {
-  const router = useRouter()
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: joinOrganizationByCode,
     ...buildHandlers({
-      router,
+      queryClient,
       successMessage: (organization) => `Đã tham gia "${organization.name}"`,
       fallbackError: "Tham gia tổ chức thất bại. Vui lòng thử lại.",
       onSuccess,
@@ -200,7 +257,7 @@ export function useJoinOrganization(onSuccess?: () => void) {
  *         nói rõ vừa mở hay vừa đóng — thông tin đó nằm ở payload gửi đi chứ không ở kết quả.
  */
 export function useToggleJoinByCode() {
-  const router = useRouter()
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: updateJoinByCodeEnabled,
     onSuccess: (organization) => {
@@ -209,7 +266,7 @@ export function useToggleJoinByCode() {
           ? `Đã mở cửa "${organization.name}" — mã mới: ${organization.joinCode}`
           : `Đã đóng cửa "${organization.name}" — mã cũ hết hiệu lực`,
       )
-      router.refresh()
+      void queryClient.invalidateQueries({ queryKey: organizationQueryKeys.list })
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, "Không đổi được trạng thái. Vui lòng thử lại."))
@@ -218,18 +275,15 @@ export function useToggleJoinByCode() {
 }
 
 /**
- * Input: router, hàm dựng message thành công, message lỗi mặc định, callback đóng dialog.
+ * Input: queryClient, hàm dựng message thành công, message lỗi mặc định, callback đóng dialog.
  * Output: Cặp onSuccess/onError dùng chung cho cả hai mutation — chúng khác nhau đúng ở
  *         message, gộp lại để không phải sửa hai chỗ khi đổi cách làm mới dữ liệu.
  *
- *         KHÔNG phải hook (không gọi useRouter bên trong): router truyền từ ngoài vào để
+ *         KHÔNG phải hook (không gọi useQueryClient bên trong): client truyền từ ngoài vào để
  *         hàm này gọi được ở bất kỳ đâu mà không phá quy tắc hook.
- *
- *         Làm mới bằng `router.refresh()` chứ không invalidateQueries: danh sách tổ chức do
- *         server component fetch, không nằm trong cache react-query.
  */
 function buildHandlers(params: {
-  router: RefreshableRouter
+  queryClient: QueryClient
   successMessage: (organization: Organization) => string
   fallbackError: string
   onSuccess?: () => void
@@ -238,7 +292,7 @@ function buildHandlers(params: {
     onSuccess: (organization: Organization) => {
       toast.success(params.successMessage(organization))
       params.onSuccess?.()
-      params.router.refresh()
+      void params.queryClient.invalidateQueries({ queryKey: organizationQueryKeys.list })
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error, params.fallbackError))
@@ -254,17 +308,17 @@ function buildHandlers(params: {
  *         chờ bấm Lưu — giữ một URL chưa lưu trong form chỉ tạo ảnh mồ côi trên S3 khi người ta
  *         rời trang.
  *
- *         `router.refresh()` chứ không invalidate: tổ chức do server component fetch rồi bơm
- *         vào store, không nằm trong cache react-query.
+ *         Invalidate danh sách tổ chức: ảnh QR nằm trong chính tổ chức đó, mà store của khu
+ *         này được dựng từ query danh sách.
  */
 export function useUpdatePaymentQr() {
-  const router = useRouter()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: updatePaymentQr,
     onSuccess: (_organization, variables) => {
       toast.success(variables.paymentQrUrl ? "Đã cập nhật mã QR" : "Đã gỡ mã QR")
-      router.refresh()
+      void queryClient.invalidateQueries({ queryKey: organizationQueryKeys.list })
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, "Không lưu được mã QR. Vui lòng thử lại."))

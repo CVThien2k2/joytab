@@ -1,7 +1,10 @@
-import { fetchOrganizations, readActiveOrganizationId } from "@/api/organizations.server"
+"use client"
+
+import { useEffect } from "react"
 import { AppHeader } from "@/components/common/app-header"
 import { AppShell } from "@/components/common/app-shell"
-import { OrganizationStoreProvider } from "@/providers/organization-store-provider"
+import { useOrganizations } from "@/hooks/use-organizations-api"
+import { useOrganizationStore } from "@/stores/organization-store"
 
 /**
  * Input: Nội dung trang thông tin cá nhân.
@@ -9,28 +12,32 @@ import { OrganizationStoreProvider } from "@/providers/organization-store-provid
  *         mất sidebar rồi lại phải tìm đường về.
  *
  *         Trang này KHÔNG thuộc tổ chức nào (URL là `/me`, không phải `/orgs/<id>/me`) nhưng
- *         sidebar lại cần một tổ chức để dựng nút chuyển tổ chức — nên lấy tổ chức xem lần gần
- *         nhất từ cookie `org`, không khớp thì lấy phần tử đầu. Đây là chỗ DUY NHẤT cookie đó
- *         được dùng ngoài redirect ở `/`.
+ *         sidebar lại cần một tổ chức để dựng nút chuyển tổ chức — nên dùng
+ *         `activeOrganizationId` mà BE trả kèm danh sách (nó đọc hộ cookie `org` và đã đối
+ *         chiếu với chính danh sách đó). Đây là chỗ DUY NHẤT giá trị ấy được dùng ngoài `/`.
  *
  *         Chưa thuộc tổ chức nào → rơi về header phẳng: không có tổ chức thì không có gì để
  *         dựng sidebar, mà thông tin cá nhân vẫn phải sửa được.
  */
-export default async function MeLayout({ children }: { children: React.ReactNode }) {
-  const [result, rememberedId] = await Promise.all([
-    fetchOrganizations(),
-    readActiveOrganizationId(),
-  ])
+export default function MeLayout({ children }: { children: React.ReactNode }) {
+  const { data } = useOrganizations()
+  const setSnapshot = useOrganizationStore((state) => state.setSnapshot)
+  const isStoreEmpty = useOrganizationStore((state) => state.organizations.length === 0)
 
-  if (!result.organizations) {
-    return (
-      <main className="p-6">
-        <pre className="text-xs text-red-600">{result.error}</pre>
-      </main>
-    )
-  }
+  const active =
+    data?.organizations.find((organization) => organization.id === data.activeOrganizationId) ??
+    data?.organizations[0]
 
-  if (result.organizations.length === 0) {
+  useEffect(() => {
+    if (data && active) {
+      setSnapshot({ organizations: data.organizations, activeOrganizationId: active.id })
+    }
+  }, [data, active, setSnapshot])
+
+  // Bất khả trong luồng thật (SessionGate đã chờ query xong), nhưng type thì vẫn là optional.
+  if (!data) return null
+
+  if (!active) {
     return (
       <>
         <AppHeader />
@@ -39,15 +46,8 @@ export default async function MeLayout({ children }: { children: React.ReactNode
     )
   }
 
-  const active =
-    result.organizations.find((organization) => organization.id === rememberedId) ??
-    result.organizations[0]
+  // Chỉ chặn ở lượt đầu, khi store còn rỗng — xem chú thích ở layout `/orgs/[orgId]`.
+  if (isStoreEmpty) return null
 
-  return (
-    <OrganizationStoreProvider
-      initialState={{ organizations: result.organizations, activeOrganizationId: active.id }}
-    >
-      <AppShell>{children}</AppShell>
-    </OrganizationStoreProvider>
-  )
+  return <AppShell>{children}</AppShell>
 }

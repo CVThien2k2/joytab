@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { useUpdateProfile } from "@/hooks/use-auth-api"
-import { useAuthStore } from "@/providers/auth-store-provider"
+import { useAuthStore } from "@/stores/auth-store"
 import { MAX_FULL_NAME_LENGTH } from "@/schema/onboarding"
 import { profileFormSchema } from "@/schema/profile"
 import type { Gender } from "@/types/onboarding"

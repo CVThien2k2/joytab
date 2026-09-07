@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useLogout } from "@/hooks/use-auth-api"
-import { useAuthStore } from "@/providers/auth-store-provider"
+import { useAuthStore } from "@/stores/auth-store"
 
 /**
  * Input: Không nhận props — user lấy từ store (do PrivateLayout bơm vào).

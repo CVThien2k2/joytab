@@ -7,8 +7,8 @@ import { JoinOrganizationDialog } from "./join-organization-dialog"
  * Output: Màn hình khi user chưa thuộc tổ chức nào — đúng hai lối đi: tham gia bằng mã, hoặc
  *         tạo tổ chức mới.
  *
- *         Là server component: hai dialog bên trong tự là client component, phần này chỉ xếp
- *         chỗ và viết chữ.
+ *         Không có `"use client"`: hai dialog bên trong tự khai, phần này chỉ xếp chỗ và viết
+ *         chữ. Nó vẫn nằm trong bundle client vì `HomeView` (client) là nơi dựng nó.
  *
  *         Cố tình KHÔNG có lối thứ ba (bỏ qua / dùng thử): mọi thứ trong Joytab đều thuộc một
  *         tổ chức, nên đây là ngã ba bắt buộc.

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
  *         tất cả trong MỘT thẻ, các khối cách nhau bằng đường kẻ.
  *
  *         Là server component chỉ để đặt tiêu đề và metadata: dữ liệu user đã nằm trong store
- *         (layout của nhóm route đã fetch /auth/me), nên không gọi thêm request nào.
+ *         (SessionGate đã gọi /auth/me), nên không gọi thêm request nào.
  */
 export default function ProfilePage() {
   return (

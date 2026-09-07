@@ -79,11 +79,8 @@ export const PROFILE_UPDATE_THROTTLE_LIMIT = 30;
 
 /**
  * Giới hạn riêng cho GET /auth/me. Phải RỘNG HẲN so với ngưỡng chung của controller vì đây
- * không phải một thao tác người dùng — Next server gọi nó ở MỖI lần render trang trong khu đã
- * đăng nhập, nên bấm qua lại vài màn hình là hết 10 lượt.
- *
- * Nặng hơn nữa: mọi lệnh gọi đó xuất phát từ chính máy chạy Next, tức là CÙNG một IP cho MỌI
- * người dùng — ngưỡng chật ở đây thì người này duyệt trang làm người kia bị chặn.
+ * không phải một thao tác người dùng — FE gọi nó để bootstrap phiên (mở app, F5, mở thêm tab,
+ * quay lại tab đã lâu), nên vài phút làm việc bình thường là hết 10 lượt.
  *
  * Nới rộng không mất gì về bảo mật: route này đọc đúng hàng dữ liệu của chính người gọi và đã
  * có JwtAuthGuard chặn trước. Không có token thì gọi bao nhiêu lần cũng chỉ nhận 401, mà gọi

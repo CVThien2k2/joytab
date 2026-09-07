@@ -46,6 +46,18 @@ export const JOIN_CODE_THROTTLE_LIMIT = 10;
 export const MEMBERS_DEFAULT_PAGE_SIZE = 20;
 export const MEMBERS_MAX_PAGE_SIZE = 100;
 
+/**
+ * Cookie ghi nhớ tổ chức user xem lần gần nhất. Chỉ là BỘ NHỚ, không phải nguồn sự thật:
+ * trang đang xem luôn do `/orgs/[orgId]` trên URL của FE quyết định.
+ *
+ * httpOnly như at/rt: JS client không đọc được, nên GET /organizations đọc hộ rồi trả về
+ * `activeOrganizationId` cho FE bơm vào store. Ghi thì qua POST /organizations/active.
+ */
+export const ACTIVE_ORGANIZATION_COOKIE_NAME = 'org';
+
+/** Một năm — chọn tổ chức là thói quen dài hạn, không phải trạng thái của một phiên. */
+export const ACTIVE_ORGANIZATION_COOKIE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
+
 /** Từ khoá tìm kiếm thành viên — dài hơn thế thì không còn là tên hay email nữa. */
 export const MEMBER_SEARCH_MAX_LENGTH = 100;
 

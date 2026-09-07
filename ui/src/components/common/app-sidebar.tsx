@@ -7,18 +7,24 @@ import { JoytabLogo } from "@/components/common/joytab-logo"
 import { RailTooltip } from "@/components/common/rail-tooltip"
 import { SidebarProfileMenu } from "@/components/common/sidebar-profile-menu"
 import { useSidebar } from "@/components/common/sidebar-provider"
-import { useOrganizationStore } from "@/providers/organization-store-provider"
+import { useOrganizationStore } from "@/stores/organization-store"
+import { organizationHomePath } from "@/lib/routes"
 import { cn } from "@/lib/utils"
 
 /**
  * Nav của tổ chức đang chọn. `segment` rỗng = chính `/orgs/<id>`, và mục đó phải so BẰNG chứ
  * không `startsWith`: nó là tiền tố của mọi trang con nên startsWith sẽ làm nó sáng cùng lúc
  * với mục con.
+ *
+ * `ownerOnly` = chỉ chủ tổ chức thấy. Member còn Lịch thi đấu và Thanh toán — hai thứ họ dùng
+ * hàng ngày; còn trang Tổ chức là chỗ ĐỔI cấu hình và xem danh sách thành viên, member vào
+ * cũng không làm được gì. Ẩn ở đây chỉ là lớp ngoài: chính trang đó tự đá member về lịch, và
+ * API danh sách thành viên cũng chỉ trả cho owner (ORG_004).
  */
 const ORGANIZATION_ITEMS = [
-  { segment: "", label: "Tổ chức", icon: Building2 },
-  { segment: "matches", label: "Lịch thi đấu", icon: CalendarRange },
-  { segment: "payments", label: "Thanh toán", icon: Receipt },
+  { segment: "matches", label: "Lịch thi đấu", icon: CalendarRange, ownerOnly: false },
+  { segment: "", label: "Tổ chức", icon: Building2, ownerOnly: true },
+  { segment: "payments", label: "Thanh toán", icon: Receipt, ownerOnly: false },
 ] as const
 
 /**
@@ -133,6 +139,16 @@ function NavRow({
 export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const activeId = useOrganizationStore((state) => state.activeOrganizationId)
+  // Không dùng `useActiveOrganization()`: hàm đó NÉM khi store chưa có tổ chức đang xem, mà
+  // sidebar còn được dựng ở những khung không đi qua một tổ chức nào (trang cá nhân của người
+  // chưa vào tổ chức). Thiếu tổ chức thì role là undefined và mọi mục ownerOnly tự ẩn — cùng
+  // nhánh với `activeId` rỗng bên dưới.
+  const activeRole = useOrganizationStore(
+    (state) =>
+      state.organizations.find((organization) => organization.id === state.activeOrganizationId)
+        ?.role,
+  )
+  const isOwner = activeRole === "owner"
   const { open, toggle } = useSidebar()
   const collapsed = !open
 
@@ -169,7 +185,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
             ở đó không có khái niệm thu gọn. */}
         <div className="flex min-w-0 flex-1 items-center gap-2 px-3 sidebar-closed:md:hidden">
           <Link
-            href={`/orgs/${activeId}`}
+            href={isOwner ? `/orgs/${activeId}` : organizationHomePath(activeId ?? "")}
             onClick={onNavigate}
             className="flex min-w-0 flex-1 items-center rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-sidebar-ring/50"
             aria-label="Joytab — trang chủ tổ chức"
@@ -206,7 +222,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
         {activeId ? (
           <>
             <GroupLabel collapsed={collapsed}>Tổ chức</GroupLabel>
-            {ORGANIZATION_ITEMS.map((item) => {
+            {ORGANIZATION_ITEMS.filter((item) => isOwner || !item.ownerOnly).map((item) => {
               const href = item.segment ? `/orgs/${activeId}/${item.segment}` : `/orgs/${activeId}`
               const isActive = item.segment ? pathname.startsWith(href) : pathname === href
               return (

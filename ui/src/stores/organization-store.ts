@@ -1,36 +1,42 @@
-import { createStore } from "zustand/vanilla"
+import { create } from "zustand"
 import type { Organization } from "@/types/organization"
 
-export type OrganizationState = {
+export type OrganizationSnapshot = {
   /** Mọi tổ chức user thuộc, cũ nhất trước (thứ tự do BE bảo đảm). */
   organizations: Organization[]
-  /** id tổ chức đang xem — luôn lấy từ URL, không phải từ cookie. */
+  /** id tổ chức đang xem — ở `/orgs/[orgId]` là lấy từ URL, ở `/me` là tổ chức xem gần nhất. */
   activeOrganizationId: string
 }
 
-export type OrganizationActions = {
-  setSnapshot: (state: OrganizationState) => void
-}
-
-export type OrganizationStore = OrganizationState & OrganizationActions
-
-export const defaultOrganizationState: OrganizationState = {
-  organizations: [],
-  activeOrganizationId: "",
+export type OrganizationStore = OrganizationSnapshot & {
+  setSnapshot: (snapshot: OrganizationSnapshot) => void
 }
 
 /**
- * Input: State khởi tạo (do layout `/orgs/[orgId]` fetch từ BE rồi truyền xuống).
- * Output: Một store MỚI mỗi lần gọi — factory chứ không phải store toàn cục, cùng lý do đã
- *         ghi ở auth-store: biến module-scope trên server bị chia sẻ giữa các request đồng
- *         thời nên user này đọc thấy danh sách tổ chức của user khác.
+ * Store toàn cục, cùng lý do đã ghi ở auth-store: không còn server component nào ghi vào đây
+ * nên không cần factory + context nữa. Dữ liệu đến từ query /organizations (chạy trên browser),
+ * còn "đang xem tổ chức nào" thì do layout quyết định rồi bơm vào bằng `setSnapshot`.
  *
- *         Chỉ có đúng một action `setSnapshot`: dữ liệu ở đây luôn đến từ server component,
- *         client không tự sửa từng phần. Đổi tổ chức, tạo, tham gia đều kết thúc bằng một
- *         lượt render mới của layout — provider bơm nguyên khối mới vào.
+ * Chỉ có đúng một action: dữ liệu ở đây luôn là một khối nguyên đến từ query, client không tự
+ * sửa từng phần. Tạo/tham gia/rời tổ chức đều kết thúc bằng một lượt invalidate query.
  */
-export const createOrganizationStore = (initState: OrganizationState = defaultOrganizationState) =>
-  createStore<OrganizationStore>()((set) => ({
-    ...initState,
-    setSnapshot: (state) => set(state),
-  }))
+export const useOrganizationStore = create<OrganizationStore>()((set) => ({
+  organizations: [],
+  activeOrganizationId: "",
+  setSnapshot: (snapshot) => set(snapshot),
+}))
+
+/**
+ * Input: Không nhận tham số.
+ * Output: Tổ chức đang xem. Không tìm thấy là bất khả: layout đã `notFound()` khi `orgId` trên
+ *         URL không thuộc danh sách, và chỉ render children sau khi store đã được bơm.
+ */
+export function useActiveOrganization(): Organization {
+  return useOrganizationStore((state) => {
+    const active = state.organizations.find(
+      (organization) => organization.id === state.activeOrganizationId,
+    )
+    if (!active) throw new Error("Tổ chức đang xem không có trong danh sách")
+    return active
+  })
+}

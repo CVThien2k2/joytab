@@ -1,7 +1,7 @@
 "use client"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useAuthStore } from "@/providers/auth-store-provider"
+import { useAuthStore } from "@/stores/auth-store"
 
 /**
  * Input: Không nhận props — đọc user từ store (layout đã bơm vào từ /auth/me).

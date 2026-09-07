@@ -57,6 +57,18 @@ export class JoinCodeParamDto {
 }
 
 /**
+ * Body của POST /organizations/active — id tổ chức user vừa chuyển sang.
+ *
+ * KHÔNG kiểm tra user có thuộc tổ chức này hay không: cookie chỉ là bộ nhớ, và GET
+ * /organizations luôn đối chiếu lại giá trị đọc ra với danh sách thật. Ghi id rác vào
+ * cookie của chính mình thì tệ nhất là lần vào sau rơi về tổ chức đầu tiên.
+ */
+export class SetActiveOrganizationDto {
+  @IsUUID('4', { message: 'id tổ chức không hợp lệ' })
+  organizationId: string;
+}
+
+/**
  * Body của PATCH /organizations/:id. Mọi field đều TUỲ CHỌN và độc lập: gửi field nào thì đổi
  * field đó, không gửi thì giữ nguyên. Nhờ vậy popup đổi tên không phải gửi kèm trạng thái công
  * tắc (và vô tình xoay mã tham gia), cũng không phải gửi lại ảnh QR.

@@ -13,9 +13,9 @@ import {
   Plus,
   Sun,
 } from "lucide-react"
-import { setActiveOrganization } from "@/api/organizations.actions"
 import { CreateOrganizationDialog } from "@/app/(private)/_components/create-organization-dialog"
 import { JoinOrganizationDialog } from "@/app/(private)/_components/join-organization-dialog"
+import { LeaveOrganizationDialog } from "@/app/(private)/_components/leave-organization-dialog"
 import { AccountAvatar } from "@/components/common/account-avatar"
 import { RailTooltip } from "@/components/common/rail-tooltip"
 import {
@@ -32,11 +32,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
 import { useLogout } from "@/hooks/use-auth-api"
-import { useAuthStore } from "@/providers/auth-store-provider"
-import { useOrganizationStore } from "@/providers/organization-store-provider"
+import { useSetActiveOrganization } from "@/hooks/use-organizations-api"
+import { organizationHomePath } from "@/lib/routes"
+import { useAuthStore } from "@/stores/auth-store"
+import { useOrganizationStore } from "@/stores/organization-store"
 
-/** Dialog nào đang mở — hai dialog dùng chung một ô state nên không mở được cả hai cùng lúc. */
-type OpenDialog = "join" | "create" | null
+/** Dialog nào đang mở — ba dialog dùng chung một ô state nên không mở được hai cái cùng lúc. */
+type OpenDialog = "join" | "create" | "leave" | null
 
 /** Ba lựa chọn giao diện, khớp với `enableSystem` của ThemeProvider. */
 const THEME_OPTIONS = [
@@ -79,6 +81,7 @@ export function SidebarProfileMenu({
   const organizations = useOrganizationStore((state) => state.organizations)
   const activeId = useOrganizationStore((state) => state.activeOrganizationId)
   const logout = useLogout()
+  const setActive = useSetActiveOrganization()
   const { theme, setTheme } = useTheme()
   const [openDialog, setOpenDialog] = useState<OpenDialog>(null)
   const [isSwitching, startSwitching] = useTransition()
@@ -93,14 +96,18 @@ export function SidebarProfileMenu({
 
   /**
    * Input: id tổ chức user vừa chọn.
-   * Output: Ghi nhớ lựa chọn rồi sang trang thông tin của tổ chức đó. Chọn lại đúng tổ chức
-   *         đang xem thì không làm gì — chỉ đóng menu.
+   * Output: Ghi nhớ lựa chọn (BE set cookie `org`) rồi sang lịch thi đấu của tổ chức đó — cùng
+   *         một đích với lối vào app, để đổi tổ chức không nhảy sang trang khác trang vừa xem.
+   *         Chọn lại đúng tổ chức đang xem thì không làm gì — chỉ đóng menu.
    */
   function switchTo(organizationId: string): void {
     if (organizationId === activeId) return
     startSwitching(async () => {
-      await setActiveOrganization(organizationId)
-      router.push(`/orgs/${organizationId}`)
+      // Ghi cookie hỏng thì VẪN đi tiếp: URL mới là nguồn sự thật của "đang xem tổ chức nào",
+      // cookie chỉ ảnh hưởng lần vào `/` sau. Chặn việc chuyển trang vì một lượt ghi bộ nhớ
+      // thất bại là đổi một bất tiện nhỏ thành một cái nút không bấm được.
+      await setActive.mutateAsync(organizationId).catch(() => undefined)
+      router.push(organizationHomePath(organizationId))
       onNavigate?.()
     })
   }
@@ -168,6 +175,19 @@ export function SidebarProfileMenu({
                 <Plus aria-hidden="true" />
                 Tạo tổ chức
               </DropdownMenuItem>
+
+              {/* Đường DUY NHẤT để member rời tổ chức: trang Tổ chức — nơi trước đây có nút này —
+                  giờ chỉ owner vào được. Đặt trong submenu tổ chức vì nó thao tác lên đúng cái
+                  tổ chức đang xem, cùng chỗ với việc vào/tạo tổ chức.
+
+                  Owner không có mục này: BE trả ORG_005 vì chưa có chuyển quyền sở hữu — muốn
+                  dừng thì xoá cả tổ chức, và nút đó nằm ở trang Tổ chức của họ. */}
+              {active.role === "owner" ? null : (
+                <DropdownMenuItem variant="destructive" onSelect={() => setOpenDialog("leave")}>
+                  <LogOut aria-hidden="true" />
+                  Rời &quot;{active.name}&quot;
+                </DropdownMenuItem>
+              )}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
@@ -215,6 +235,11 @@ export function SidebarProfileMenu({
       <CreateOrganizationDialog
         open={openDialog === "create"}
         onOpenChange={(open) => setOpenDialog(open ? "create" : null)}
+      />
+      <LeaveOrganizationDialog
+        organization={active}
+        open={openDialog === "leave"}
+        onOpenChange={(open) => setOpenDialog(open ? "leave" : null)}
       />
     </>
   )

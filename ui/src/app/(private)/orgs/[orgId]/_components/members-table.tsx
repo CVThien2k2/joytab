@@ -26,7 +26,7 @@ import {
 import { useOrganizationMembers } from "@/hooks/use-organizations-api"
 import { useTableSearch } from "@/hooks/use-table-search"
 import { formatDate } from "@/lib/format"
-import { useAuthStore } from "@/providers/auth-store-provider"
+import { useAuthStore } from "@/stores/auth-store"
 import { cn } from "@/lib/utils"
 import type { OrganizationMember, OrganizationRole } from "@/types/organization"
 import { RemoveMemberDialog } from "./remove-member-dialog"

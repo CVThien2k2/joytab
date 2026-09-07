@@ -1,7 +1,10 @@
 "use client"
 
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { OrganizationAccessCard } from "@/app/(private)/_components/organization-access-card"
-import { useActiveOrganization } from "@/providers/organization-store-provider"
+import { organizationHomePath } from "@/lib/routes"
+import { useActiveOrganization } from "@/stores/organization-store"
 import { MembersTable } from "./_components/members-table"
 import { OrganizationDangerZone } from "./_components/organization-danger-zone"
 import { OrganizationInfoCard } from "./_components/organization-info-card"
@@ -21,13 +24,27 @@ import { OrganizationInfoCard } from "./_components/organization-info-card"
  *         Là client component: tổ chức đọc từ store (server đã fetch ở layout), còn danh sách
  *         thành viên do React Query lấy — xem MembersTable.
  *
- *         Member thấy ĐỦ mọi thông tin của tổ chức — tên, hệ số chia tiền, mã mời, mã QR. Cái
- *         họ không có là các nút ĐỔI những thứ đó. Giấu bớt thông tin chỉ khiến họ phải đi hỏi
- *         owner những câu mà màn hình trả lời được.
+ *         CHỈ owner vào được. Cả trang này là chỗ đọc và đổi cấu hình tổ chức cùng danh sách
+ *         thành viên — việc của chủ tổ chức. Member bị đá về lịch thi đấu: sidebar đã không còn
+ *         mục "Tổ chức", nhưng đường dẫn cũ trong bookmark hay link dán cho nhau thì vẫn tới
+ *         đây, mà ẩn khỏi nav trong khi URL vẫn mở được thì việc ẩn chỉ là trang trí.
+ *
+ *         Đá bằng `replace` trong effect, không phải lúc render: đổi route ngay trong thân
+ *         component là ghi state của router trong lúc React đang render cây khác. `replace` chứ
+ *         không `push` để Back không rơi lại đúng trang vừa bị đá đi.
  */
 export default function OrganizationPage() {
+  const router = useRouter()
   const organization = useActiveOrganization()
   const isOwner = organization.role === "owner"
+
+  useEffect(() => {
+    if (!isOwner) router.replace(organizationHomePath(organization.id))
+  }, [isOwner, organization.id, router])
+
+  // Không render gì trong lúc chờ effect đá đi: hiện thoáng qua danh sách thành viên rồi mới
+  // chuyển trang thì đúng cái cần giấu lại là cái loé lên.
+  if (!isOwner) return null
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 space-y-4 px-4 py-6 sm:px-6">

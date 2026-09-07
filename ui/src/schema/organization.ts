@@ -47,7 +47,19 @@ export const organizationSchema = z.object({
 
 /** GET /organizations */
 export const organizationListResponseSchema = envelope(
-  z.object({ organizations: z.array(organizationSchema) }),
+  z.object({
+    organizations: z.array(organizationSchema),
+    /**
+     * Tổ chức xem lần gần nhất — BE đọc hộ từ cookie `org` (httpOnly nên JS không với tới) và
+     * đã đối chiếu với danh sách này. `null` khi user chưa thuộc tổ chức nào.
+     */
+    activeOrganizationId: z.string().nullable(),
+  }),
+)
+
+/** POST /organizations/active — trả lại đúng id vừa ghi vào cookie. */
+export const activeOrganizationResponseSchema = envelope(
+  z.object({ activeOrganizationId: z.string() }),
 )
 
 /**

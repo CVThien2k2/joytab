@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation"
 import { Info, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { MatchAttendanceLegend } from "@/components/common/match-attendance-legend"
 import { MatchCalendar, type MatchMoveRequest } from "@/components/common/match-calendar"
 import { MatchCalendarToolbar } from "@/components/common/match-calendar-toolbar"
 import { useOrganizationMatches } from "@/hooks/use-matches-api"
 import { useNow } from "@/hooks/use-now"
+import type { MatchScope } from "@/lib/match-attendance"
 import { rangeOf, type CalendarViewName } from "@/lib/match-range"
-import { useActiveOrganization } from "@/providers/organization-store-provider"
+import { useActiveOrganization } from "@/stores/organization-store"
 import { MatchFormDialog } from "./_components/match-form-dialog"
 import { MatchRescheduleDialog } from "./_components/match-reschedule-dialog"
 
@@ -37,6 +39,7 @@ export default function OrganizationMatchesPage() {
 
   const [anchor, setAnchor] = useState(() => new Date(now))
   const [view, setView] = useState<CalendarViewName>("timeGridWeek")
+  const [scope, setScope] = useState<MatchScope>("all")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [initialStart, setInitialStart] = useState<Date | undefined>(undefined)
   const [initialEnd, setInitialEnd] = useState<Date | null>(null)
@@ -49,9 +52,15 @@ export default function OrganizationMatchesPage() {
   // Trận đã huỷ không hiện trên lịch: nó không còn là một buổi để đi, và một ô trông y hệt các
   // ô khác mà thực ra đã huỷ thì tệ hơn hẳn một ô trống. Lịch sử của nó vẫn nằm ở BE (huỷ là
   // huỷ mềm), chỉ là không chiếm chỗ trên lưới nữa.
+  //
+  // Phạm vi "Của tôi" lọc tiếp trên đúng mảng đã tải về — `voted` có sẵn trong mỗi trận nên
+  // không phải gọi lại BE, và khoảng ngày gửi lên vẫn là một, không phụ thuộc bộ lọc.
   const visibleMatches = useMemo(
-    () => (matches ?? []).filter((match) => match.status !== "canceled"),
-    [matches],
+    () =>
+      (matches ?? []).filter(
+        (match) => match.status !== "canceled" && (scope === "all" || match.voted),
+      ),
+    [matches, scope],
   )
 
   const openCreate = useCallback((start?: Date, end?: Date | null) => {
@@ -87,9 +96,11 @@ export default function OrganizationMatchesPage() {
         <MatchCalendarToolbar
           anchor={anchor}
           view={view}
+          scope={scope}
           loading={isFetching}
           onAnchorChange={setAnchor}
           onViewChange={setView}
+          onScopeChange={setScope}
           actions={
             isOwner ? (
               <Button type="button" onClick={() => openCreate()}>
@@ -111,17 +122,22 @@ export default function OrganizationMatchesPage() {
           onMove={isOwner ? openMove : undefined}
         />
 
-        {/* Chú thích cách dùng, không phải trang trí: thẻ xem nhanh chỉ bung ra khi RÊ CHUỘT,
-            mà một khối màu trên lưới thì không tự nói ra điều đó — không có dòng này thì người
-            dùng phải tình cờ rê vào mới biết là có. Ẩn ở màn hình nhỏ vì ở đó không có con trỏ
-            để rê, chạm là mở luôn trang chi tiết. */}
-        <p className="hidden shrink-0 items-start gap-1.5 pt-2 text-xs text-muted-foreground sm:flex">
-          <Info className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-          <span>
-            Rê chuột vào một buổi để xem nhanh, bấm để mở trang chi tiết.
-            {isOwner ? " Kéo thả để dời giờ, bấm ô trống để tạo buổi mới." : null}
-          </span>
-        </p>
+        {/* Hai loại chú thích, hai số phận khác nhau ở màn hình nhỏ:
+
+            - Cách dùng (rê chuột / kéo thả) ẨN trên mobile — ở đó không có con trỏ để rê, chạm
+              là mở luôn trang chi tiết, nên dòng này chỉ là một lời hứa sai.
+            - Chú giải màu LUÔN hiện: nền chip là thông tin chứ không phải thao tác, mà quy ước
+              màu không nói ra thì ở đâu nó cũng chỉ là mấy ô màu khác nhau. */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-2 text-xs text-muted-foreground">
+          <p className="hidden items-start gap-1.5 sm:flex">
+            <Info className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              Rê chuột vào một buổi để xem nhanh, bấm để mở trang chi tiết.
+              {isOwner ? " Kéo thả để dời giờ, bấm ô trống để tạo buổi mới." : null}
+            </span>
+          </p>
+          <MatchAttendanceLegend />
+        </div>
       </Card>
 
       {isOwner ? (

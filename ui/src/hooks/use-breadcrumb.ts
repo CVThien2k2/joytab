@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { useOrganizationStore } from "@/providers/organization-store-provider"
+import { useOrganizationStore } from "@/stores/organization-store"
 
 /** Một mẩu breadcrumb. `current` = trang đang đứng, không render thành link. */
 export type Crumb = {

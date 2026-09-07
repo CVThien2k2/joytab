@@ -14,8 +14,8 @@ import { normalizeJoinCode } from "@/schema/organization"
  *         Chuẩn hoá mã ngay tại đây vì link có thể được chép tay lệch hoa/thường: BE cũng
  *         chuẩn hoá lần nữa, nhưng gửi đi đúng dạng thì lỗi trả về mới đúng nghĩa.
  *
- *         Vào xong thì `onSuccess` của hook đã `router.refresh()`, còn điều hướng về `/` để
- *         user thấy ngay tổ chức vừa vào thay vì ngồi lại trang mời.
+ *         Vào xong thì `onSuccess` của hook đã invalidate danh sách tổ chức, còn điều hướng
+ *         về `/` để user thấy ngay tổ chức vừa vào thay vì ngồi lại trang mời.
  */
 export function JoinByLinkButton({ joinCode }: { joinCode: string }) {
   const router = useRouter()

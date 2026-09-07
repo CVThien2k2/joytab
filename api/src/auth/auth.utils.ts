@@ -6,7 +6,7 @@ import { COOKIE_PATH, DEFAULT_FRONTEND_ORIGIN } from './auth.constants';
 /**
  * Input: FRONTEND_ORIGIN từ env (có thể rỗng).
  * Output: URL trang chủ FE. Cookie `at`/`rt` đã được set ở response redirect này, nên FE
- *         chỉ cần vào `/`: proxy của FE thấy cookie là cho qua, còn user do Next server gọi
+ *         chỉ cần vào `/`: proxy của FE thấy cookie là cho qua, còn user do chính browser gọi
  *         /auth/me lấy về. Không còn trang trung gian `/login/callback`.
  */
 export function buildPostLoginRedirectUrl(frontendOrigin: string | undefined): string {

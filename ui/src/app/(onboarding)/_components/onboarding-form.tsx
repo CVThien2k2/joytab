@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useCompleteOnboarding } from "@/hooks/use-onboarding-api"
-import { useAuthStore } from "@/providers/auth-store-provider"
+import { useAuthStore } from "@/stores/auth-store"
 import { MAX_FULL_NAME_LENGTH, onboardingFormSchema } from "@/schema/onboarding"
 import type { Gender, OnboardingFormValues, OnboardingPayload } from "@/types/onboarding"
 

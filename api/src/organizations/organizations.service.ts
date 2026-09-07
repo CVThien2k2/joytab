@@ -61,9 +61,12 @@ export class OrganizationsService {
    * Input: userId người hỏi + id tổ chức + phân trang/từ khoá.
    * Output: Một trang thành viên (owner trước, rồi theo thứ tự vào) kèm meta phân trang.
    *
-   *         Người hỏi phải là thành viên, nếu không thì ORG_001 (không tồn tại) — CÙNG lý do
+   *         CHỈ owner đọc được. Người ngoài tổ chức nhận ORG_001 (không tồn tại) — CÙNG lý do
    *         với setJoinByCodeEnabled: người ngoài không cần biết id đó có thật hay không.
-   *         Ở đây còn quan trọng hơn vì cái rò ra sẽ là email của người khác.
+   *         Ở đây còn quan trọng hơn vì cái rò ra sẽ là email của người khác. Member trong tổ
+   *         chức thì nhận ORG_004 (không đủ quyền) chứ không phải ORG_001: họ đã biết tổ chức
+   *         này có thật, giấu tiếp chỉ làm thông báo lỗi nói dối. Đây cũng là hàng rào thật của
+   *         việc "chỉ chủ tổ chức thấy danh sách thành viên" — FE ẩn màn hình chỉ là lớp ngoài.
    *
    *         Sắp owner lên đầu bằng `role: 'desc'` ('owner' > 'member' theo thứ tự chữ) chứ
    *         không sắp trong JS: chỉ trang hiện tại được tải về, nên thứ tự BẮT BUỘC phải do DB
@@ -77,7 +80,8 @@ export class OrganizationsService {
     organizationId: string,
     query: ListMembersQueryDto,
   ): Promise<{ members: OrganizationMemberSummary[]; pagination: Pagination }> {
-    await this.requireMembership(userId, organizationId);
+    const membership = await this.requireMembership(userId, organizationId);
+    if (this.toRole(membership.role) !== 'owner') throw new AppException(ERROR_CODES.ORG_004);
 
     const where = this.buildMemberFilter(organizationId, query.q);
     const [totalItems, rows] = await this.databaseService.$transaction([

@@ -11,8 +11,8 @@ import { UserMenu } from "@/components/common/user-menu"
  *         Khu vực tổ chức KHÔNG dùng header này — ở đó logo nằm trong sidebar và thanh trên chỉ
  *         còn hai nút bên phải (xem app-shell.tsx).
  *
- *         Là server component: các nút bên trong đã tự là client component, header chỉ xếp
- *         chỗ nên không cần gửi JS gì thêm xuống browser.
+ *         Không có `"use client"`: các nút bên trong đã tự khai, header chỉ xếp chỗ. Nó vẫn
+ *         nằm trong bundle client vì cây bọc nó (layout của khu đã đăng nhập) là client.
  *
  *         max-w-7xl khớp với vùng nội dung bên dưới — hai mép phải thẳng hàng nhau.
  *

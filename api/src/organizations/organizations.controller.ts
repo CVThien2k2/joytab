@@ -1,8 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
-import { Request } from 'express';
+import { Request, Response } from 'express';
+import { buildAuthCookieOptions, readCookieValue } from '../auth/auth.utils';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { JOIN_CODE_THROTTLE_LIMIT, JOIN_CODE_THROTTLE_TTL_MS } from './organizations.constants';
+import {
+  ACTIVE_ORGANIZATION_COOKIE_MAX_AGE_MS,
+  ACTIVE_ORGANIZATION_COOKIE_NAME,
+  JOIN_CODE_THROTTLE_LIMIT,
+  JOIN_CODE_THROTTLE_TTL_MS,
+} from './organizations.constants';
 import {
   CreateOrganizationDto,
   JoinCodeParamDto,
@@ -10,6 +17,7 @@ import {
   ListMembersQueryDto,
   OrganizationIdParamDto,
   OrganizationMemberParamDto,
+  SetActiveOrganizationDto,
   UpdateOrganizationDto,
 } from './organizations.dto';
 import { OrganizationsService } from './organizations.service';
@@ -18,19 +26,55 @@ import { OrganizationsService } from './organizations.service';
 @Controller('organizations')
 @UseGuards(JwtAuthGuard)
 export class OrganizationsController {
-  constructor(private readonly organizationsService: OrganizationsService) {}
+  constructor(
+    private readonly organizationsService: OrganizationsService,
+    private readonly configService: ConfigService,
+  ) {}
 
   /**
-   * Input: cookie `at`.
-   * Output: { organizations } — các tổ chức user đang thuộc, cũ nhất trước. Mảng rỗng là
-   *         trạng thái hợp lệ (user chưa vào tổ chức nào), không phải lỗi 404.
+   * Input: cookie `at` + cookie `org` (tuỳ chọn).
+   * Output: { organizations, activeOrganizationId } — các tổ chức user đang thuộc, cũ nhất
+   *         trước. Mảng rỗng là trạng thái hợp lệ (user chưa vào tổ chức nào), không phải 404.
    *
-   *         Bọc trong object thay vì trả mảng trần để sau này thêm được field (vd tổ chức
-   *         đang chọn) mà không phá hợp đồng cũ.
+   *         `activeOrganizationId` là tổ chức xem lần gần nhất, đọc từ cookie `org` hộ FE:
+   *         cookie đó httpOnly nên JS client không với tới được. LUÔN đối chiếu lại với danh
+   *         sách thật rồi mới trả — user có thể đã rời tổ chức đó từ máy khác, hoặc cookie là
+   *         của tài khoản trước trên cùng browser. Không khớp thì lấy phần tử đầu (danh sách
+   *         sắp theo `joined_at` tăng dần nên "đầu" là tổ chức lâu nhất, ổn định giữa các lượt
+   *         gọi), không có tổ chức nào thì null.
    */
   @Get()
   async list(@Req() request: Request & { userId: string }) {
-    return { organizations: await this.organizationsService.listForUser(request.userId) };
+    const organizations = await this.organizationsService.listForUser(request.userId);
+    const rememberedId = readCookieValue(request.headers.cookie, ACTIVE_ORGANIZATION_COOKIE_NAME);
+    const remembered = organizations.find((organization) => organization.id === rememberedId);
+
+    return {
+      organizations,
+      activeOrganizationId: remembered?.id ?? organizations[0]?.id ?? null,
+    };
+  }
+
+  /**
+   * Input: cookie `at` + { organizationId }.
+   * Output: { activeOrganizationId } — ghi cookie `org` để lần vào app sau về đúng tổ chức này.
+   *
+   *         Là route riêng chứ không nhét vào PATCH /organizations/:id: đây không phải thay đổi
+   *         dữ liệu của tổ chức mà là ghi nhớ lựa chọn của người đang xem, và member (không
+   *         phải owner) cũng phải gọi được.
+   */
+  @Post('active')
+  setActive(
+    @Body() dto: SetActiveOrganizationDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    response.cookie(
+      ACTIVE_ORGANIZATION_COOKIE_NAME,
+      dto.organizationId,
+      buildAuthCookieOptions(this.configService, ACTIVE_ORGANIZATION_COOKIE_MAX_AGE_MS),
+    );
+
+    return { activeOrganizationId: dto.organizationId };
   }
 
   /**
