@@ -68,17 +68,3 @@ export const MATCH_ATTENDANCE_SWATCH_CLASS: Record<MatchAttendance, string> = {
   open: "bg-primary/10 dark:bg-primary/20 border-primary border-dashed",
   closed: "bg-muted border-border",
 }
-
-/**
- * Hai phạm vi của lịch: cả tổ chức, hoặc chỉ những buổi mình đã đăng ký.
- *
- * Lọc ở CLIENT trên đúng mảng đã tải về, không thêm tham số cho BE: `voted` đã nằm sẵn trong
- * mỗi `MatchSummary`, nên đổi phạm vi là việc của một lần render chứ không phải một vòng
- * request — và người ta bật tắt cái này liên tục.
- */
-export const MATCH_SCOPES = [
-  { value: "all", label: "Tất cả" },
-  { value: "mine", label: "Của tôi" },
-] as const
-
-export type MatchScope = (typeof MATCH_SCOPES)[number]["value"]

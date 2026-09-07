@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, CalendarRange, CircleUser, PanelLeft, Receipt } from "lucide-react"
+import { Building2, CalendarRange, PanelLeft, Receipt } from "lucide-react"
 import { JoytabLogo } from "@/components/common/joytab-logo"
 import { RailTooltip } from "@/components/common/rail-tooltip"
 import { SidebarProfileMenu } from "@/components/common/sidebar-profile-menu"
@@ -31,8 +31,8 @@ const ORGANIZATION_ITEMS = [
  * Input: Mục này có đang mở hay không.
  * Output: Class của một hàng nav.
  *
- *         Tách ra hàm vì có hai nhóm nav dùng nó (nav tổ chức và nav "Thông tin cá nhân"):
- *         hai chỗ tự viết class là hai chỗ sẽ trôi mỗi cái một kiểu.
+ *         Tách ra hàm chứ không viết thẳng vào `NavRow`: nhóm nav thứ hai (khi có) phải cùng
+ *         một bộ class, mà hai chỗ tự viết class là hai chỗ sẽ trôi mỗi cái một kiểu.
  *
  *         Mọi hàng cùng chiều cao và cùng độ đậm, kể cả hàng đang mở: đổi `font-weight` theo
  *         trạng thái làm chữ nở ra, hai nav cạnh nhau trông lệch nhau như hai cấp khác nhau.
@@ -86,7 +86,7 @@ function GroupLabel({
   )
 }
 
-/** Một hàng nav. Tách ra vì hai nhóm dùng chung markup — hai bản chép tay sẽ trôi khác nhau. */
+/** Một hàng nav. Tách ra để mọi mục dùng chung markup — bản chép tay thứ hai sẽ trôi khác đi. */
 function NavRow({
   href,
   label,
@@ -94,7 +94,6 @@ function NavRow({
   isActive,
   collapsed,
   onNavigate,
-  className,
 }: {
   href: string
   label: string
@@ -102,7 +101,6 @@ function NavRow({
   isActive: boolean
   collapsed: boolean
   onNavigate?: () => void
-  className?: string
 }) {
   return (
     <RailTooltip label={label} enabled={collapsed}>
@@ -110,7 +108,7 @@ function NavRow({
         href={href}
         onClick={onNavigate}
         aria-current={isActive ? "page" : undefined}
-        className={cn(className, navRowClass(isActive))}
+        className={navRowClass(isActive)}
       >
         <Icon className="size-5 shrink-0 text-current" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate text-left sidebar-closed:md:opacity-0">
@@ -239,20 +237,6 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
             })}
           </>
         ) : null}
-
-        {/* mt-auto đẩy xuống sát đường kẻ của footer. Đứng RIÊNG, không nằm trong nhóm nào:
-            nó là thứ "về tôi" — tài khoản, chứ không phải một mục nghiệp vụ như lịch hay
-            thanh toán. Gom vào nhóm Cá nhân thì hai loại khác hẳn nhau nằm chung một danh
-            sách, mà nó cũng mất luôn vị trí cố định ở đáy cột. */}
-        <NavRow
-          href="/me"
-          label="Thông tin cá nhân"
-          icon={CircleUser}
-          isActive={pathname === "/me"}
-          collapsed={collapsed}
-          onNavigate={onNavigate}
-          className="mt-auto"
-        />
       </nav>
 
       <div className="shrink-0 border-t border-sidebar-border px-3 py-2 sidebar-closed:md:px-2.5">

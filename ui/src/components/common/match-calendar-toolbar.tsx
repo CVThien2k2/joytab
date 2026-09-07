@@ -6,7 +6,6 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useNow } from "@/hooks/use-now"
-import { MATCH_SCOPES, type MatchScope } from "@/lib/match-attendance"
 import {
   CALENDAR_NAV_LABELS,
   CALENDAR_VIEWS,
@@ -19,11 +18,9 @@ import {
 export type MatchCalendarToolbarProps = {
   anchor: Date
   view: CalendarViewName
-  scope: MatchScope
   loading?: boolean
   onAnchorChange: (anchor: Date) => void
   onViewChange: (view: CalendarViewName) => void
-  onScopeChange: (scope: MatchScope) => void
   /** Nút của trang (tạo lịch). */
   actions?: React.ReactNode
 }
@@ -49,11 +46,9 @@ export type MatchCalendarToolbarProps = {
 export function MatchCalendarToolbar({
   anchor,
   view,
-  scope,
   loading,
   onAnchorChange,
   onViewChange,
-  onScopeChange,
   actions,
 }: MatchCalendarToolbarProps) {
   const now = useNow()
@@ -123,22 +118,6 @@ export function MatchCalendarToolbar({
       </p>
 
       {loading ? <Spinner className="size-4 text-muted-foreground" /> : null}
-
-      {/* "Của tôi" lọc còn những buổi đã đăng ký. Nền chip đã trả lời được câu đó cho từng buổi
-          một, nhưng khi cả tuần dày chip thì đếm bằng mắt vẫn là đếm — bộ lọc này trả lời thẳng
-          "tuần này tôi đá mấy buổi, vào những hôm nào".
-
-          Đứng TRƯỚC cụm kiểu xem và cách một khoảng: hai cụm tabs cạnh nhau dễ đọc nhầm thành
-          một cụm năm nút, mà chúng lọc theo hai trục khác hẳn nhau. */}
-      <Tabs value={scope} onValueChange={(next) => onScopeChange(next as MatchScope)}>
-        <TabsList>
-          {MATCH_SCOPES.map((option) => (
-            <TabsTrigger key={option.value} value={option.value}>
-              {option.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
 
       <Tabs value={view} onValueChange={(next) => onViewChange(next as CalendarViewName)}>
         <TabsList>

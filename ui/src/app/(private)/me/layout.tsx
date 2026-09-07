@@ -8,8 +8,8 @@ import { useOrganizationStore } from "@/stores/organization-store"
 
 /**
  * Input: Nội dung trang thông tin cá nhân.
- * Output: Cùng khung có sidebar như khu vực tổ chức, để bấm nav "Thông tin cá nhân" không làm
- *         mất sidebar rồi lại phải tìm đường về.
+ * Output: Cùng khung có sidebar như khu vực tổ chức, để bấm "Thông tin cá nhân" trong menu tài
+ *         khoản không làm mất sidebar rồi lại phải tìm đường về.
  *
  *         Trang này KHÔNG thuộc tổ chức nào (URL là `/me`, không phải `/orgs/<id>/me`) nhưng
  *         sidebar lại cần một tổ chức để dựng nút chuyển tổ chức — nên dùng

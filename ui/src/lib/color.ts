@@ -43,16 +43,19 @@ export const AVATAR_PALETTE = [
  * chip đã tô màu sẵn, một lớp 15% trên đó thì chìm hẳn.
  *
  * Cố tình KHÔNG có amber/yellow: đó là màu của chính chip, nhãn cùng hệ màu với nền nó đứng
- * trên thì bằng không có nhãn. Mọi màu trong bảng đều đủ tối để chữ trắng đọc được — thêm màu
- * mới phải kiểm lại điều kiện này.
+ * trên thì bằng không có nhãn.
+ *
+ * Nấc 700 chứ không phải 600: nhãn này là chữ 10px, mà ở cỡ đó ngưỡng đọc được là 4.5:1 chứ
+ * không phải 3:1 — chữ trắng trên nấc 600 chỉ được khoảng 3.7:1 (teal-600 là chỗ tệ nhất).
+ * Thêm màu mới phải kiểm lại đúng điều kiện này: trắng trên nó phải đạt 4.5:1.
  */
 export const STATUS_PALETTE = [
-  "bg-emerald-600 text-white",
-  "bg-rose-600 text-white",
-  "bg-sky-600 text-white",
-  "bg-violet-600 text-white",
-  "bg-teal-600 text-white",
-  "bg-indigo-600 text-white",
+  "bg-emerald-700 text-white",
+  "bg-rose-700 text-white",
+  "bg-sky-700 text-white",
+  "bg-violet-700 text-white",
+  "bg-teal-700 text-white",
+  "bg-indigo-700 text-white",
 ] as const
 
 /**

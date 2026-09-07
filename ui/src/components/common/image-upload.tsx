@@ -5,14 +5,7 @@ import { Camera, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { AccountAvatar } from "@/components/common/account-avatar"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogIconHeader } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import { uploadOneImage } from "@/lib/upload"
 import { cn } from "@/lib/utils"
@@ -216,13 +209,12 @@ export function ImageUpload({
         }}
       >
         <DialogContent className="sm:max-w-md" showCloseButton={false}>
-          <DialogHeader>
-            <div className="flex size-11 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-              <Trash2 className="size-5" aria-hidden="true" />
-            </div>
-            <DialogTitle className="mt-3">{removeTitle}</DialogTitle>
-            <DialogDescription>{removeDescription}</DialogDescription>
-          </DialogHeader>
+          <DialogIconHeader
+            icon={Trash2}
+            tone="destructive"
+            title={removeTitle}
+            description={removeDescription}
+          />
 
           <DialogFooter className="mt-5">
             <Button

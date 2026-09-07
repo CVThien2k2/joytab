@@ -112,10 +112,13 @@ export function MatchChip({ info, organizationId, editable, onOpenDetail }: Matc
 
   const court = <span className="min-w-0 flex-1 truncate">{match.courtName}</span>
 
-  // Sĩ số mờ hơn phần còn lại bằng `opacity` chứ không bằng một màu chữ: chip có ba kiểu nền
-  // (đặc/rỗng/xám), mà một token màu cố định thì luôn có một nền làm nó chìm hẳn hoặc chói lên.
+  // Sĩ số KHÔNG làm mờ đi nữa, dù nó là thứ phụ nhất trên chip: ở 10px, một lớp `opacity` 75%
+  // trên nền đặc kéo tương phản xuống dưới 3:1 — chính là dòng khó đọc nhất của cả chip. Thứ
+  // bậc đã có sẵn ở cỡ chữ (10px so với 12px) và ở việc khung giờ đậm hơn, không cần mờ thêm.
+  // Cũng không gán một token màu cố định: chip có ba kiểu nền (đặc/rỗng/xám), một màu cứng thì
+  // luôn có một nền làm nó chìm hẳn hoặc chói lên — để nó thừa kế màu chữ của nền nó đang đứng.
   const count = (
-    <span className="shrink-0 text-[10px] leading-4 tabular-nums opacity-75">
+    <span className="shrink-0 text-[10px] leading-4 tabular-nums">
       {match.playerCount}/{match.maxPlayers}
     </span>
   )

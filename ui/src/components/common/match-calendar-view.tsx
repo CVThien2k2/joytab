@@ -272,6 +272,17 @@ export default function MatchCalendarView({
         // Nền chip nói về TÔI (đã đăng ký chưa), nhãn bên trong nói về TRẬN (giai đoạn) — hai
         // câu hỏi khác nhau nên hiện ở hai chỗ khác nhau. Xem `eventClass` ở trên.
         eventClass={eventClass}
+        // Trả màu chữ của ruột chip về đúng màu đi cùng nền của nó. Breezy đặt màu chữ lên phần
+        // tử BÊN TRONG event (`color: color-mix(--fc-event-color 50%, --fc-breezy-foreground)`),
+        // tức "trộn màu chip với màu chữ của trang" — hợp với chip nhạt 8% mặc định của theme,
+        // nhưng chip ở đây tô nền ĐẶC (xem `MATCH_ATTENDANCE_EVENT_CLASS`) nên phép trộn đó ra
+        // đúng một sắc vàng nhạt nằm trên nền vàng: ở dark mode gần như không đọc được.
+        //
+        // Sửa ở đây chứ không ở `eventClass`: màu khai trên phần tử con luôn thắng màu thừa kế
+        // từ cha, kể cả khi cha có `!important`. Và phải là `text-inherit!` chứ không phải chuỗi
+        // rỗng: v7 GỘP mọi option `*Class` của theme với của mình (`joinFuncishClassNames`) chứ
+        // không thay thế, nên class màu của theme vẫn còn đó — chỉ `!important` mới đè được.
+        blockEventInnerClass="text-inherit!"
         // Việt Nam không có giờ mùa hè nên không phải lo giờ nhảy; giữ múi giờ máy người dùng.
         slotDuration={SLOT_DURATION}
         slotMinTime="06:00:00"

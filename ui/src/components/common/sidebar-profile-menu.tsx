@@ -1,11 +1,14 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
+import { toast } from "sonner"
 import {
   Building2,
   Check,
+  CircleUser,
   KeyRound,
   LogOut,
   MonitorSmartphone,
@@ -40,6 +43,15 @@ import { useOrganizationStore } from "@/stores/organization-store"
 /** Dialog nào đang mở — ba dialog dùng chung một ô state nên không mở được hai cái cùng lúc. */
 type OpenDialog = "join" | "create" | "leave" | null
 
+/**
+ * Câu từ chối khi chủ tổ chức bấm "Rời": chép ĐÚNG chữ của BE (ORG_005) chứ không viết lại —
+ * cùng một luật mà hai chỗ nói hai kiểu thì người đọc tưởng là hai chuyện khác nhau.
+ *
+ * Nói ra ở FE chứ không để đi một vòng request rồi nhận lỗi 409: câu trả lời không phụ thuộc
+ * gì vào server, mà vai trò thì đã nằm sẵn trong store.
+ */
+const OWNER_CANNOT_LEAVE = "Chủ tổ chức không thể rời tổ chức. Hãy xoá tổ chức nếu không dùng nữa."
+
 /** Ba lựa chọn giao diện, khớp với `enableSystem` của ThemeProvider. */
 const THEME_OPTIONS = [
   { value: "light", label: "Sáng", icon: Sun },
@@ -50,8 +62,8 @@ const THEME_OPTIONS = [
 /**
  * Input: `onNavigate` — gọi sau khi chuyển tổ chức (bản mobile dùng để đóng tấm trượt).
  * Output: Nút profile user ở đáy sidebar (avatar + tên), bấm ra MỘT menu gom mọi việc "về tôi và
- *         không gian làm việc của tôi": chuyển tổ chức, tham gia/tạo tổ chức, đổi giao diện,
- *         đăng xuất.
+ *         không gian làm việc của tôi": trang thông tin cá nhân, chuyển tổ chức, tham gia/tạo
+ *         tổ chức, đổi giao diện, đăng xuất.
  *
  *         Menu KHÔNG nhắc lại tên/email user: nút mở nó đã hiện ngay đó rồi, lặp lại chỉ đẩy
  *         mọi thứ khác xuống thêm một dòng.
@@ -132,7 +144,21 @@ export function SidebarProfileMenu({
         </RailTooltip>
 
         <DropdownMenuContent side="top" align="start" className="w-72">
-          {/* Hàng đầu là tổ chức ĐANG xem, không phải cả danh sách: đa số người chỉ thuộc một
+          {/* Thông tin cá nhân đứng ĐẦU menu, không còn là một hàng trong nav bên trái: nav là
+              danh sách nơi làm việc (lịch, tổ chức, thanh toán), còn đây là "tài khoản của tôi" —
+              đúng thứ mà nút avatar này đang nói tới. Đứng cạnh đăng xuất và đổi giao diện thì ba
+              việc về BẢN THÂN nằm chung một cửa, và nav bên trái chỉ còn một loại mục duy nhất.
+
+              `asChild` để item là một <Link> thật: giữ được prefetch và mở tab mới bằng chuột
+              giữa, thứ mà một `onSelect` gọi `router.push` không có. */}
+          <DropdownMenuItem asChild>
+            <Link href="/me" onClick={onNavigate}>
+              <CircleUser aria-hidden="true" />
+              Thông tin cá nhân
+            </Link>
+          </DropdownMenuItem>
+
+          {/* Hàng thứ hai là tổ chức ĐANG xem, không phải cả danh sách: đa số người chỉ thuộc một
               tổ chức, mà menu mở ra đã thấy một danh sách dài thì việc thường ngày (đổi giao
               diện, đăng xuất) bị đẩy xuống dưới. Danh sách nằm trong submenu — hover mới bung.
               Đây cũng là chỗ duy nhất trong sidebar nói ra đang ở tổ chức nào khi cột bị thu. */}
@@ -180,14 +206,27 @@ export function SidebarProfileMenu({
                   giờ chỉ owner vào được. Đặt trong submenu tổ chức vì nó thao tác lên đúng cái
                   tổ chức đang xem, cùng chỗ với việc vào/tạo tổ chức.
 
-                  Owner không có mục này: BE trả ORG_005 vì chưa có chuyển quyền sở hữu — muốn
-                  dừng thì xoá cả tổ chức, và nút đó nằm ở trang Tổ chức của họ. */}
-              {active.role === "owner" ? null : (
-                <DropdownMenuItem variant="destructive" onSelect={() => setOpenDialog("leave")}>
-                  <LogOut aria-hidden="true" />
-                  Rời &quot;{active.name}&quot;
-                </DropdownMenuItem>
-              )}
+                  Owner VẪN thấy mục này, bấm vào thì ra một câu từ chối chứ không mở hộp thoại:
+                  BE trả ORG_005 vì chưa có chuyển quyền sở hữu. Hiện rồi từ chối chứ không ẩn đi,
+                  vì một mục vắng mặt không nói được lý do — owner đi tìm "rời tổ chức" sẽ tưởng
+                  mình bấm nhầm chỗ, trong khi câu trả lời thật là "muốn dừng thì xoá cả tổ chức",
+                  và nút xoá đó nằm ở trang Tổ chức của họ.
+
+                  Nhãn chỉ là "Rời tổ chức", KHÔNG nhét tên tổ chức vào: mục này nằm ngay dưới
+                  hàng đang hiện tên tổ chức đó, nhắc lại là thừa — mà tên dài thì hàng bị cắt
+                  giữa chừng, đúng chỗ quan trọng nhất. Tên xuất hiện ở bước sau, trên hộp thoại
+                  xác nhận, nơi nó thật sự trả lời câu "rời cái nào". */}
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() =>
+                  active.role === "owner"
+                    ? toast.warning(OWNER_CANNOT_LEAVE)
+                    : setOpenDialog("leave")
+                }
+              >
+                <LogOut aria-hidden="true" />
+                Rời tổ chức
+              </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 

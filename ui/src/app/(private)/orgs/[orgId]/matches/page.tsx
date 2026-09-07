@@ -10,7 +10,6 @@ import { MatchCalendar, type MatchMoveRequest } from "@/components/common/match-
 import { MatchCalendarToolbar } from "@/components/common/match-calendar-toolbar"
 import { useOrganizationMatches } from "@/hooks/use-matches-api"
 import { useNow } from "@/hooks/use-now"
-import type { MatchScope } from "@/lib/match-attendance"
 import { rangeOf, type CalendarViewName } from "@/lib/match-range"
 import { useActiveOrganization } from "@/stores/organization-store"
 import { MatchFormDialog } from "./_components/match-form-dialog"
@@ -39,7 +38,6 @@ export default function OrganizationMatchesPage() {
 
   const [anchor, setAnchor] = useState(() => new Date(now))
   const [view, setView] = useState<CalendarViewName>("timeGridWeek")
-  const [scope, setScope] = useState<MatchScope>("all")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [initialStart, setInitialStart] = useState<Date | undefined>(undefined)
   const [initialEnd, setInitialEnd] = useState<Date | null>(null)
@@ -52,15 +50,9 @@ export default function OrganizationMatchesPage() {
   // Trận đã huỷ không hiện trên lịch: nó không còn là một buổi để đi, và một ô trông y hệt các
   // ô khác mà thực ra đã huỷ thì tệ hơn hẳn một ô trống. Lịch sử của nó vẫn nằm ở BE (huỷ là
   // huỷ mềm), chỉ là không chiếm chỗ trên lưới nữa.
-  //
-  // Phạm vi "Của tôi" lọc tiếp trên đúng mảng đã tải về — `voted` có sẵn trong mỗi trận nên
-  // không phải gọi lại BE, và khoảng ngày gửi lên vẫn là một, không phụ thuộc bộ lọc.
   const visibleMatches = useMemo(
-    () =>
-      (matches ?? []).filter(
-        (match) => match.status !== "canceled" && (scope === "all" || match.voted),
-      ),
-    [matches, scope],
+    () => (matches ?? []).filter((match) => match.status !== "canceled"),
+    [matches],
   )
 
   const openCreate = useCallback((start?: Date, end?: Date | null) => {
@@ -96,11 +88,9 @@ export default function OrganizationMatchesPage() {
         <MatchCalendarToolbar
           anchor={anchor}
           view={view}
-          scope={scope}
           loading={isFetching}
           onAnchorChange={setAnchor}
           onViewChange={setView}
-          onScopeChange={setScope}
           actions={
             isOwner ? (
               <Button type="button" onClick={() => openCreate()}>

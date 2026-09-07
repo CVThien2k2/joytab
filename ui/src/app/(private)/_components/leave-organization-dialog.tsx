@@ -3,14 +3,7 @@
 import { LogOut } from "lucide-react"
 import { LoadingOverlay } from "@/components/common/loading-overlay"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogIconHeader } from "@/components/ui/dialog"
 import { useLeaveOrganization } from "@/hooks/use-organizations-api"
 import { useAuthStore } from "@/stores/auth-store"
 
@@ -58,19 +51,14 @@ export function LeaveOrganizationDialog({
       <DialogContent className="sm:max-w-md" showCloseButton={false}>
         {leave.isPending ? <LoadingOverlay label="Đang rời tổ chức" /> : null}
 
-        <DialogHeader>
-          {/* Icon trong ô tròn đặt trên tiêu đề: nhận ra "đây là hộp thoại phá huỷ" trước khi
-              đọc chữ. Sắc trung tính chứ không đỏ như xoá tổ chức — rời đi không phải thảm hoạ. */}
-          <div className="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <LogOut className="size-5" aria-hidden="true" />
-          </div>
-
-          <DialogTitle className="mt-3">Rời &quot;{organization.name}&quot;?</DialogTitle>
-          <DialogDescription>
-            Bạn sẽ mất quyền truy cập ngay lập tức. Vào lại được nếu chủ tổ chức còn mở mã tham gia
-            hoặc gửi bạn liên kết mời.
-          </DialogDescription>
-        </DialogHeader>
+        {/* Sắc trung tính chứ không đỏ như xoá tổ chức: rời đi không phải thảm hoạ, vào lại được
+            bằng mã mời. Đây cũng là chỗ ĐẦU TIÊN nói ra tên tổ chức — mục trong menu tài khoản
+            chỉ ghi "Rời tổ chức", tên để dành cho bước xác nhận này. */}
+        <DialogIconHeader
+          icon={LogOut}
+          title={`Rời "${organization.name}"?`}
+          description="Bạn sẽ mất quyền truy cập ngay lập tức. Vào lại được nếu chủ tổ chức còn mở mã tham gia hoặc gửi bạn liên kết mời."
+        />
 
         <DialogFooter className="mt-5">
           <Button

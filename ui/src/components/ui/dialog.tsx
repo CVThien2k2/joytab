@@ -103,6 +103,65 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 /**
+ * Sắc thái của ô icon trên đầu hộp thoại. Hai mức, không hơn: `destructive` cho việc KHÔNG lấy
+ * lại được (xoá tổ chức, xoá ảnh), `neutral` cho việc đảo ngược được (rời tổ chức — vào lại
+ * bằng mã mời là xong). Ô đỏ dùng cho cả hai thì màu đỏ hết nghĩa.
+ */
+const DIALOG_ICON_TONE = {
+  neutral: "bg-muted text-muted-foreground",
+  destructive: "bg-destructive/10 text-destructive",
+} as const
+
+/**
+ * Input: icon + sắc thái + tiêu đề (và mô tả, nếu có).
+ * Output: Đầu hộp thoại xác nhận: icon trong ô tròn NẰM CẠNH tiêu đề, mô tả xuống dòng dưới.
+ *
+ *         Có component này vì ba hộp thoại xác nhận từng chép tay cùng một khối markup — ba bản
+ *         chép là ba chỗ sẽ trôi mỗi cái một kiểu, mà đây đúng là chỗ phải giống nhau: người
+ *         dùng nhận ra "đây là hộp thoại xác nhận" bằng chính hình dạng của nó.
+ *
+ *         Icon cạnh tiêu đề chứ không nằm trên: xếp dọc thì icon ăn trọn một dòng chỉ để nói một
+ *         điều mà tiêu đề ngay dưới nó đã nói rồi, và đẩy phần chữ xuống thấp hơn tầm mắt.
+ *
+ *         Mô tả trải HẾT bề ngang chứ không thụt vào cho thẳng hàng với tiêu đề: hộp thoại chỉ
+ *         rộng `max-w-md`, chừa một lề trái 56px là mất một phần tư chỗ của đoạn chữ dài nhất.
+ *
+ *         `leading-snug` đè `leading-none` mặc định của `DialogTitle`: ở đây tiêu đề đứng cạnh
+ *         một ô cao 44px nên có chỗ để xuống dòng, mà hai dòng dính sát nhau thì đọc rất tức.
+ */
+function DialogIconHeader({
+  icon: Icon,
+  tone = "neutral",
+  title,
+  description,
+  className,
+}: {
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>
+  tone?: keyof typeof DIALOG_ICON_TONE
+  title: React.ReactNode
+  description?: React.ReactNode
+  className?: string
+}) {
+  return (
+    <DialogHeader className={className}>
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            "flex size-11 shrink-0 items-center justify-center rounded-full",
+            DIALOG_ICON_TONE[tone],
+          )}
+        >
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        {/* `min-w-0` để tiêu đề dài xuống dòng trong ô flex thay vì đẩy tràn ra ngoài hộp. */}
+        <DialogTitle className="min-w-0 leading-snug">{title}</DialogTitle>
+      </div>
+      {description ? <DialogDescription>{description}</DialogDescription> : null}
+    </DialogHeader>
+  )
+}
+
+/**
  * Phần ruột CUỘN của hộp thoại.
  *
  * Có nó thì tiêu đề và hàng nút đứng yên khi cuộn — hộp thoại chốt chi phí dài hơn màn hình,
@@ -183,6 +242,7 @@ export {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogIconHeader,
   DialogOverlay,
   DialogPortal,
   DialogTitle,

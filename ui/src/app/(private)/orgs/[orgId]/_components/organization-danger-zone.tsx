@@ -5,14 +5,7 @@ import { LogOut, Trash2, TriangleAlert, Users, X } from "lucide-react"
 import { LeaveOrganizationDialog } from "@/app/(private)/_components/leave-organization-dialog"
 import { LoadingOverlay } from "@/components/common/loading-overlay"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogIconHeader } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useDeleteOrganization } from "@/hooks/use-organizations-api"
@@ -101,20 +94,18 @@ export function OrganizationDangerZone({ organization }: { organization: Organiz
           <DialogContent className="sm:max-w-md" showCloseButton={false}>
             {mutation.isPending ? <LoadingOverlay label="Đang xoá tổ chức" /> : null}
 
-            <DialogHeader>
-              {/* Icon trong ô tròn đỏ đặt trên tiêu đề: người dùng nhận ra "đây là hộp thoại phá
-                  huỷ" trước khi đọc chữ. */}
-              <div className="flex size-11 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                <TriangleAlert className="size-5" aria-hidden="true" />
-              </div>
-
-              <DialogTitle className="mt-3">Xoá vĩnh viễn tổ chức này?</DialogTitle>
-              <DialogDescription>
-                Bạn đang xoá{" "}
-                <span className="font-medium text-foreground">{organization.name}</span>. Việc này
-                không thể hoàn lại.
-              </DialogDescription>
-            </DialogHeader>
+            <DialogIconHeader
+              icon={TriangleAlert}
+              tone="destructive"
+              title="Xoá vĩnh viễn tổ chức này?"
+              description={
+                <>
+                  Bạn đang xoá{" "}
+                  <span className="font-medium text-foreground">{organization.name}</span>. Việc này
+                  không thể hoàn lại.
+                </>
+              }
+            />
 
             {/* Liệt kê cái sẽ mất thay vì một câu "bạn có chắc không": người đọc cần biết mình
                 đang mất gì, chứ không cần bị hỏi lại. */}
