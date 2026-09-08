@@ -14,9 +14,6 @@ import type { MatchSummary } from "@/types/match"
  */
 export type MatchAttendance = "joined" | "open" | "closed"
 
-/** Thứ tự đọc của chú giải: có mặt → còn kịp → hết cửa. */
-export const MATCH_ATTENDANCES = ["joined", "open", "closed"] as const
-
 /**
  * Input: một trận (chỉ cần `voted` và lý do vote đóng).
  * Output: Trạng thái của người đang xem với trận đó.
@@ -32,39 +29,12 @@ export function matchAttendance(
   return match.voteClosedReason === null ? "open" : "closed"
 }
 
-/** Nhãn của chú giải dưới lịch. Nói ra cả hai nửa: "mình" và "cửa đăng ký". */
+/**
+ * Nhãn dạng chữ của ba trạng thái. Dùng cho nhãn `sr-only` trên chip: trạng thái này hiện ra bằng
+ * một huy hiệu icon ở góc chip, mà icon thì trình đọc màn hình không đọc được.
+ */
 export const MATCH_ATTENDANCE_LABELS: Record<MatchAttendance, string> = {
   joined: "Bạn đã đăng ký",
   open: "Chưa đăng ký, còn mở",
   closed: "Đã đóng đăng ký",
-}
-
-/**
- * Nền chip trên lưới, theo cặp ĐẶC / RỖNG / XÁM.
- *
- * Trước đây mọi chip cùng một màu `primary` đặc, nên nhìn cả tuần không biết buổi nào mình có
- * mặt — phải rê chuột vào từng cái mới thấy dòng "Bạn đã đăng ký" trong thẻ xem nhanh.
- *
- * Chọn ĐỘ ĐẶC chứ không chọn màu khác nhau, vì hai lý do: chip cao chưa tới 60px không còn chỗ
- * cho một dòng chữ nữa, và màu thì đã có nhãn giai đoạn dùng rồi — thêm một thang màu thứ hai
- * lên cùng một chip là hai bảng màu phải học thuộc. Đặc/rỗng đọc được ngay cả khi liếc qua và
- * cả khi người xem không phân biệt được màu.
- *
- * Viền đứt cho `open` là chủ ý: một khối viền đứt đọc ra là "chỗ này còn trống", đúng nghĩa
- * "bạn chưa có trong đây".
- *
- * `!` vì theme tô nền event bằng lớp pha nhạt từ `--fc-event-color` — đây là chuyện của app,
- * không phải của theme (xem chú thích đầu `match-calendar-view.tsx`).
- */
-export const MATCH_ATTENDANCE_EVENT_CLASS: Record<MatchAttendance, string> = {
-  joined: "bg-primary! text-primary-foreground! border-primary!",
-  open: "bg-primary/10! dark:bg-primary/20! text-foreground! border-primary! border-dashed!",
-  closed: "bg-muted! text-muted-foreground! border-border!",
-}
-
-/** Ô màu trong chú giải. Cùng ba kiểu nền với chip, bỏ `!` vì ở đây không có theme để cãi. */
-export const MATCH_ATTENDANCE_SWATCH_CLASS: Record<MatchAttendance, string> = {
-  joined: "bg-primary border-primary",
-  open: "bg-primary/10 dark:bg-primary/20 border-primary border-dashed",
-  closed: "bg-muted border-border",
 }

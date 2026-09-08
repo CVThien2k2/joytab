@@ -89,10 +89,7 @@ export function PayDialog({
                     checked={!excluded.has(charge.chargeId)}
                     onCheckedChange={() => toggle(charge.chargeId)}
                   />
-                  <label
-                    htmlFor={`charge-${charge.chargeId}`}
-                    className="min-w-0 flex-1 cursor-pointer"
-                  >
+                  <label htmlFor={`charge-${charge.chargeId}`} className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{charge.courtName}</span>
                     <span className="block text-xs text-muted-foreground">
                       {formatDateTime(charge.startAt)}

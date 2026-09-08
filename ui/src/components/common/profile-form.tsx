@@ -5,6 +5,7 @@ import { Check, RotateCcw } from "lucide-react"
 import { Controller, useForm } from "react-hook-form"
 import { ImageUpload } from "@/components/common/image-upload"
 import { Button } from "@/components/ui/button"
+import { DialogBody, DialogFooter } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -30,11 +31,17 @@ const GENDER_OPTIONS: ReadonlyArray<{ value: Gender; label: string }> = [
 
 /**
  * Input: Không nhận props — user lấy từ store (layout đã bơm vào từ /auth/me).
- * Output: Hai khối — ảnh đại diện (đổi/xoá) và form tên/tuổi/giới tính/SĐT; email hiện dạng chỉ
- *         đọc.
+ * Output: Ruột của hộp thoại hồ sơ: phần cuộn (ảnh đại diện + form tên/tuổi/giới tính/SĐT, email
+ *         chỉ đọc) và hàng nút "Huỷ thay đổi" / "Lưu thay đổi" ở chân hộp.
  *
- *         KHÔNG tự dựng khung thẻ: trang mới là chỗ gom mọi khối vào một thẻ chung (tiêu đề, ảnh,
- *         thông tin, giao diện) và vẽ đường kẻ giữa chúng — component này chỉ có padding.
+ *         Chỉ dùng BÊN TRONG `DialogContent` — nó trả về thẳng `DialogBody` và `DialogFooter`.
+ *         Ôm luôn cả chân hộp vì hai nút phải đọc `isDirty` và bắn `submit` của đúng form này;
+ *         để chân hộp ở component cha thì phải kéo state form lên theo, tức là đẩy cả react-hook
+ *         -form ra khỏi chỗ duy nhất đang dùng nó.
+ *
+ *         `contents` ở cả `form` và `fieldset`: hai thẻ này chỉ để gom hành vi (submit, khoá khi
+ *         đang lưu), không được chiếm một hàng trong lưới ba hàng của hộp thoại — có chiếm thì
+ *         `DialogBody` mất neo và chân hộp trôi theo lúc cuộn thay vì đứng yên.
  *
  *         Avatar lưu NGAY khi upload xong, không chờ bấm "Lưu": nó không phải một field của
  *         form (file đã nằm trên S3 rồi), và để user bấm Lưu mới ghi URL thì bỏ trang giữa
@@ -79,45 +86,45 @@ export function ProfileForm() {
   const isDirty = form.formState.isDirty
 
   return (
-    <>
-      <section className="p-4">
-        <h2 className="text-sm font-semibold">Ảnh đại diện</h2>
-        <div className="mt-3">
-          <ImageUpload
-            shape="circle"
-            name={displayName}
-            value={profile.avatarUrl}
-            folder="avatars"
-            disabled={mutation.isPending}
-            removeTitle="Xoá ảnh đại diện?"
-            removeDescription="Ảnh sẽ bị xoá ngay và không lấy lại được. Chỗ nào đang hiện ảnh của bạn sẽ chuyển về chữ viết tắt trên nền màu."
-            onUploaded={(publicUrl) => mutation.mutate({ avatarUrl: publicUrl })}
-            onRemove={() => mutation.mutate({ avatarUrl: null })}
-          />
-        </div>
-      </section>
+    <form
+      className="contents"
+      onSubmit={form.handleSubmit((payload) => {
+        // Chụp lại giá trị THÔ của form (age là chuỗi) rồi reset về chính nó sau khi lưu:
+        // không reset thì `defaultValues` của react-hook-form vẫn là giá trị cũ, `isDirty`
+        // mãi là true và nút "Lưu" không bao giờ tắt lại sau một lần lưu thành công.
+        const submitted = form.getValues()
+        mutation.mutate(payload, { onSuccess: () => form.reset(submitted) })
+      })}
+      noValidate
+    >
+      {/* fieldset disabled khoá mọi control bằng một chỗ duy nhất — không phải rắc `disabled`
+          lên từng field rồi quên một cái. */}
+      <fieldset disabled={mutation.isPending} className="contents">
+        <DialogBody className="space-y-6 py-1">
+          <section>
+            <h2 className="text-sm font-semibold">Ảnh đại diện</h2>
+            <div className="mt-3">
+              <ImageUpload
+                shape="circle"
+                name={displayName}
+                value={profile.avatarUrl}
+                folder="avatars"
+                disabled={mutation.isPending}
+                removeTitle="Xoá ảnh đại diện?"
+                removeDescription="Ảnh sẽ bị xoá ngay và không lấy lại được. Chỗ nào đang hiện ảnh của bạn sẽ chuyển về chữ viết tắt trên nền màu."
+                onUploaded={(publicUrl) => mutation.mutate({ avatarUrl: publicUrl })}
+                onRemove={() => mutation.mutate({ avatarUrl: null })}
+              />
+            </div>
+          </section>
 
-      <section className="p-4">
-        <h2 className="text-sm font-semibold">Thông tin cá nhân</h2>
+          <section>
+            <h2 className="text-sm font-semibold">Thông tin cá nhân</h2>
 
-        <form
-          className="mt-4"
-          onSubmit={form.handleSubmit((payload) => {
-            // Chụp lại giá trị THÔ của form (age là chuỗi) rồi reset về chính nó sau khi lưu:
-            // không reset thì `defaultValues` của react-hook-form vẫn là giá trị cũ, `isDirty`
-            // mãi là true và nút "Lưu" không bao giờ tắt lại sau một lần lưu thành công.
-            const submitted = form.getValues()
-            mutation.mutate(payload, { onSuccess: () => form.reset(submitted) })
-          })}
-          noValidate
-        >
-          {/* fieldset disabled khoá mọi control bằng một chỗ duy nhất — không phải rắc
-              `disabled` lên từng field rồi quên một cái. */}
-          <fieldset disabled={mutation.isPending} className="contents">
-            {/* Hai cột từ `sm` trở lên: form dùng hết chiều rộng thẻ, nhưng không kéo một ô
+            {/* Hai cột từ `sm` trở lên: form dùng hết chiều rộng hộp, nhưng không kéo một ô
                 input dài suốt màn hình rộng — ô càng dài thì mắt càng khó bắt đầu và kết thúc
                 của nó. Email chiếm cả hàng vì nó chỉ đọc, không cần đứng cạnh field nào. */}
-            <FieldGroup className="grid gap-5 sm:grid-cols-2">
+            <FieldGroup className="mt-4 grid gap-5 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="fullName">Họ và tên</FieldLabel>
                 <Input
@@ -204,34 +211,29 @@ export function ProfileForm() {
                   Email đến từ tài khoản Google bạn dùng để đăng nhập, không sửa được ở đây.
                 </FieldDescription>
               </Field>
-
-              {/* Nút dồn sang phải: mắt đọc form từ trên xuống, hành động đặt ở cuối dòng cuối
-                  là chỗ tay dừng lại. Cả hai nút tắt khi form chưa đổi gì — "Lưu" thì vì không
-                  có gì để lưu, "Huỷ thay đổi" thì vì không có thay đổi nào để huỷ, mà một nút
-                  bấm được nhưng không làm gì thì người dùng tưởng app treo. */}
-              <div className="flex justify-end gap-2 sm:col-span-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!isDirty || mutation.isPending}
-                  onClick={() => form.reset(defaults)}
-                >
-                  <RotateCcw aria-hidden="true" />
-                  Huỷ thay đổi
-                </Button>
-                <Button type="submit" disabled={!isDirty || mutation.isPending}>
-                  {mutation.isPending ? (
-                    <Spinner className="size-4" />
-                  ) : (
-                    <Check aria-hidden="true" />
-                  )}
-                  {mutation.isPending ? "Đang lưu" : "Lưu thay đổi"}
-                </Button>
-              </div>
             </FieldGroup>
-          </fieldset>
-        </form>
-      </section>
-    </>
+          </section>
+        </DialogBody>
+
+        {/* Cả hai nút tắt khi form chưa đổi gì — "Lưu" thì vì không có gì để lưu, "Huỷ thay đổi"
+            thì vì không có thay đổi nào để huỷ, mà một nút bấm được nhưng không làm gì thì người
+            dùng tưởng app treo. */}
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!isDirty || mutation.isPending}
+            onClick={() => form.reset(defaults)}
+          >
+            <RotateCcw aria-hidden="true" />
+            Huỷ thay đổi
+          </Button>
+          <Button type="submit" disabled={!isDirty || mutation.isPending}>
+            {mutation.isPending ? <Spinner className="size-4" /> : <Check aria-hidden="true" />}
+            {mutation.isPending ? "Đang lưu" : "Lưu thay đổi"}
+          </Button>
+        </DialogFooter>
+      </fieldset>
+    </form>
   )
 }

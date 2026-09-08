@@ -4,23 +4,16 @@ import { useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { CalendarDays, History, MapPin, Pencil, Trash2, Users } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { MatchStatusBadge } from "@/components/common/match-status-badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
-import { useCancelMatch, useMatch, useSettlement } from "@/hooks/use-matches-api"
+import { useMatch, useSettlement } from "@/hooks/use-matches-api"
 import { useNow } from "@/hooks/use-now"
 import { formatDateTime, formatTimeRange } from "@/lib/format"
 import { matchPhase } from "@/lib/match-phase"
 import { useAuthStore } from "@/stores/auth-store"
 import { useActiveOrganization } from "@/stores/organization-store"
+import { CancelMatchDialog } from "../_components/cancel-match-dialog"
 import { MatchFormDialog } from "../_components/match-form-dialog"
 import { ParticipantList } from "./_components/participant-list"
 import { SettlementSection } from "./_components/settlement-section"
@@ -57,10 +50,6 @@ export default function MatchDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const cancelMatch = useCancelMatch(organization.id, () => {
-    setCancelOpen(false)
-    router.push(`/orgs/${organization.id}/matches`)
-  })
 
   if (isPending) {
     return (
@@ -99,12 +88,14 @@ export default function MatchDetailPage() {
         <section className="rounded-xl border bg-card p-4">
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-0 flex-1">
+              {/* Nhãn trạng thái ĐẦY ĐỦ, dùng chung `MatchStatusBadge` với thẻ xem nhanh trên
+                  lịch. Trước đây chỗ này tự dựng hai nhãn (đã huỷ / đã chốt tiền) nên một trận
+                  bình thường không có nhãn nào — mở trang ra không biết buổi này còn ở phía
+                  trước, đang đá, hay đã xong, trong khi ngoài lịch thì màu chip nói ngay.
+                  Chép tay lần nữa ở đây còn là hai chỗ gọi tên cùng một trận theo hai kiểu. */}
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-lg font-bold">{match.courtName}</h1>
-                {match.status === "canceled" ? <Badge variant="destructive">Đã huỷ</Badge> : null}
-                {match.status === "settled" ? (
-                  <Badge variant="secondary">Đã chốt tiền</Badge>
-                ) : null}
+                <MatchStatusBadge match={match} />
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{formatDateTime(match.startAt)}</p>
             </div>
@@ -182,30 +173,16 @@ export default function MatchDetailPage() {
         />
       ) : null}
 
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Huỷ trận này?</DialogTitle>
-            <DialogDescription>
-              Trận sẽ hiện là đã huỷ với mọi người đã đăng ký. Lịch sử đăng ký vẫn giữ lại, nhưng
-              không đăng ký được nữa.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCancelOpen(false)}>
-              Giữ nguyên
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={cancelMatch.isPending}
-              onClick={() => cancelMatch.mutate(match.id)}
-            >
-              Huỷ trận
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Hộp thoại dùng CHUNG với thẻ xem nhanh trên lịch — cùng một hậu quả thì phải cùng một
+          câu cảnh báo. Ở đây có thêm `onCanceled`: trận vừa biến mất khỏi lịch nên trang này
+          không còn gì để hiện, phải đưa người dùng về lưới. */}
+      <CancelMatchDialog
+        match={match}
+        organizationId={organization.id}
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        onCanceled={() => router.push(`/orgs/${organization.id}/matches`)}
+      />
     </main>
   )
 }

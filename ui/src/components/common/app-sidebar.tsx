@@ -169,7 +169,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
           aria-expanded={open}
           aria-label="Mở thanh điều hướng"
           className={cn(
-            "hidden size-16 shrink-0 cursor-pointer items-center justify-center text-sidebar-foreground/70 outline-none focus-visible:ring-[3px] focus-visible:ring-sidebar-ring/50 focus-visible:ring-inset sidebar-closed:md:flex",
+            "hidden size-16 shrink-0 items-center justify-center text-sidebar-foreground/70 outline-none focus-visible:ring-[3px] focus-visible:ring-sidebar-ring/50 focus-visible:ring-inset sidebar-closed:md:flex",
           )}
         >
           <JoytabLogo iconOnly className="h-8 w-auto group-hover/rail:hidden" />
@@ -198,7 +198,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
             onClick={toggle}
             aria-expanded={open}
             aria-label="Thu gọn thanh điều hướng"
-            className="hidden shrink-0 cursor-pointer rounded-md p-1 text-sidebar-foreground/70 outline-none hover:text-sidebar-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring/50 md:block"
+            className="hidden shrink-0 rounded-md p-1 text-sidebar-foreground/70 outline-none hover:text-sidebar-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring/50 md:block"
           >
             <PanelLeft className="size-5" aria-hidden="true" />
           </button>

@@ -10,14 +10,6 @@ export type Crumb = {
   current: boolean
 }
 
-/**
- * Trang của chính user, không treo tổ chức lên trước: đây là thông tin tài khoản, không đổi
- * khi người dùng chuyển tổ chức đang xem.
- */
-const PERSONAL_LABELS: Record<string, string> = {
-  "/me": "Thông tin cá nhân",
-}
-
 /** Nhãn của các trang con trong một tổ chức, theo segment ngay sau `/orgs/<id>`. */
 const ORGANIZATION_LABELS: Record<string, string> = {
   matches: "Lịch thi đấu",
@@ -36,16 +28,14 @@ const ORGANIZATION_LABELS: Record<string, string> = {
  *         Nhãn của tổ chức lấy từ store (server đã fetch ở layout) nên không có nhịp "đang tải"
  *         như hub — bên đó tên tổ chức đến từ query nên phải có skeleton.
  *
- *         `/me` chỉ có MỘT mẩu — nó là trang tài khoản, treo tên tổ chức lên trước là sai.
- *         Trang trong tổ chức thì bắt đầu bằng tên tổ chức rồi mới tới mục con.
+ *         Mọi trang còn lại đều nằm trong một tổ chức, nên breadcrumb luôn bắt đầu bằng tên tổ
+ *         chức rồi mới tới mục con. Hồ sơ cá nhân không có mặt ở đây nữa: nó là một hộp thoại,
+ *         mà hộp thoại thì không đổi trang nên cũng không có mẩu breadcrumb nào để thêm.
  */
 export function useBreadcrumb(): Crumb[] {
   const pathname = usePathname()
   const organizations = useOrganizationStore((state) => state.organizations)
   const activeId = useOrganizationStore((state) => state.activeOrganizationId)
-
-  const personalLabel = PERSONAL_LABELS[pathname]
-  if (personalLabel) return [{ href: pathname, label: personalLabel, current: true }]
 
   const active = organizations.find((organization) => organization.id === activeId)
   if (!active) return []

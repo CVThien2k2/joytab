@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
@@ -20,6 +19,7 @@ import { CreateOrganizationDialog } from "@/app/(private)/_components/create-org
 import { JoinOrganizationDialog } from "@/app/(private)/_components/join-organization-dialog"
 import { LeaveOrganizationDialog } from "@/app/(private)/_components/leave-organization-dialog"
 import { AccountAvatar } from "@/components/common/account-avatar"
+import { ProfileDialog } from "@/components/common/profile-dialog"
 import { RailTooltip } from "@/components/common/rail-tooltip"
 import {
   DropdownMenu,
@@ -40,8 +40,8 @@ import { organizationHomePath } from "@/lib/routes"
 import { useAuthStore } from "@/stores/auth-store"
 import { useOrganizationStore } from "@/stores/organization-store"
 
-/** Dialog nào đang mở — ba dialog dùng chung một ô state nên không mở được hai cái cùng lúc. */
-type OpenDialog = "join" | "create" | "leave" | null
+/** Dialog nào đang mở — bốn dialog dùng chung một ô state nên không mở được hai cái cùng lúc. */
+type OpenDialog = "profile" | "join" | "create" | "leave" | null
 
 /**
  * Câu từ chối khi chủ tổ chức bấm "Rời": chép ĐÚNG chữ của BE (ORG_005) chứ không viết lại —
@@ -149,13 +149,12 @@ export function SidebarProfileMenu({
               đúng thứ mà nút avatar này đang nói tới. Đứng cạnh đăng xuất và đổi giao diện thì ba
               việc về BẢN THÂN nằm chung một cửa, và nav bên trái chỉ còn một loại mục duy nhất.
 
-              `asChild` để item là một <Link> thật: giữ được prefetch và mở tab mới bằng chuột
-              giữa, thứ mà một `onSelect` gọi `router.push` không có. */}
-          <DropdownMenuItem asChild>
-            <Link href="/me" onClick={onNavigate}>
-              <CircleUser aria-hidden="true" />
-              Thông tin cá nhân
-            </Link>
+              Mở hộp thoại chứ không sang một trang: hồ sơ là chỗ ghé rồi đi ngay (sửa số điện
+              thoại xong là quay lại việc đang làm), mà một trang riêng thì bắt người ta tự tìm
+              đường về — đường về lại mỗi lúc một khác tuỳ họ vào từ đâu. */}
+          <DropdownMenuItem onSelect={() => setOpenDialog("profile")}>
+            <CircleUser aria-hidden="true" />
+            Thông tin cá nhân
           </DropdownMenuItem>
 
           {/* Hàng thứ hai là tổ chức ĐANG xem, không phải cả danh sách: đa số người chỉ thuộc một
@@ -267,6 +266,10 @@ export function SidebarProfileMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <ProfileDialog
+        open={openDialog === "profile"}
+        onOpenChange={(open) => setOpenDialog(open ? "profile" : null)}
+      />
       <JoinOrganizationDialog
         open={openDialog === "join"}
         onOpenChange={(open) => setOpenDialog(open ? "join" : null)}

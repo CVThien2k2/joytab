@@ -1,7 +1,10 @@
 /**
- * Màu suy từ một chuỗi: màu avatar theo tên người, màu nhãn theo mã trạng thái. Chép từ hub
- * (apps/hub-ui/lib/color.ts), kể cả cách băm — nhờ vậy cùng một người trong hai app rơi vào
- * cùng một màu, nhìn là nhận ra nhau.
+ * Màu avatar suy từ tên người. Chép từ hub (apps/hub-ui/lib/color.ts), kể cả cách băm — nhờ vậy
+ * cùng một người trong hai app rơi vào cùng một màu, nhìn là nhận ra nhau.
+ *
+ * Từng có thêm một bảng màu băm cho nhãn trạng thái, giờ bỏ: ba giai đoạn của một trận có thứ
+ * tự và có nghĩa, nên màu của chúng phải gán tay cho đúng nghĩa (xem `MATCH_PHASE_EVENT_CLASS`)
+ * chứ không phải "băm ra ba màu khác nhau là được".
  */
 
 /**
@@ -35,40 +38,6 @@ export const AVATAR_PALETTE = [
   "#b91c1c",
   "#9333ea",
 ] as const
-
-/**
- * Bảng class cho nhãn TRẠNG THÁI (nhãn giai đoạn trên chip lịch, và mọi nhãn theo mã sau này).
- *
- * Nền ĐẶC + chữ trắng chứ không phải tint nhạt như ROLE_PALETTE của hub: nhãn này nằm trên một
- * chip đã tô màu sẵn, một lớp 15% trên đó thì chìm hẳn.
- *
- * Cố tình KHÔNG có amber/yellow: đó là màu của chính chip, nhãn cùng hệ màu với nền nó đứng
- * trên thì bằng không có nhãn.
- *
- * Nấc 700 chứ không phải 600: nhãn này là chữ 10px, mà ở cỡ đó ngưỡng đọc được là 4.5:1 chứ
- * không phải 3:1 — chữ trắng trên nấc 600 chỉ được khoảng 3.7:1 (teal-600 là chỗ tệ nhất).
- * Thêm màu mới phải kiểm lại đúng điều kiện này: trắng trên nó phải đạt 4.5:1.
- */
-export const STATUS_PALETTE = [
-  "bg-emerald-700 text-white",
-  "bg-rose-700 text-white",
-  "bg-sky-700 text-white",
-  "bg-violet-700 text-white",
-  "bg-teal-700 text-white",
-  "bg-indigo-700 text-white",
-] as const
-
-/**
- * Input: Mã trạng thái (vd 'ongoing').
- * Output: Class màu cố định theo mã đó — cùng mã thì mãi cùng màu.
- *
- *         Suy từ mã chứ không gán tay từng cái: thêm một trạng thái mới là có màu ngay, và
- *         không ai phải nhớ màu nào đã dùng rồi. Đổi lại là không chọn được "đỏ cho cái này" —
- *         nếu một trạng thái cần đúng một màu theo quy ước thì gán riêng ở chỗ dùng.
- */
-export function statusClass(code: string): string {
-  return pickByHash(STATUS_PALETTE, code)
-}
 
 /**
  * Input: Tên (hoặc email khi chưa có tên).

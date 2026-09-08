@@ -14,6 +14,9 @@ import type { VoteClosedReason } from "@/types/match"
  */
 export type MatchPhase = "upcoming" | "ongoing" | "ended"
 
+/** Thứ tự đọc của chú giải: còn ở phía trước → đang xảy ra → đã là quá khứ. */
+export const MATCH_PHASES = ["upcoming", "ongoing", "ended"] as const
+
 /**
  * Nhãn của ba giai đoạn. MỘT bộ duy nhất, dùng cho cả chip trên lịch lẫn `MatchStatusBadge`:
  * cùng một trận mà hai màn hình gọi tên khác nhau là chỗ người ta bắt đầu không tin cái đang
@@ -23,6 +26,31 @@ export const MATCH_PHASE_LABELS: Record<MatchPhase, string> = {
   upcoming: "Chưa diễn ra",
   ongoing: "Đang diễn ra",
   ended: "Đã kết thúc",
+}
+
+/**
+ * Class nền chip trên lưới, theo giai đoạn. Đây là trục màu DUY NHẤT của chip.
+ *
+ * Chỉ là TÊN class — phần khai màu nằm ở `globals.css`, cạnh bảng ánh xạ theme của FullCalendar.
+ * Hai trong ba nền là `color-mix` và `repeating-linear-gradient`, nhồi vào `bg-[...]` của Tailwind
+ * thì phải thay mọi khoảng trắng bằng gạch dưới, ra một chuỗi không ai đọc lại được.
+ *
+ * Port từ bản thiết kế "Joytab Schedule": chưa diễn ra là một lớp `primary` pha 12% (đủ để thành
+ * một khối, chưa đủ để chói), đang diễn ra là `primary` đặc (cả tuần nhiều nhất một chip như vậy),
+ * đã kết thúc là gạch chéo xám viền đứt — hoa văn đọc ra "đã đóng lại" và phân biệt được cả khi
+ * người xem không nhận ra khác biệt về màu.
+ */
+export const MATCH_PHASE_EVENT_CLASS: Record<MatchPhase, string> = {
+  upcoming: "match-chip match-chip-upcoming",
+  ongoing: "match-chip match-chip-ongoing",
+  ended: "match-chip match-chip-ended",
+}
+
+/** Ô màu trong chú giải. Dùng LẠI đúng class của chip, nên không có bản màu thứ hai để trôi lệch. */
+export const MATCH_PHASE_SWATCH_CLASS: Record<MatchPhase, string> = {
+  upcoming: "match-chip-upcoming",
+  ongoing: "match-chip-ongoing",
+  ended: "match-chip-ended",
 }
 
 /**

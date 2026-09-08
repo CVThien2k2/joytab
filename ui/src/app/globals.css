@@ -64,6 +64,55 @@
   html {
     @apply font-sans;
   }
+
+  /* Con trỏ NGÓN TAY cho mọi thứ bấm được.
+     
+     Tailwind v4 bỏ `cursor: pointer` khỏi preflight của <button> (v3 có), nên mặc định mọi nút
+     trong app hiện mũi tên như một đoạn chữ chết — người dùng phải rê thử mới biết chỗ nào bấm
+     được. Khai một lần ở đây thay vì rắc `cursor-pointer` lên từng nút: rắc tay thì cái nào
+     quên là cái đó lệch, mà "quên" ở đây không nổ ra lỗi nào để ai đó phát hiện.
+     
+     Bắt cả các vai trò ARIA của Radix: `DropdownMenuItem`, `SelectItem`, `Tabs` … render ra
+     <div> chứ không phải <button>, nên chỉ nhắm thẻ button là bỏ sót đúng những menu hay bấm
+     nhất.
+     
+     Nằm trong `@layer base` là chủ ý: lớp `utilities` của Tailwind đứng sau, nên chỗ nào cần
+     con trỏ khác (chip trên lịch dùng `cursor-move` để nói "nhấc lên được") vẫn đè lại được. */
+  button:not(:disabled),
+  a[href],
+  label[for],
+  summary,
+  select:not(:disabled),
+  input:is(
+      [type="button"],
+      [type="submit"],
+      [type="reset"],
+      [type="checkbox"],
+      [type="radio"],
+      [type="file"],
+      [type="range"]
+    ):not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"],
+  [role="tab"],
+  [role="switch"],
+  [role="option"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="menuitemcheckbox"] {
+    cursor: pointer;
+  }
+
+  /* Không bấm được thì phải nói ra bằng con trỏ, chứ không im lặng giữ nguyên ngón tay — một
+     cái nút mờ mà con trỏ vẫn mời bấm là hai tín hiệu ngược nhau. `[data-disabled]` là cách
+     Radix đánh dấu mục bị khoá trong menu và select. */
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled="true"],
+  [data-disabled] {
+    cursor: not-allowed;
+  }
 }
 
 :root {
@@ -194,4 +243,67 @@
      palette: thiếu một khoá thì `var()` hụt lặng lẽ ra rỗng chứ không báo lỗi, nên hôm nào
      bật lại sẽ không phải đi tìm vì sao nó vô hình. */
   --fc-breezy-now: var(--destructive);
+}
+
+/* ─── Chip một buổi đá trên lịch ──────────────────────────────────────────────────────────
+   Ba kiểu nền theo GIAI ĐOẠN, port từ bản thiết kế "Joytab Schedule" (Claude Design). Bản
+   thiết kế khai bằng đúng bộ token shadcn nên ở đây là ánh xạ 1-1, không phải một lớp dịch —
+   `--primary` của Joytab là amber, nên cả lịch tự ăn theo màu dự án.
+
+   Viết bằng CSS chứ không phải class Tailwind arbitrary: hai trong ba nền là `color-mix` và
+   `repeating-linear-gradient`, mà nhồi chúng vào `bg-[...]` thì phải thay mọi khoảng trắng
+   bằng gạch dưới — một chuỗi không ai đọc lại được. Đây cũng là file đã giữ toàn bộ phần ánh
+   xạ theme của FullCalendar, nên nó là chỗ của những thứ này.
+
+   `!important` vì theme tô nền/viền event từ `--fc-event-color` — xem chú thích đầu
+   `match-calendar-view.tsx`. */
+.match-chip {
+  /* Cụm sĩ số + huy hiệu tham gia nổi RA NGOÀI mép trên chip, nên phần tử event không được cắt
+     tràn — cắt là chúng biến mất hẳn chứ không phải bị xén một góc. */
+  overflow: visible !important;
+  border-radius: var(--radius-md) !important;
+
+  /* Một vạch dày hơn ở mép TRÁI, đậm hơn ba cạnh còn lại một nấc. Ba nền chip đều là màu pha
+     nhạt nên khi liếc cả tuần chúng khá gần nhau; cái vạch là chỗ duy nhất màu đứng ở dạng đặc,
+     nên nó mới là thứ mắt bắt được trước khi kịp so sắc độ của cả mảng nền.
+     
+     3px chứ không 4-5px: chip trong lịch tuần rộng chừng 120px, mỗi pixel vạch là một pixel
+     tên sân mất đi. Đủ để thành một vạch, chưa tới mức thành một cột màu. */
+  border-left-width: 3px !important;
+}
+
+.match-chip-upcoming {
+  background: color-mix(in oklab, var(--primary) 12%, var(--card)) !important;
+  border-color: color-mix(in oklab, var(--primary) 34%, var(--border)) !important;
+  border-left-color: color-mix(in oklab, var(--primary) 70%, var(--border)) !important;
+  color: var(--foreground) !important;
+}
+
+/* Buổi ĐANG đá là cái duy nhất tô đặc: cả tuần chỉ có nhiều nhất một chip như vậy, nên nó nổi
+   lên mà không làm lưới thành một mảng màu. */
+.match-chip-ongoing {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  /* Nền đã là `primary` đặc nên vạch phải đi NGƯỢC hướng còn lại: pha thêm màu chữ vào để nó
+     sẫm hơn nền, thay vì sáng hơn như hai kiểu chip kia. */
+  border-left-color: color-mix(in oklab, var(--primary) 62%, var(--primary-foreground)) !important;
+  color: var(--primary-foreground) !important;
+}
+
+/* Gạch chéo cho buổi đã xong, không phải một khối xám phẳng: hoa văn đọc ra là "đã đóng lại",
+   mà nó cũng phân biệt được cả khi người xem không nhận ra khác biệt về màu. */
+.match-chip-ended {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--muted) 0 7px,
+    color-mix(in oklab, var(--border) 55%, var(--muted)) 7px 8px
+  ) !important;
+  border-style: dashed !important;
+  border-color: var(--border) !important;
+  /* Vạch trái của buổi đã xong để LIỀN dù ba cạnh kia đứt: một đường đứt 3px trông như lỗi vẽ,
+     mà đây cũng là cạnh duy nhất còn phải giữ vai trò nhận diện khi cả chip đã mờ đi. */
+  border-left-style: solid !important;
+  border-left-color: color-mix(in oklab, var(--muted-foreground) 45%, var(--border)) !important;
+  color: var(--muted-foreground) !important;
+  opacity: 0.85;
 }

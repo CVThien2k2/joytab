@@ -3,10 +3,8 @@
 import { AccountAvatar } from "@/components/common/account-avatar"
 import { Badge } from "@/components/ui/badge"
 import { formatDateTime, formatMoney } from "@/lib/format"
+import { GENDER_LABELS } from "@/lib/gender"
 import type { MatchCharge, MatchParticipant } from "@/types/match"
-
-/** Nhãn giới tính — chỉ để người xem hiểu vì sao hai người cùng trận đóng khác nhau. */
-const GENDER_LABEL: Record<string, string> = { male: "Nam", female: "Nữ", other: "Khác" }
 
 /** Nhãn trạng thái trả tiền của MỘT người. Hai mức — không ai duyệt, nên không có mức ở giữa. */
 function paymentBadge(status: MatchCharge["paymentStatus"]) {
@@ -66,7 +64,7 @@ export function ParticipantList({
             </div>
 
             {participant.gender ? (
-              <Badge variant="outline">{GENDER_LABEL[participant.gender]}</Badge>
+              <Badge variant="outline">{GENDER_LABELS[participant.gender]}</Badge>
             ) : null}
 
             {charge ? (

@@ -17,8 +17,7 @@ import { useTheme } from "next-themes"
 import { toast } from "sonner"
 import { MatchChip, matchOf } from "@/components/common/match-chip"
 import { useNow } from "@/hooks/use-now"
-import { MATCH_ATTENDANCE_EVENT_CLASS, matchAttendance } from "@/lib/match-attendance"
-import { matchPhase } from "@/lib/match-phase"
+import { MATCH_PHASE_EVENT_CLASS, matchPhase } from "@/lib/match-phase"
 import type { CalendarViewName } from "@/lib/match-range"
 import type { MatchSummary } from "@/types/match"
 
@@ -45,7 +44,17 @@ export type MatchCalendarProps = {
    * nào dời được thì `handleMove` xét lúc thả — mọi chip đều nhấc lên được.
    */
   editable?: boolean
+  /**
+   * Mở TRANG chi tiết một trận. Chỉ chạy khi người dùng bấm "Xem chi tiết" trong thẻ xem nhanh —
+   * bấm vào chính chip thì chỉ mở thẻ đó ra (xem `MatchChip`), không rời trang lịch.
+   */
   onSelectMatch: (matchId: string) => void
+  /**
+   * Owner: sửa / huỷ một trận ngay từ thẻ xem nhanh, không phải vào trang chi tiết. Không truyền
+   * = hàng nút đó không hiện. Hộp thoại sống ở tầng trang, đây chỉ chuyển tiếp cú bấm.
+   */
+  onEditMatch?: (match: MatchSummary) => void
+  onCancelMatch?: (match: MatchSummary) => void
   onCreateAt?: (params: { start: Date; end: Date }) => void
   onMove?: (request: MatchMoveRequest) => void
 }
@@ -123,6 +132,8 @@ export default function MatchCalendarView({
   view,
   editable = false,
   onSelectMatch,
+  onEditMatch,
+  onCancelMatch,
   onCreateAt,
   onMove,
 }: MatchCalendarProps) {
@@ -165,18 +176,22 @@ export default function MatchCalendarView({
   }, [now])
 
   /**
-   * Nền chip theo trạng thái ĐĂNG KÝ CỦA NGƯỜI ĐANG XEM, không phải một màu chung cho tất cả.
-   * Bảng ba kiểu nền và lý do chọn đặc/rỗng thay vì ba màu nằm ở `MATCH_ATTENDANCE_EVENT_CLASS`.
+   * Nền chip nói về TRẬN (giai đoạn — chưa/đang/đã diễn ra), và chỉ thế. "Mình có đá buổi này
+   * không" là một huy hiệu nổi ở góc chip do `MatchChip` dựng — hai câu hỏi khác nhau nên hiện ở
+   * hai chỗ khác nhau, thay vì chồng hai thang lên cùng một mảng nền.
    *
    * Bóng mờ lúc quét chọn và lúc kéo thả cũng chạy qua đây nhưng `extendedProps` rỗng
-   * (`matchOf` trả `null`) — cho chúng khối đặc như cũ: chúng đang nói "vùng bạn đang chọn",
-   * chưa có trận nào để mà xét đã đăng ký hay chưa.
+   * (`matchOf` trả `null`) — cho chúng nền của trận sắp tới: chúng đang nói "vùng bạn đang
+   * chọn", mà thứ sắp được tạo ở đó thì đúng là một buổi chưa diễn ra.
    */
-  const eventClass = useCallback((info: EventDisplayInfo) => {
-    const match = matchOf(info.event)
-    if (!match) return MATCH_ATTENDANCE_EVENT_CLASS.joined
-    return MATCH_ATTENDANCE_EVENT_CLASS[matchAttendance(match)]
-  }, [])
+  const eventClass = useCallback(
+    (info: EventDisplayInfo) => {
+      const match = matchOf(info.event)
+      if (!match) return MATCH_PHASE_EVENT_CLASS.upcoming
+      return MATCH_PHASE_EVENT_CLASS[matchPhase(match, now)]
+    },
+    [now],
+  )
 
   const renderEvent = useCallback(
     (info: EventDisplayInfo) => (
@@ -185,9 +200,11 @@ export default function MatchCalendarView({
         organizationId={organizationId}
         editable={editable}
         onOpenDetail={onSelectMatch}
+        onEdit={onEditMatch}
+        onCancel={onCancelMatch}
       />
     ),
-    [organizationId, editable, onSelectMatch],
+    [organizationId, editable, onSelectMatch, onEditMatch, onCancelMatch],
   )
 
   const handleSelect = useCallback(
@@ -306,7 +323,6 @@ export default function MatchCalendarView({
         // tối. Trận đã huỷ không chiếm giờ, và chúng cũng không có mặt trên lưới.
         selectOverlap={view === "dayGridMonth"}
         eventOverlap={false}
-        eventClick={(info) => onSelectMatch(info.event.id)}
         select={handleSelect}
         eventDrop={handleMove}
         eventResize={handleMove}

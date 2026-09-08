@@ -4,7 +4,7 @@ import type { Organization } from "@/types/organization"
 export type OrganizationSnapshot = {
   /** Mọi tổ chức user thuộc, cũ nhất trước (thứ tự do BE bảo đảm). */
   organizations: Organization[]
-  /** id tổ chức đang xem — ở `/orgs/[orgId]` là lấy từ URL, ở `/me` là tổ chức xem gần nhất. */
+  /** id tổ chức đang xem, lấy từ URL `/orgs/[orgId]`. */
   activeOrganizationId: string
 }
 

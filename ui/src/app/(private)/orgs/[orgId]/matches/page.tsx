@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation"
 import { Info, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { MatchAttendanceLegend } from "@/components/common/match-attendance-legend"
 import { MatchCalendar, type MatchMoveRequest } from "@/components/common/match-calendar"
 import { MatchCalendarToolbar } from "@/components/common/match-calendar-toolbar"
+import { MatchPhaseLegend } from "@/components/common/match-phase-legend"
 import { useOrganizationMatches } from "@/hooks/use-matches-api"
 import { useNow } from "@/hooks/use-now"
 import { rangeOf, type CalendarViewName } from "@/lib/match-range"
+import type { MatchSummary } from "@/types/match"
 import { useActiveOrganization } from "@/stores/organization-store"
+import { CancelMatchDialog } from "./_components/cancel-match-dialog"
 import { MatchFormDialog } from "./_components/match-form-dialog"
 import { MatchRescheduleDialog } from "./_components/match-reschedule-dialog"
 
@@ -43,6 +45,13 @@ export default function OrganizationMatchesPage() {
   const [initialEnd, setInitialEnd] = useState<Date | null>(null)
   const [moveRequest, setMoveRequest] = useState<MatchMoveRequest | null>(null)
   const [moveOpen, setMoveOpen] = useState(false)
+  // Trận owner đang sửa hoặc đang định huỷ. Giữ cả object chứ không giữ id như chỗ khác: hai hộp
+  // thoại này CHỤP LẠI trận ở thời điểm bấm — form sửa đã nạp giá trị vào các ô, mà danh sách
+  // refetch giữa chừng thì không thể tráo dữ liệu dưới tay người đang gõ.
+  const [editing, setEditing] = useState<MatchSummary | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [canceling, setCanceling] = useState<MatchSummary | null>(null)
+  const [cancelOpen, setCancelOpen] = useState(false)
 
   const range = useMemo(() => rangeOf(anchor, view), [anchor, view])
   const { data: matches, isFetching } = useOrganizationMatches(organization.id, range)
@@ -54,6 +63,21 @@ export default function OrganizationMatchesPage() {
     () => (matches ?? []).filter((match) => match.status !== "canceled"),
     [matches],
   )
+
+  /**
+   * Owner bấm "Sửa" / "Huỷ" trong thẻ xem nhanh. Hai hộp thoại phải sống Ở ĐÂY chứ không trong
+   * thẻ: Radix đóng thẻ hover ngay khi con trỏ rời nó, mà hộp thoại nằm trong thẻ thì bị unmount
+   * đúng lúc vừa mở.
+   */
+  const openEdit = useCallback((match: MatchSummary) => {
+    setEditing(match)
+    setEditOpen(true)
+  }, [])
+
+  const openCancel = useCallback((match: MatchSummary) => {
+    setCanceling(match)
+    setCancelOpen(true)
+  }, [])
 
   const openCreate = useCallback((start?: Date, end?: Date | null) => {
     setInitialStart(start)
@@ -108,25 +132,33 @@ export default function OrganizationMatchesPage() {
           view={view}
           editable={isOwner}
           onSelectMatch={(matchId) => router.push(`/orgs/${organization.id}/matches/${matchId}`)}
+          onEditMatch={isOwner ? openEdit : undefined}
+          onCancelMatch={isOwner ? openCancel : undefined}
           onCreateAt={isOwner ? ({ start, end }) => openCreate(start, end) : undefined}
           onMove={isOwner ? openMove : undefined}
         />
 
         {/* Hai loại chú thích, hai số phận khác nhau ở màn hình nhỏ:
 
-            - Cách dùng (rê chuột / kéo thả) ẨN trên mobile — ở đó không có con trỏ để rê, chạm
-              là mở luôn trang chi tiết, nên dòng này chỉ là một lời hứa sai.
+            - Cách dùng (rê chuột / kéo thả) ẨN trên mobile — ở đó không có con trỏ để rê, nên
+              nửa đầu của câu là một lời hứa sai. Chạm vẫn mở được thẻ xem nhanh, chỉ là không
+              cần dạy: chạm vào một khối trên màn hình là thứ ai cũng thử.
             - Chú giải màu LUÔN hiện: nền chip là thông tin chứ không phải thao tác, mà quy ước
-              màu không nói ra thì ở đâu nó cũng chỉ là mấy ô màu khác nhau. */}
+              màu không nói ra thì ở đâu nó cũng chỉ là mấy ô màu khác nhau. Từ khi chip bỏ nhãn
+              chữ, đây là chỗ DUY NHẤT nói ra nghĩa của ba màu nền.
+
+              CHỈ còn chú giải giai đoạn: trục "mình đã đăng ký chưa" không cần giải nghĩa nữa —
+              một dấu tích xanh ở góc chip tự nó đã nói xong, không phải một quy ước để học. */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-2 text-xs text-muted-foreground">
           <p className="hidden items-start gap-1.5 sm:flex">
             <Info className="mt-px size-3.5 shrink-0" aria-hidden="true" />
             <span>
-              Rê chuột vào một buổi để xem nhanh, bấm để mở trang chi tiết.
+              Rê chuột hoặc bấm vào một buổi để xem nhanh.
               {isOwner ? " Kéo thả để dời giờ, bấm ô trống để tạo buổi mới." : null}
             </span>
           </p>
-          <MatchAttendanceLegend />
+
+          <MatchPhaseLegend />
         </div>
       </Card>
 
@@ -138,6 +170,21 @@ export default function OrganizationMatchesPage() {
             onOpenChange={setDialogOpen}
             initialStart={initialStart}
             initialEnd={initialEnd}
+          />
+          {/* Hộp thoại SỬA đứng riêng với hộp thoại TẠO dù cùng một component: mỗi cái giữ một ô
+              `open` riêng nên mở cái này không đóng cái kia, và `match` chỉ có ở bản sửa — đó
+              cũng chính là thứ `MatchFormDialog` dùng để biết mình đang ở chế độ nào. */}
+          <MatchFormDialog
+            organizationId={organization.id}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            match={editing ?? undefined}
+          />
+          <CancelMatchDialog
+            match={canceling}
+            organizationId={organization.id}
+            open={cancelOpen}
+            onOpenChange={setCancelOpen}
           />
           <MatchRescheduleDialog
             organizationId={organization.id}
