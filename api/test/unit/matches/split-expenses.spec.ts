@@ -4,8 +4,8 @@ describe('splitExpenses', () => {
   const female = (id: string) => ({ userId: id, gender: 'female' as const });
   const male = (id: string) => ({ userId: id, gender: 'male' as const });
 
-  it('chia theo hệ số và làm tròn LÊN nghìn, phần dư vào quỹ', () => {
-    // 490.000đ, 2 nam + 2 nữ, hệ số 1.2 → 4.4 suất → một suất nữ = 111.363,6đ
+  it('chia theo hệ số, để LẺ tới đồng, không làm tròn lên nghìn', () => {
+    // 490.000đ, 2 nam + 2 nữ, hệ số 1.2 → 4,4 suất → một suất nữ = 111.363,63đ
     const result = splitExpenses({
       participants: [male('a'), male('b'), female('c'), female('d')],
       expenses: [
@@ -17,12 +17,26 @@ describe('splitExpenses', () => {
     });
 
     expect(result.total).toBe(490_000);
-    expect(result.charges.map((charge) => charge.amount)).toEqual([134_000, 134_000, 112_000, 112_000]);
-    // Thu 492.000 cho khoản chi 490.000 — dư đúng 2.000, không âm.
-    expect(result.surplus).toBe(2_000);
+    // Trước đây làm tròn lên nghìn ra [134.000, 134.000, 112.000, 112.000] và thu dư 2.000đ.
+    expect(result.charges.map((charge) => charge.amount)).toEqual([133_636, 133_636, 111_364, 111_364]);
+    // Thu đúng bằng chi, không còn đồng nào rơi vào quỹ.
+    expect(result.surplus).toBe(0);
   });
 
-  it('chia hết thì không dư', () => {
+  it('phần lẻ không chia hết được phát 1đ cho người có phần dư lớn nhất, tổng vẫn khớp', () => {
+    // 10đ cho 4 nữ: mỗi người 2,5đ. Phần dư bằng nhau nên hai người đầu danh sách nhận thêm 1đ.
+    const result = splitExpenses({
+      participants: [female('a'), female('b'), female('c'), female('d')],
+      expenses: [{ quantity: 1, unitPrice: 10 }],
+      maleRatio: 1.2,
+    });
+
+    expect(result.charges.map((charge) => charge.amount)).toEqual([3, 3, 2, 2]);
+    expect(result.charges.reduce((sum, charge) => sum + charge.amount, 0)).toBe(result.total);
+    expect(result.surplus).toBe(0);
+  });
+
+  it('chia hết thì mọi người bằng nhau', () => {
     const result = splitExpenses({
       participants: [female('a'), female('b'), female('c'), female('d')],
       expenses: [{ quantity: 1, unitPrice: 400_000 }],
@@ -62,16 +76,17 @@ describe('splitExpenses', () => {
     expect(result.surplus).toBe(0);
   });
 
-  it('hệ số lẻ hai chữ số thập phân vẫn ra số nguyên nghìn', () => {
+  it('hệ số lẻ hai chữ số thập phân: số tiền KHÔNG còn là bội của nghìn', () => {
     const result = splitExpenses({
       participants: [male('a'), female('b'), female('c')],
       expenses: [{ quantity: 3, unitPrice: 111_111 }],
       maleRatio: 1.33,
     });
 
-    expect(result.charges.every((charge) => charge.amount % 1_000 === 0)).toBe(true);
-    const collected = result.charges.reduce((sum, charge) => sum + charge.amount, 0);
-    expect(collected - result.total).toBe(result.surplus);
-    expect(result.surplus).toBeGreaterThanOrEqual(0);
+    expect(result.total).toBe(333_333);
+    expect(result.charges.map((charge) => charge.amount)).toEqual([133_133, 100_100, 100_100]);
+    expect(result.charges.some((charge) => charge.amount % 1_000 !== 0)).toBe(true);
+    expect(result.charges.reduce((sum, charge) => sum + charge.amount, 0)).toBe(result.total);
+    expect(result.surplus).toBe(0);
   });
 });

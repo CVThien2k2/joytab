@@ -3,7 +3,8 @@ import { presignedPostResponseSchema } from "@/schema/upload"
 import type { PresignedPost, UploadFolder } from "@/types/upload"
 
 /**
- * Input: thư mục đích, tên tệp gốc, loại MIME.
+ * Input: thư mục đích, tên tệp gốc, loại MIME, và `organizationId` khi thư mục thuộc tổ chức
+ *        (xem ORG_SCOPED_UPLOAD_FOLDERS) — BE từ chối nếu thiếu.
  * Output: URL + fields để POST ảnh thẳng lên S3.
  *
  *         Chỉ xin QUYỀN ghi, chưa gửi byte nào: file không đi qua API (xem lib/upload.ts).
@@ -12,6 +13,7 @@ export async function presignUpload(payload: {
   folder: UploadFolder
   filename: string
   contentType: string
+  organizationId?: string
 }): Promise<PresignedPost> {
   const response = await apiClient.post("/upload/presign", payload)
   return presignedPostResponseSchema.parse(response.data).data

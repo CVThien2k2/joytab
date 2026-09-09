@@ -9,6 +9,7 @@ import {
   Pagination,
 } from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
+import { UploadService } from '../upload/upload.service';
 import { CreateOrganizationDto, ListMembersQueryDto, UpdateOrganizationDto } from './organizations.dto';
 import { JOIN_CODE_MAX_ATTEMPTS, ORGANIZATION_ROLES } from './organizations.constants';
 import { generateJoinCode } from './organizations.utils';
@@ -31,7 +32,10 @@ type OrganizationWithMembership = {
 export class OrganizationsService {
   private readonly logger = new Logger(OrganizationsService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   /**
    * Input: userId đã xác thực.
@@ -180,9 +184,14 @@ export class OrganizationsService {
    * Input: userId người thao tác + id tổ chức.
    * Output: Xoá cả tổ chức. Chỉ owner làm được.
    *
-   *         Các hàng organization_members đi theo bằng `onDelete: Cascade` khai ở schema chứ
-   *         không xoá tay ở đây: ràng buộc nằm ở DB thì mọi đường xoá đều dọn sạch, kể cả khi
-   *         sau này có script xoá trực tiếp không qua service này.
+   *         Các hàng organization_members/matches/payments đi theo bằng `onDelete: Cascade`
+   *         khai ở schema chứ không xoá tay ở đây: ràng buộc nằm ở DB thì mọi đường xoá đều dọn
+   *         sạch, kể cả khi sau này có script xoá trực tiếp không qua service này.
+   *
+   *         Ảnh trên S3 (QR, minh chứng thanh toán của mọi payment thuộc tổ chức) thì KHÔNG có
+   *         cascade nào lo — dọn SAU khi DB xoá thành công, không chặn việc xoá tổ chức nếu dọn
+   *         S3 lỗi. Xoá theo prefix `orgs/<organizationId>/` (`deleteOrganizationFolder`) thay
+   *         vì liệt kê từng trường ảnh: tự dọn sạch cả những loại ảnh thêm sau này.
    */
   async remove(userId: string, organizationId: string): Promise<void> {
     const membership = await this.requireMembership(userId, organizationId);
@@ -190,6 +199,8 @@ export class OrganizationsService {
 
     await this.databaseService.organization.delete({ where: { id: organizationId } });
     this.logger.log(`Organization ${organizationId} deleted by ${userId}`);
+
+    await this.uploadService.deleteOrganizationFolder(organizationId);
   }
 
   /**
@@ -284,6 +295,9 @@ export class OrganizationsService {
    *         Không phải thành viên thì trả ORG_001 (không tồn tại) chứ không phải ORG_004:
    *         người ngoài không cần biết id đó có thật hay không. Là member nhưng không phải
    *         owner mới trả ORG_004 — người trong nhà thì nói thẳng là không đủ quyền.
+   *
+   *         Ảnh QR cũ bị xoá trên S3 khi owner đổi/gỡ QR — không dọn thì mỗi lần đổi QR là thêm
+   *         một file mồ côi, cùng lý do với avatar (xem `AuthService.updateProfile`).
    */
   async update(userId: string, organizationId: string, dto: UpdateOrganizationDto): Promise<OrganizationSummary> {
     const membership = await this.databaseService.organizationMember.findFirst({
@@ -291,6 +305,11 @@ export class OrganizationsService {
     });
     if (!membership) throw new AppException(ERROR_CODES.ORG_001);
     if (this.toRole(membership.role) !== 'owner') throw new AppException(ERROR_CODES.ORG_004);
+
+    const current = await this.databaseService.organization.findUniqueOrThrow({
+      where: { id: organizationId },
+      select: { payment_qr_url: true },
+    });
 
     // Xoay mã đứng riêng một query vì nó phải thử lại khi trùng mã; tên thì ghi thẳng.
     if (dto.joinByCodeEnabled === true) {
@@ -309,6 +328,10 @@ export class OrganizationsService {
       },
       include: { _count: { select: { members: true } } },
     });
+
+    if (dto.paymentQrUrl !== undefined && organization.payment_qr_url !== current.payment_qr_url) {
+      await this.uploadService.deleteStoredImage(current.payment_qr_url);
+    }
 
     const changes = [
       dto.name !== undefined ? `renamed to "${dto.name}"` : null,

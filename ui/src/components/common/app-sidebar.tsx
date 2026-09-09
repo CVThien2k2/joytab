@@ -7,6 +7,7 @@ import { JoytabLogo } from "@/components/common/joytab-logo"
 import { RailTooltip } from "@/components/common/rail-tooltip"
 import { SidebarProfileMenu } from "@/components/common/sidebar-profile-menu"
 import { useSidebar } from "@/components/common/sidebar-provider"
+import { useUnpaidChargeSummary } from "@/hooks/use-payments-api"
 import { useOrganizationStore } from "@/stores/organization-store"
 import { organizationHomePath } from "@/lib/routes"
 import { cn } from "@/lib/utils"
@@ -93,6 +94,7 @@ function NavRow({
   icon: Icon,
   isActive,
   collapsed,
+  badge = 0,
   onNavigate,
 }: {
   href: string
@@ -100,20 +102,42 @@ function NavRow({
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>
   isActive: boolean
   collapsed: boolean
+  /** Số việc đang chờ ở mục này. 0 = không vẽ gì — một badge "0" chỉ là điểm bắt mắt phải bỏ qua. */
+  badge?: number
   onNavigate?: () => void
 }) {
   return (
-    <RailTooltip label={label} enabled={collapsed}>
+    // Rail thu gọn không đọc được con số, nên nó đi vào tooltip — chỗ duy nhất còn chữ.
+    <RailTooltip
+      label={badge > 0 ? `${label} — ${badge} khoản chưa trả` : label}
+      enabled={collapsed}
+    >
       <Link
         href={href}
         onClick={onNavigate}
         aria-current={isActive ? "page" : undefined}
         className={navRowClass(isActive)}
       >
-        <Icon className="size-5 shrink-0 text-current" aria-hidden="true" />
+        {/* Chấm trên icon CHỈ dành cho rail thu gọn: ở đó nhãn bị ẩn nên viên số cũng đi theo,
+            mà mất luôn thì rail thành chỗ duy nhất không báo gì. Chấm không nói được bao nhiêu
+            khoản, nhưng nói được "có việc" — đủ để người ta mở rail ra xem. */}
+        <span className="relative shrink-0">
+          <Icon className="size-5 text-current" aria-hidden="true" />
+          {badge > 0 ? (
+            <span className="absolute -top-0.5 -right-0.5 hidden size-2 rounded-full bg-primary ring-2 ring-sidebar sidebar-closed:md:block" />
+          ) : null}
+        </span>
+
         <span className="min-w-0 flex-1 truncate text-left sidebar-closed:md:opacity-0">
           {label}
         </span>
+
+        {badge > 0 ? (
+          <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[11px] leading-none font-semibold text-primary-foreground tabular-nums sidebar-closed:md:hidden">
+            {badge}
+            <span className="sr-only"> khoản chưa trả</span>
+          </span>
+        ) : null}
       </Link>
     </RailTooltip>
   )
@@ -149,6 +173,9 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const isOwner = activeRole === "owner"
   const { open, toggle } = useSidebar()
   const collapsed = !open
+  // Badge nợ nằm ở sidebar chứ không ở riêng trang thanh toán: nợ chỉ nhắc được khi người ta
+  // KHÔNG đứng ở trang thanh toán, mà sidebar là thứ duy nhất có mặt ở mọi trang.
+  const { unpaidCount } = useUnpaidChargeSummary(activeId ?? "")
 
   return (
     <div className="group/rail flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground">
@@ -231,6 +258,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
                   icon={item.icon}
                   isActive={isActive}
                   collapsed={collapsed}
+                  badge={item.segment === "payments" ? unpaidCount : 0}
                   onNavigate={onNavigate}
                 />
               )

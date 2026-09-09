@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CreatePresignedUploadDto } from './upload.dto';
 import { UploadService } from './upload.service';
@@ -15,12 +16,15 @@ export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   /**
-   * Input: cookie `at` + { folder, filename, contentType }.
+   * Input: cookie `at` + { folder, filename, contentType, organizationId? }.
    * Output: { url, fields, key, publicUrl } — client POST multipart thẳng lên `url`.
+   *
+   *         `organizationId` bắt buộc khi `folder` gắn tổ chức (DTO ép), và service kiểm caller
+   *         có phải thành viên tổ chức đó không trước khi cấp quyền ghi.
    */
   @Post('presign')
-  async presign(@Body() dto: CreatePresignedUploadDto) {
-    return this.uploadService.createImagePost(dto);
+  async presign(@Req() request: Request & { userId: string }, @Body() dto: CreatePresignedUploadDto) {
+    return this.uploadService.createImagePost({ ...dto, userId: request.userId });
   }
 
   /**

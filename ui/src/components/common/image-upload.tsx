@@ -21,6 +21,8 @@ export type ImageUploadProps = {
   /** Ảnh hiện tại (URL công khai), null = chưa có. */
   value: string | null
   folder: UploadFolder
+  /** Bắt buộc khi `folder` thuộc tổ chức (xem ORG_SCOPED_UPLOAD_FOLDERS) — BE từ chối nếu thiếu. */
+  organizationId?: string
   /**
    * `circle` = ảnh đại diện, thiếu ảnh thì rơi về chữ viết tắt trên nền màu (cần `name`).
    * `square` = ảnh phải nhìn được nội dung (mã QR, biên lai chuyển khoản) nên giữ nguyên tỉ lệ
@@ -66,6 +68,7 @@ export type ImageUploadProps = {
 export function ImageUpload({
   value,
   folder,
+  organizationId,
   shape = "circle",
   name = "",
   label = "Tải ảnh lên",
@@ -110,7 +113,12 @@ export function ImageUpload({
     setPercent(0)
 
     try {
-      const uploaded = await uploadOneImage({ folder, file, onProgress: setPercent })
+      const uploaded = await uploadOneImage({
+        folder,
+        file,
+        organizationId,
+        onProgress: setPercent,
+      })
       onUploaded(uploaded.publicUrl)
     } catch (err) {
       // Xoá xem trước để khung không đứng ở một ảnh chưa bao giờ được lưu.
@@ -172,12 +180,16 @@ export function ImageUpload({
           }}
         />
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* Không có khung xem trước thì hai cái nút là thứ duy nhất trong hàng — để nguyên thì
+            chúng dồn về trái, lệch hẳn so với ảnh canh giữa ở trên. Cho hai nút chia đôi cả chiều
+            ngang thay vì canh giữa: hàng nút cân với ảnh, và nút to hơn thì dễ bấm trên điện thoại. */}
+        <div className={cn("flex flex-wrap items-center gap-1.5", hidePreview && "flex-nowrap")}>
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={disabled || isUploading}
+            className={cn(hidePreview && "flex-1")}
             onClick={() => inputRef.current?.click()}
           >
             <Camera aria-hidden="true" />
@@ -189,7 +201,10 @@ export function ImageUpload({
             variant="outline"
             size="sm"
             disabled={disabled || isUploading || !src}
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className={cn(
+              "text-destructive hover:bg-destructive/10 hover:text-destructive",
+              hidePreview && "flex-1",
+            )}
             onClick={() => setConfirmingRemove(true)}
           >
             <Trash2 aria-hidden="true" />
@@ -197,7 +212,7 @@ export function ImageUpload({
           </Button>
         </div>
 
-        <p className="text-xs text-muted-foreground">
+        <p className={cn("text-xs text-muted-foreground", hidePreview && "text-center")}>
           JPEG, PNG, WebP hoặc GIF, tối đa {MAX_MB}MB.
         </p>
       </div>

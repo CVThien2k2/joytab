@@ -308,7 +308,7 @@ describe('Chốt chi phí', () => {
     expect(response.body.code).toBe('MATCH_010');
   });
 
-  it('chia theo hệ số, làm tròn lên nghìn, dư vào quỹ', async () => {
+  it('chia theo hệ số, để lẻ tới đồng, thu đúng bằng chi', async () => {
     await moveToPast(matchId);
 
     const response = await api()
@@ -325,13 +325,15 @@ describe('Chốt chi phí', () => {
 
     const settlement = response.body.data.settlement;
     expect(settlement.total).toBe(300000);
-    // Nam 1.2 suất + nữ 1 suất = 2.2 suất → nữ 136.363đ → 137.000, nam 163.636đ → 164.000.
+    // Nam 1.2 suất + nữ 1 suất = 2.2 suất → nam 163.636,36đ, nữ 136.363,63đ. Không làm tròn
+    // lên nghìn nữa; 1đ lẻ còn lại về tay người có phần dư lớn hơn (nữ).
     const byUser = Object.fromEntries(
       settlement.charges.map((charge: { userId: string; amount: number }) => [charge.userId, charge.amount]),
     );
-    expect(byUser[users.owner.id]).toBe(164000);
-    expect(byUser[users.mate.id]).toBe(137000);
-    expect(settlement.surplus).toBe(1000);
+    expect(byUser[users.owner.id]).toBe(163636);
+    expect(byUser[users.mate.id]).toBe(136364);
+    expect(byUser[users.owner.id] + byUser[users.mate.id]).toBe(settlement.total);
+    expect(settlement.surplus).toBe(0);
     expect(settlement.editable).toBe(true);
   });
 

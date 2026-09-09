@@ -27,13 +27,46 @@ function invalidatePaymentData(
   void queryClient.invalidateQueries({ queryKey: ["matches", "settlement"] })
 }
 
-/** Công nợ của mình trong một tổ chức — nguồn của tab "Khoản của tôi". */
+/**
+ * Công nợ của mình trong một tổ chức — nguồn của tab "Khoản của tôi", của badge trên sidebar
+ * và của banner nhắc nợ.
+ *
+ * `enabled` theo id vì sidebar gọi hook này ở MỌI trang, kể cả lúc chưa có tổ chức nào đang
+ * chọn — hook không được gọi có điều kiện, nên chỗ chặn phải nằm ở đây.
+ */
 export function useOrganizationCharges(organizationId: string) {
   return useQuery({
     queryKey: paymentQueryKeys.organizationCharges(organizationId),
     queryFn: () => fetchOrganizationCharges(organizationId),
+    enabled: Boolean(organizationId),
     staleTime: 15_000,
   })
+}
+
+/**
+ * Input: id tổ chức.
+ * Output: Tóm tắt nợ: nhóm công nợ, số khoản chưa trả, tổng tiền chưa trả.
+ *
+ *         Badge sidebar và banner nhắc nợ đều đi qua đây nên chúng dùng CHUNG một entry cache
+ *         của react-query — hai chỗ hiển thị, một request, và không bao giờ lệch nhau một con
+ *         số. Chúng cũng tự mới lại sau khi thanh toán, vì `invalidatePaymentData` đã xoá cả
+ *         nhánh `charges`.
+ *
+ *         Vẫn tự đếm khoản `unpaid` thay vì tin `charges.length`: BE hiện chỉ trả khoản chưa
+ *         trả, nhưng một badge đếm nhầm cả khoản đã trả là thứ không ai giải thích được.
+ */
+export function useUnpaidChargeSummary(organizationId: string) {
+  const { data } = useOrganizationCharges(organizationId)
+  // Một tổ chức = một nhóm; mảng rỗng nghĩa là không nợ gì.
+  const group = data?.[0] ?? null
+  const unpaidCount =
+    group?.charges.filter((charge) => charge.paymentStatus === "unpaid").length ?? 0
+
+  return {
+    group,
+    unpaidCount,
+    unpaidTotal: unpaidCount > 0 ? (group?.unpaidTotal ?? 0) : 0,
+  }
 }
 
 /**

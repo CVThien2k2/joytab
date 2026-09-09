@@ -14,9 +14,6 @@ const REFRESH_URL = "/auth/refresh"
  */
 const NO_RETRY_URLS = [REFRESH_URL, "/auth/logout"]
 
-/** Access token hết hạn — mã DUY NHẤT đáng để thử refresh. */
-const ACCESS_TOKEN_EXPIRED_CODE = "AUTH_005"
-
 /** Đánh dấu request đã retry sau refresh, để không retry lần hai. */
 type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean }
 
@@ -25,9 +22,20 @@ type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean }
  * Output: axios instance dùng chung — luôn gửi kèm cookie `at`/`rt` (withCredentials).
  *
  * Xử lý 401 — đây là chỗ DUY NHẤT lo việc token còn hạn hay không (proxy chỉ đọc cookie để
- * định hướng, không gọi BE):
- *  - code AUTH_005 (AT hết hạn) → gọi /auth/refresh rồi retry đúng request đó một lần.
- *  - code khác (AUTH_001 token rác/thiếu, AUTH_006 RT chết) → về /logout.
+ * định hướng, không gọi BE): thử /auth/refresh MỘT lần rồi chạy lại đúng request đó. Refresh
+ * hỏng mới là hết phiên → về /logout.
+ *
+ * Thử refresh với MỌI mã 401, không chỉ AUTH_005 ("access token hết hạn"). Trước đây chỉ
+ * AUTH_005 mới được refresh, và đó là lý do phiên chết sau đúng một tiếng: cookie `at` được
+ * BE set kèm `maxAge` bằng TTL của nó, nên tới hạn BROWSER XOÁ cookie thay vì gửi lên một JWT
+ * đã hết hạn. BE không thấy cookie nào cả → trả AUTH_001 ("thiếu token"), không phải AUTH_005
+ * — nhánh refresh gần như không bao giờ chạy, còn nhánh "về /logout" thì chạy mỗi giờ một lần.
+ *
+ * Gộp mọi mã 401 vào một đường không nới lỏng gì: quyền quyết định phiên còn sống hay không
+ * nằm ở /auth/refresh, mà nó kiểm `rt` trong DB (revoke, hết hạn, dùng lại). Token rác hay
+ * thiếu token đều không nói lên điều gì về `rt` — hỏi thẳng BE là câu trả lời đúng, thay vì
+ * suy đoán từ mã lỗi của access token.
+ *
  *  - /auth/refresh và /auth/logout: xem NO_RETRY_URLS.
  */
 function createApiClient(): AxiosInstance {
@@ -95,12 +103,8 @@ function createApiClient(): AxiosInstance {
         return Promise.reject(error)
       }
 
-      const code = (error.response.data as { code?: string } | undefined)?.code
-      if (code !== ACCESS_TOKEN_EXPIRED_CODE) {
-        endSession()
-        return Promise.reject(error)
-      }
-
+      // Đã retry một lần mà vẫn 401: refresh vừa chạy xong nên `at` là token mới toanh, 401
+      // lần nữa nghĩa là chuyện khác đang sai chứ không phải token cũ. Thử tiếp chỉ tổ quay vòng.
       if (!config || config._retried) {
         endSession()
         return Promise.reject(error)

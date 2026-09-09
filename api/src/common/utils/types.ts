@@ -210,7 +210,10 @@ export type MatchSettlement = {
   expenses: MatchExpenseItem[];
   total: number;
   charges: MatchChargeItem[];
-  /** Σ(tiền từng người) − tổng chi, sinh ra do làm tròn lên nghìn. Luôn ≥ 0. */
+  /**
+   * Σ(tiền từng người) − tổng chi. Bảng chốt từ nay luôn 0 vì tiền chia chính xác tới đồng;
+   * bảng chốt từ TRƯỚC (thời còn làm tròn lên nghìn) vẫn giữ nguyên phần dư đã thu.
+   */
   surplus: number;
   /** Còn sửa được không: chỉ khi mọi khoản còn 'unpaid'. */
   editable: boolean;

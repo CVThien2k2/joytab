@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import { Gender, GENDERS, GoogleUser, UserProfile } from '../common/utils/types';
@@ -22,8 +22,6 @@ type UserRow = {
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   /**
    * Input: DatabaseService.
    * Output: Service nghiệp vụ user của luồng auth. Việc cấp/xoay token nằm ở AuthJwtService
@@ -115,25 +113,10 @@ export class AuthService {
     });
 
     if (dto.avatarUrl !== undefined && dto.avatarUrl !== current.avatar_url) {
-      await this.deleteStoredImage(current.avatar_url);
+      await this.uploadService.deleteStoredImage(current.avatar_url);
     }
 
     return { userId: user.id, user: this.toUserProfile(user) };
-  }
-
-  /**
-   * Input: URL ảnh cũ (có thể null, có thể là URL Google).
-   * Output: Xoá file trên S3 nếu đó là file của app này. Lỗi xoá chỉ ghi log chứ KHÔNG ném:
-   *         người dùng đã đổi ảnh thành công, làm họ thấy lỗi vì một file rác là sai trọng tâm.
-   */
-  private async deleteStoredImage(url: string | null): Promise<void> {
-    const key = this.uploadService.extractKey(url);
-    if (!key) return;
-    try {
-      await this.uploadService.delete(key);
-    } catch (err) {
-      this.logger.warn(`Không xoá được ảnh cũ ${key}: ${err instanceof Error ? err.message : err}`);
-    }
   }
 
   /**

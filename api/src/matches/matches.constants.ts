@@ -17,14 +17,6 @@ export const MATCH_VOTE_ACTIONS = ['join', 'cancel'] as const;
 export const MATCH_CANCEL_LOCK_HOURS = 2;
 export const MATCH_CANCEL_LOCK_MS = MATCH_CANCEL_LOCK_HOURS * 60 * 60 * 1000;
 
-/**
- * Mọi số tiền chia cho từng người đều làm tròn LÊN bội số này (đồng).
- *
- * Làm tròn lên chứ không làm tròn gần nhất: tổng thu khi đó luôn ≥ tổng chi, không bao giờ
- * có cảnh thu đủ mọi người mà vẫn thiếu tiền trả sân. Phần dư hiện thành một dòng riêng.
- */
-export const MONEY_ROUNDING_UNIT = 1000;
-
 export const MIN_COURT_NAME_LENGTH = 1;
 export const MAX_COURT_NAME_LENGTH = 120;
 export const MAX_MATCH_NOTE_LENGTH = 500;

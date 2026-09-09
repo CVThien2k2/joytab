@@ -5,6 +5,12 @@ import { envelope } from "@/schema/envelope"
 export const UPLOAD_FOLDERS = ["avatars", "org-logos", "payment-qr", "payment-proofs"] as const
 export const uploadFolderSchema = z.enum(UPLOAD_FOLDERS)
 
+/**
+ * Thư mục thuộc sở hữu một tổ chức — key của chúng nằm dưới `orgs/<organizationId>/` ở BE, nên
+ * xin presign cho các folder này phải kèm `organizationId`. Khớp ORG_SCOPED_UPLOAD_FOLDERS ở BE.
+ */
+export const ORG_SCOPED_UPLOAD_FOLDERS = ["org-logos", "payment-qr", "payment-proofs"] as const
+
 /** Loại ảnh BE nhận. Khớp UPLOAD_IMAGE_CONTENT_TYPES ở BE — lệch nhau thì BE trả 400. */
 export const UPLOAD_IMAGE_CONTENT_TYPES = [
   "image/jpeg",

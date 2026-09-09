@@ -51,7 +51,8 @@ function postToPresignedUrl(params: {
 }
 
 /**
- * Input: thư mục đích, file ảnh, callback tiến độ (tuỳ chọn).
+ * Input: thư mục đích, file ảnh, callback tiến độ (tuỳ chọn), `organizationId` khi thư mục
+ *        thuộc tổ chức (xem ORG_SCOPED_UPLOAD_FOLDERS ở schema/upload.ts).
  * Output: `publicUrl` (lưu vào DB / hiển thị) và `key` (để xoá khi cần).
  *
  *         Hai bước: xin presign ở API rồi POST file thẳng lên S3. API không nhìn thấy byte nào,
@@ -61,11 +62,13 @@ export async function uploadOneImage(params: {
   folder: UploadFolder
   file: File
   onProgress?: (percent: number) => void
+  organizationId?: string
 }): Promise<UploadedImage> {
   const presigned = await presignUpload({
     folder: params.folder,
     filename: params.file.name,
     contentType: params.file.type,
+    organizationId: params.organizationId,
   })
 
   await postToPresignedUrl({

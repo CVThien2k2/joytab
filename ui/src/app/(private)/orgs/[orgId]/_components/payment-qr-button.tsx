@@ -100,6 +100,7 @@ export function PaymentQrButton({
                 hidePreview
                 value={organization.paymentQrUrl}
                 folder="payment-qr"
+                organizationId={organization.id}
                 label="Tải mã QR"
                 name={`Mã QR của ${organization.name}`}
                 disabled={update.isPending}

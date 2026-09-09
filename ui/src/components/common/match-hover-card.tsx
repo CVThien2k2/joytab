@@ -47,7 +47,7 @@ function VoteAction({ match, organizationId }: { match: MatchSummary; organizati
 
     if (locked) {
       return (
-        <p className="text-xs text-muted-foreground">
+        <p className="w-full text-xs text-muted-foreground">
           {cancelLockedText(match.voteClosedReason, phase)}
         </p>
       )
@@ -57,7 +57,8 @@ function VoteAction({ match, organizationId }: { match: MatchSummary; organizati
       <Button
         type="button"
         variant="outline"
-        className="w-full"
+        size="sm"
+        className="flex-1"
         disabled={vote.isPending}
         onClick={() => vote.mutate({ matchId: match.id, join: false })}
       >
@@ -67,12 +68,13 @@ function VoteAction({ match, organizationId }: { match: MatchSummary; organizati
     )
   }
 
-  if (closed) return <p className="text-xs text-muted-foreground">{closed}</p>
+  if (closed) return <p className="w-full text-xs text-muted-foreground">{closed}</p>
 
   return (
     <Button
       type="button"
-      className="w-full"
+      size="sm"
+      className="flex-1"
       disabled={vote.isPending}
       onClick={() => vote.mutate({ matchId: match.id, join: true })}
     >
@@ -214,17 +216,30 @@ export function MatchSummaryPanel({
           </p>
         ) : null}
 
-        <VoteAction match={match} organizationId={organizationId} />
+        {/* Đăng ký và Xem chi tiết đứng NGANG HÀNG, chia đôi bề ngang: hai việc ngang cấp
+            nhau, xếp dọc thì cái trên trông như bước một của cái dưới. Thẻ cũng ngắn lại một
+            nấc, mà nó bung ra đè lên chính cái lịch người ta đang đọc.
 
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={() => onOpenDetail(match.id)}
-        >
-          Xem chi tiết
-          <ArrowRight aria-hidden="true" />
-        </Button>
+            `flex-wrap` + `w-full` trên mấy dòng giải thích của `VoteAction`: khi hết hạn đăng
+            ký thì chỗ nút đăng ký là một câu chữ, câu đó chiếm trọn hàng và đẩy "Xem chi tiết"
+            xuống hàng dưới — chữ giải thích mà bị ép còn nửa thẻ thì vỡ thành bốn dòng.
+
+            `size="sm"` để hai nhãn dài nhất ("Đăng ký tham gia", "Huỷ đăng ký") vẫn nằm gọn
+            trong 144px mỗi nút, và để cả khu bấm cùng một cỡ với hàng Sửa/Huỷ của owner. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <VoteAction match={match} organizationId={organizationId} />
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => onOpenDetail(match.id)}
+          >
+            Xem chi tiết
+            <ArrowRight aria-hidden="true" />
+          </Button>
+        </div>
 
         {/* Hàng của owner, tách xuống dưới cùng và chia đôi bề ngang: hai việc này KHÁC loại với
             ba thứ trên (đăng ký, xem chi tiết là việc của người đi đá), nên chúng không được

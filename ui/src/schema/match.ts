@@ -17,9 +17,6 @@ export const MAX_EXPENSE_QUANTITY = 9999
 export const MAX_EXPENSE_UNIT_PRICE = 100_000_000
 /** Không huỷ vote được khi còn dưới ngần này giờ — dùng để giải thích, BE mới là chỗ chặn. */
 export const MATCH_CANCEL_LOCK_HOURS = 2
-/** Mọi khoản chia cho từng người đều là bội của số này. */
-export const MONEY_ROUNDING_UNIT = 1000
-
 export const MATCH_STATUSES = ["open", "settled", "canceled"] as const
 export const matchStatusSchema = z.enum(MATCH_STATUSES)
 

@@ -11,10 +11,29 @@ export const UPLOAD_FOLDERS = ['avatars', 'org-logos', 'payment-qr', 'payment-pr
 export type UploadFolder = (typeof UPLOAD_FOLDERS)[number];
 
 /**
+ * Thư mục thuộc SỞ HỮU của một tổ chức — key của chúng nằm dưới `orgs/<organizationId>/`, khác
+ * `avatars` (dữ liệu của USER, một user có thể ở nhiều tổ chức nên không gắn được vào một id).
+ *
+ * Gắn theo tổ chức để một lần xoá tổ chức là xoá sạch theo PREFIX, không phải nhớ dọn từng loại
+ * ảnh một (xem `UploadService.deleteOrganizationFolder`).
+ */
+export const ORG_SCOPED_UPLOAD_FOLDERS = ['org-logos', 'payment-qr', 'payment-proofs'] as const;
+
+export function isOrgScopedFolder(folder: UploadFolder): boolean {
+  return (ORG_SCOPED_UPLOAD_FOLDERS as readonly string[]).includes(folder);
+}
+
+/**
  * Tiền tố chung của mọi object joytab ghi lên bucket. Bucket đang dùng chung với hub, nên tách
  * prefix để hai app không trộn file vào nhau — và sau này xoá/đếm theo app cũng dễ.
  */
 export const UPLOAD_KEY_PREFIX = 'joytab';
+
+/** Tiền tố các folder thuộc một tổ chức. Một chỗ duy nhất định nghĩa hình dạng key, để
+ *  `buildObjectKey` và `deleteOrganizationFolder` không lệch nhau. */
+export function organizationKeyPrefix(organizationId: string): string {
+  return `${UPLOAD_KEY_PREFIX}/orgs/${organizationId}`;
+}
 
 /** Dung lượng tối đa mỗi ảnh (5MB) — S3 tự enforce qua content-length-range của POST policy. */
 export const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;

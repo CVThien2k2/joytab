@@ -27,7 +27,7 @@ export function MatchStatusBadge({ match }: { match: MatchSummary }) {
   if (match.status === "canceled") return <Badge variant="destructive">Đã huỷ</Badge>
   if (match.status === "settled") return <Badge variant="secondary">Đã chốt tiền</Badge>
   if (phase === "ended") return <Badge variant="outline">{MATCH_PHASE_LABELS.ended}</Badge>
-  if (phase === "ongoing") return <Badge variant="secondary">{MATCH_PHASE_LABELS.ongoing}</Badge>
-  if (match.voteClosedReason === "full") return <Badge variant="outline">Đủ người</Badge>
-  return <Badge>Đang mở đăng ký</Badge>
+  if (phase === "ongoing") return <Badge variant="info">{MATCH_PHASE_LABELS.ongoing}</Badge>
+  if (match.voteClosedReason === "full") return <Badge variant="warning">Đủ người</Badge>
+  return <Badge variant="success">Đang mở đăng ký</Badge>
 }

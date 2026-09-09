@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation"
 import { Info, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { MatchAgenda } from "@/components/common/match-agenda"
 import { MatchCalendar, type MatchMoveRequest } from "@/components/common/match-calendar"
 import { MatchCalendarToolbar } from "@/components/common/match-calendar-toolbar"
 import { MatchPhaseLegend } from "@/components/common/match-phase-legend"
+import { UnpaidChargesBanner } from "@/components/common/unpaid-charges-banner"
 import { useOrganizationMatches } from "@/hooks/use-matches-api"
+import { useIsMobile } from "@/hooks/use-media-query"
 import { useNow } from "@/hooks/use-now"
-import { rangeOf, type CalendarViewName } from "@/lib/match-range"
+import { rangeOf, type CalendarPeriod, type CalendarViewName } from "@/lib/match-range"
 import type { MatchSummary } from "@/types/match"
 import { useActiveOrganization } from "@/stores/organization-store"
 import { CancelMatchDialog } from "./_components/cancel-match-dialog"
@@ -39,6 +42,7 @@ export default function OrganizationMatchesPage() {
   const now = useNow()
 
   const [anchor, setAnchor] = useState(() => new Date(now))
+  const isMobile = useIsMobile()
   const [view, setView] = useState<CalendarViewName>("timeGridWeek")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [initialStart, setInitialStart] = useState<Date | undefined>(undefined)
@@ -53,7 +57,12 @@ export default function OrganizationMatchesPage() {
   const [canceling, setCanceling] = useState<MatchSummary | null>(null)
   const [cancelOpen, setCancelOpen] = useState(false)
 
-  const range = useMemo(() => rangeOf(anchor, view), [anchor, view])
+  // Mobile là danh sách, hết — không có kiểu xem nào để chọn ở đó. Dẫn xuất chứ không phải một
+  // state thứ hai: `view` vẫn giữ nguyên lựa chọn cho màn lớn, nên thu cửa sổ xuống rồi kéo
+  // rộng lại là lịch trở về đúng kiểu người ta đang để.
+  const period: CalendarPeriod = isMobile ? "agenda" : view
+
+  const range = useMemo(() => rangeOf(anchor, period), [anchor, period])
   const { data: matches, isFetching } = useOrganizationMatches(organization.id, range)
 
   // Trận đã huỷ không hiện trên lịch: nó không còn là một buổi để đi, và một ô trông y hệt các
@@ -107,11 +116,15 @@ export default function OrganizationMatchesPage() {
 
   return (
     <main className="flex min-h-0 w-full flex-1 flex-col px-4 py-4 sm:px-6">
+      {/* Nhắc nợ đứng TRÊN lịch: đây là trang ai cũng mở đầu tiên, mà dải này tự ẩn khi không
+          nợ gì nên nó không lấy mất chiều cao của lịch trong trường hợp thường. */}
+      <UnpaidChargesBanner organizationId={organization.id} />
+
       {/* `gap-0` vì thanh lọc đã tự chừa khoảng dưới; để cả hai thì thành hai lần khoảng trắng. */}
       <Card size="sm" className="min-h-0 flex-1 gap-0 px-(--card-spacing)">
         <MatchCalendarToolbar
           anchor={anchor}
-          view={view}
+          view={period}
           loading={isFetching}
           onAnchorChange={setAnchor}
           onViewChange={setView}
@@ -119,33 +132,48 @@ export default function OrganizationMatchesPage() {
             isOwner ? (
               <Button type="button" onClick={() => openCreate()}>
                 <Plus aria-hidden="true" />
-                Tạo lịch
+                {/* Chỉ còn icon trên mobile: nhãn "Tạo lịch" chiếm ~64px trên một hàng đã chật,
+                    mà dấu cộng cạnh bộ chuyển kiểu xem thì không có nghĩa nào khác. */}
+                <span className="hidden md:inline">Tạo lịch</span>
+                <span className="sr-only md:hidden">Tạo lịch</span>
               </Button>
             ) : null
           }
         />
 
-        <MatchCalendar
-          matches={visibleMatches}
-          organizationId={organization.id}
-          anchor={anchor}
-          view={view}
-          editable={isOwner}
-          onSelectMatch={(matchId) => router.push(`/orgs/${organization.id}/matches/${matchId}`)}
-          onEditMatch={isOwner ? openEdit : undefined}
-          onCancelMatch={isOwner ? openCancel : undefined}
-          onCreateAt={isOwner ? ({ start, end }) => openCreate(start, end) : undefined}
-          onMove={isOwner ? openMove : undefined}
-        />
+        {/* Mobile: danh sách trận, không dùng lại bộ lịch của màn lớn. Nó cũng không nhận
+            `onCreateAt`/`onMove` — không có lưới thì không có ô trống để quét chọn, cũng không
+            có gì để nhấc lên; owner sửa/huỷ bằng hai nút trên trang chi tiết, chạm vào hàng để
+            vào đó. */}
+        {isMobile ? (
+          <MatchAgenda
+            matches={visibleMatches}
+            onSelectMatch={(matchId) => router.push(`/orgs/${organization.id}/matches/${matchId}`)}
+          />
+        ) : (
+          <MatchCalendar
+            matches={visibleMatches}
+            organizationId={organization.id}
+            anchor={anchor}
+            view={view}
+            editable={isOwner}
+            onSelectMatch={(matchId) => router.push(`/orgs/${organization.id}/matches/${matchId}`)}
+            onEditMatch={isOwner ? openEdit : undefined}
+            onCancelMatch={isOwner ? openCancel : undefined}
+            onCreateAt={isOwner ? ({ start, end }) => openCreate(start, end) : undefined}
+            onMove={isOwner ? openMove : undefined}
+          />
+        )}
 
-        {/* Hai loại chú thích, hai số phận khác nhau ở màn hình nhỏ:
+        {/* Hai loại chú thích, cùng ẨN trên mobile nhưng vì hai lý do khác nhau:
 
-            - Cách dùng (rê chuột / kéo thả) ẨN trên mobile — ở đó không có con trỏ để rê, nên
-              nửa đầu của câu là một lời hứa sai. Chạm vẫn mở được thẻ xem nhanh, chỉ là không
-              cần dạy: chạm vào một khối trên màn hình là thứ ai cũng thử.
-            - Chú giải màu LUÔN hiện: nền chip là thông tin chứ không phải thao tác, mà quy ước
-              màu không nói ra thì ở đâu nó cũng chỉ là mấy ô màu khác nhau. Từ khi chip bỏ nhãn
-              chữ, đây là chỗ DUY NHẤT nói ra nghĩa của ba màu nền.
+            - Cách dùng (rê chuột / kéo thả) ẨN vì ở đó không có con trỏ để rê, mà từ khi kéo thả
+              bị tắt hẳn trên mobile thì nửa sau của câu cũng không còn đúng nữa.
+            - Chú giải màu ẨN vì lưới màu-là-thông-tin đã đổi sang agenda dạng thẻ: mỗi thẻ tự
+              nói trạng thái bằng chữ qua `MatchStatusBadge` (components/common/match-status-badge),
+              không phải suy ra từ một quy ước màu phải học trước — chú giải lúc đó là thông tin
+              thừa. Trên desktop (lưới) thì vẫn giữ: đây là chỗ DUY NHẤT nói ra nghĩa của ba màu
+              nền chip, và agenda vẫn dùng chung bộ màu đó cho vạch bên trái mỗi thẻ.
 
               CHỈ còn chú giải giai đoạn: trục "mình đã đăng ký chưa" không cần giải nghĩa nữa —
               một dấu tích xanh ở góc chip tự nó đã nói xong, không phải một quy ước để học. */}
@@ -158,7 +186,7 @@ export default function OrganizationMatchesPage() {
             </span>
           </p>
 
-          <MatchPhaseLegend />
+          <MatchPhaseLegend className="hidden md:flex" />
         </div>
       </Card>
 

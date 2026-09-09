@@ -243,65 +243,74 @@ export function SettlementDialog({
             </div>
           </section>
 
-          <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-muted/40 p-3">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="settle-ratio" className="shrink-0">
-                Hệ số nam
-              </Label>
-              <Input
-                id="settle-ratio"
-                type="number"
-                step="0.1"
-                inputMode="decimal"
-                className="w-24"
-                value={maleRatio}
-                aria-invalid={!ratioValid}
-                onChange={(event) => setMaleRatio(event.target.value)}
-              />
+          {/* Nhãn TRÊN, mô tả ngay DƯỚI nó, ô nhập tách hẳn sang phải. Trước đây mô tả nằm bên
+              phải cụm nhãn + ô nhập, tức là chen vào giữa hai thứ thuộc về nhau — mắt đọc
+              "Hệ số nam", nhảy qua ô số, rồi mới tới câu giải thích của chính cái nhãn vừa đọc.
+              Xếp dọc thì nhãn và câu giải thích dính liền, còn ô nhập đứng một mình bên phải
+              đúng như mọi hàng cài đặt khác. */}
+          <section className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl border bg-muted/40 p-3">
+            <div className="flex min-w-50 flex-1 flex-col gap-1">
+              <Label htmlFor="settle-ratio">Hệ số nam</Label>
+              <p className="text-xs text-muted-foreground">
+                Nữ là mốc 1. Hệ số {ratioValid ? ratioNumber : "1.2"} nghĩa là nam đóng gấp{" "}
+                {ratioValid ? ratioNumber : "1.2"} lần nữ. Người chưa khai giới tính tính như nam.
+              </p>
             </div>
-            <p className="min-w-50 flex-1 text-xs text-muted-foreground">
-              Nữ là mốc 1. Hệ số {ratioValid ? ratioNumber : "1.2"} nghĩa là nam đóng gấp{" "}
-              {ratioValid ? ratioNumber : "1.2"} lần nữ. Người chưa khai giới tính tính như nam.
-            </p>
+            <Input
+              id="settle-ratio"
+              type="number"
+              step="0.1"
+              inputMode="decimal"
+              className="w-24 shrink-0"
+              value={maleRatio}
+              aria-invalid={!ratioValid}
+              onChange={(event) => setMaleRatio(event.target.value)}
+            />
           </section>
 
           <section className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label>Chia cho {match.participants.length} người</Label>
-              {preview.surplus > 0 ? (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  Làm tròn lên nghìn nên thu dư {formatMoney(preview.surplus)}đ vào quỹ
-                </span>
-              ) : null}
-            </div>
+            <Label>Chia cho {match.participants.length} người</Label>
 
+            {/* Chưa nhập khoản nào thì bảng vẫn hiện, mọi người 0đ — KHÔNG thay bằng một câu
+                "nhập ở trên đi". Bảng này là thứ owner cần thấy trước tiên: ai có tên trong
+                trận, xếp theo thứ tự nào, hệ số mỗi người là bao nhiêu. Ba câu đó trả lời được
+                ngay cả khi chưa có đồng nào, mà giấu bảng đi thì owner gõ xong khoản đầu tiên
+                mới biết mình đang chia cho ai — lúc đó phát hiện thiếu người thì đã gõ xong. */}
             {match.participants.length === 0 ? (
               <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
                 Trận này không có ai đăng ký nên không chia được tiền.
               </p>
-            ) : preview.total === 0 ? (
-              <p className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
-                Nhập khoản chi ở trên để xem trước tiền từng người.
-              </p>
             ) : (
-              <ul className="divide-y rounded-xl border">
-                {preview.charges.map((charge) => {
-                  const participant = participantByUser.get(charge.userId)
-                  const name = participant?.fullName ?? "Thành viên"
-                  return (
-                    <li key={charge.userId} className="flex items-center gap-3 px-3 py-2">
-                      <AccountAvatar name={name} src={participant?.avatarUrl} size={28} />
-                      <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        ×{charge.ratio}
-                      </span>
-                      <span className="shrink-0 text-sm font-semibold tabular-nums">
-                        {formatMoney(charge.amount)}đ
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
+              <div className="overflow-hidden rounded-xl border">
+                <ul className="divide-y">
+                  {preview.charges.map((charge) => {
+                    const participant = participantByUser.get(charge.userId)
+                    const name = participant?.fullName ?? "Thành viên"
+                    return (
+                      <li key={charge.userId} className="flex items-center gap-3 px-3 py-2">
+                        <AccountAvatar name={name} src={participant?.avatarUrl} size={28} />
+                        <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                          ×{charge.ratio}
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums">
+                          {formatMoney(charge.amount)}đ
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+
+                {/* Dòng chốt sổ: Σ tiền từng người, phải khớp ĐÚNG tổng chi ở trên. Từ khi bỏ
+                    làm tròn lên nghìn thì đây là chỗ nhìn một cái biết ngay không đồng nào bị
+                    nắn đi đâu — trước kia hai con số này lệch nhau vài nghìn là chuyện thường. */}
+                <div className="flex items-center gap-3 border-t bg-muted/40 px-3 py-2">
+                  <span className="flex-1 text-sm font-medium">Tổng chia</span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums">
+                    {formatMoney(preview.total)}đ
+                  </span>
+                </div>
+              </div>
             )}
           </section>
         </DialogBody>
