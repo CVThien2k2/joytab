@@ -19,7 +19,7 @@ export const MOBILE_MEDIA_QUERY = "(max-width: 767.98px)"
  *
  *         Ảnh server là `false` — tức "coi như desktop". Chọn phía nào cũng phải chọn một,
  *         mà đoán sai ở desktop chỉ là bố cục rộng hơn cần thiết trong một nhịp, còn đoán sai
- *         ở mobile là lưới 7 cột đổ vào màn 360px.
+ *         ở mobile là một bố cục desktop đổ vào màn 360px.
  */
 export function useMediaQuery(query: string): boolean {
   const subscribe = useCallback(

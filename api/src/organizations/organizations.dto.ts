@@ -109,6 +109,11 @@ export class UpdateOrganizationDto {
   @Min(MIN_MALE_RATIO, { message: `Hệ số nam phải từ ${MIN_MALE_RATIO}` })
   @Max(MAX_MALE_RATIO, { message: `Hệ số nam không quá ${MAX_MALE_RATIO}` })
   maleRatio?: number;
+
+  /** Giá trị fill sẵn cho ô tích ở màn chốt chi phí — không đổi bảng chia tiền của trận nào. */
+  @IsOptional()
+  @IsBoolean({ message: 'Giá trị bật/tắt không hợp lệ' })
+  skipOwnerPayment?: boolean;
 }
 
 /**

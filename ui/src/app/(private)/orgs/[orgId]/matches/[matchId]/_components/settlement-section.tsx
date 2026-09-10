@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { Receipt } from "lucide-react"
+import { PayNowButton } from "@/components/common/pay-now-button"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { useSettlement } from "@/hooks/use-matches-api"
@@ -144,9 +144,11 @@ export function SettlementSection({
             Bạn cần trả <span className="font-semibold">{formatMoney(myCharge.amount)}đ</span> cho
             trận này.
           </p>
-          <Button asChild>
-            <Link href={`/orgs/${match.organizationId}/payments`}>Thanh toán</Link>
-          </Button>
+          {/* Mở thẳng hộp thoại thanh toán, không dẫn đi đâu cả: số tiền đã nằm ngay bên trái,
+              việc còn lại chỉ là quét QR và chụp ảnh chuyển khoản. Nút trả cho TẤT CẢ khoản
+              đang nợ ở tổ chức này chứ không riêng buổi này — một lần chuyển khoản trả được
+              nhiều buổi, và trong hộp thoại vẫn bỏ tick được buổi không muốn trả. */}
+          <PayNowButton organizationId={match.organizationId} size="default" label="Thanh toán" />
         </div>
       ) : null}
 

@@ -20,6 +20,7 @@ import { useCreateMatch, useUpdateMatch } from "@/hooks/use-matches-api"
 import { toDateInput, toIso, toTimeInput } from "@/lib/date-input"
 import {
   MAX_COURT_NAME_LENGTH,
+  MAX_MATCH_ADDRESS_LENGTH,
   MAX_MATCH_NOTE_LENGTH,
   MAX_MAX_PLAYERS,
   MIN_MAX_PLAYERS,
@@ -33,13 +34,10 @@ export type MatchFormDialogProps = {
   onOpenChange: (open: boolean) => void
   /** Có = đang SỬA trận đó; không có = tạo mới. */
   match?: MatchSummary
-  /** Ngày/giờ điền sẵn khi mở từ một ô trống trên lịch. */
-  initialStart?: Date
-  initialEnd?: Date | null
 }
 
 /**
- * Input: tổ chức + (tuỳ chọn) trận đang sửa hoặc ô lịch vừa bấm.
+ * Input: tổ chức + (tuỳ chọn) trận đang sửa.
  * Output: Dialog tạo/sửa lịch thi đấu.
  *
  *         Một NGÀY + hai GIỜ chứ không hai ô ngày-giờ: một buổi đá nằm gọn trong một ngày,
@@ -53,8 +51,6 @@ export function MatchFormDialog({
   open,
   onOpenChange,
   match,
-  initialStart,
-  initialEnd,
 }: MatchFormDialogProps) {
   const isEditing = Boolean(match)
 
@@ -64,6 +60,7 @@ export function MatchFormDialog({
     reValidateMode: "onChange",
     defaultValues: {
       courtName: "",
+      address: "",
       date: toDateInput(new Date()),
       startTime: "19:00",
       endTime: "21:00",
@@ -73,8 +70,8 @@ export function MatchFormDialog({
     },
   })
 
-  // Mỗi lần mở lại phải khớp với thứ vừa bấm: sửa trận nào thì hiện trận đó, bấm ô ngày nào
-  // thì điền ngày đó. Không reset ở đây thì lần mở thứ hai vẫn là dữ liệu của lần đầu.
+  // Mỗi lần mở lại phải khớp với thứ vừa bấm: sửa trận nào thì hiện trận đó, tạo mới thì về
+  // form trắng. Không reset ở đây thì lần mở thứ hai vẫn là dữ liệu của lần đầu.
   useEffect(() => {
     if (!open) return
 
@@ -83,6 +80,7 @@ export function MatchFormDialog({
       const end = new Date(match.endAt)
       form.reset({
         courtName: match.courtName,
+        address: match.address ?? "",
         date: toDateInput(start),
         startTime: toTimeInput(start),
         endTime: toTimeInput(end),
@@ -93,22 +91,21 @@ export function MatchFormDialog({
       return
     }
 
-    const start = initialStart ?? new Date()
-    const end = initialEnd ?? new Date(start.getTime() + 2 * 60 * 60 * 1000)
+    // Tạo mới: hôm nay, khung 19h-21h — giờ hay chơi nhất, nên phần lớn lần tạo chỉ phải sửa
+    // mỗi cái ngày.
     form.reset({
       courtName: "",
-      date: toDateInput(start),
-      // Bấm vào một Ô NGÀY trong lịch tháng thì giờ là 00:00 — vô nghĩa cho một buổi đá, nên
-      // rơi về khung giờ hay chơi nhất thay vì bắt người ta sửa từ nửa đêm.
-      startTime: initialEnd ? toTimeInput(start) : "19:00",
-      endTime: initialEnd ? toTimeInput(end) : "21:00",
+      address: "",
+      date: toDateInput(new Date()),
+      startTime: "19:00",
+      endTime: "21:00",
       maxPlayers: 8,
       maleRatio: "",
       note: "",
     })
     // form là instance ổn định của react-hook-form; đưa vào deps chỉ làm effect chạy lại vô ích.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, match, initialStart, initialEnd])
+  }, [open, match])
 
   const createMatch = useCreateMatch(organizationId, () => onOpenChange(false))
   const updateMatch = useUpdateMatch(organizationId, { onSuccess: () => onOpenChange(false) })
@@ -117,6 +114,9 @@ export function MatchFormDialog({
   function submit(values: MatchFormValues): void {
     const payload = {
       courtName: values.courtName.trim(),
+      // Chuỗi rỗng vẫn gửi đi: BE coi nó là "không đổi" (xem `trimOrUndefined`), nên bỏ trống
+      // ô này lúc sửa là giữ nguyên địa chỉ cũ chứ không xoá — cùng quy ước với ghi chú.
+      address: values.address.trim(),
       startAt: toIso(values.date, values.startTime),
       endAt: toIso(values.date, values.endTime),
       maxPlayers: Number(values.maxPlayers),
@@ -159,6 +159,21 @@ export function MatchFormDialog({
                   {...form.register("courtName")}
                 />
                 <FieldError errors={[form.formState.errors.courtName]} />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="address">
+                  Địa chỉ <span className="text-muted-foreground">(không bắt buộc)</span>
+                </FieldLabel>
+                <Input
+                  id="address"
+                  autoComplete="off"
+                  maxLength={MAX_MATCH_ADDRESS_LENGTH}
+                  placeholder="12 Trần Duy Hưng, Cầu Giấy, Hà Nội"
+                  aria-invalid={!!form.formState.errors.address}
+                  {...form.register("address")}
+                />
+                <FieldError errors={[form.formState.errors.address]} />
               </Field>
 
               <Field>

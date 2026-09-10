@@ -3,28 +3,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { getApiErrorMessage } from "@/api/error"
-import { createPayment, fetchOrganizationCharges, fetchPayments } from "@/api/payments"
+import { createPayment, fetchOrganizationCharges } from "@/api/payments"
 import { matchQueryKeys } from "@/hooks/use-matches-api"
 
 export const paymentQueryKeys = {
   charges: () => ["charges"] as const,
   organizationCharges: (organizationId: string) =>
     [...paymentQueryKeys.charges(), "organization", organizationId] as const,
-  payments: (organizationId: string) => ["payments", organizationId] as const,
 }
 
 /**
- * Làm mới mọi thứ một thay đổi về tiền có thể đụng tới: công nợ, sổ chứng từ, và bảng chia tiền
- * của trận (trạng thái từng khoản nằm trong đó).
+ * Làm mới mọi thứ một thay đổi về tiền có thể đụng tới: công nợ, bảng chia tiền của trận
+ * (trạng thái từng khoản nằm trong đó), và bốn con số ở trang chủ.
  */
 function invalidatePaymentData(
   queryClient: ReturnType<typeof useQueryClient>,
   organizationId: string,
 ): void {
   void queryClient.invalidateQueries({ queryKey: paymentQueryKeys.charges() })
-  void queryClient.invalidateQueries({ queryKey: paymentQueryKeys.payments(organizationId) })
   void queryClient.invalidateQueries({ queryKey: matchQueryKeys.organization(organizationId) })
   void queryClient.invalidateQueries({ queryKey: ["matches", "settlement"] })
+  // Hai thẻ tiền ở trang chủ (cần trả / đã trả) đọc từ chính các khoản vừa chuyển trạng thái.
+  void queryClient.invalidateQueries({ queryKey: ["organizations", "overview"] })
 }
 
 /**
@@ -67,19 +67,6 @@ export function useUnpaidChargeSummary(organizationId: string) {
     unpaidCount,
     unpaidTotal: unpaidCount > 0 ? (group?.unpaidTotal ?? 0) : 0,
   }
-}
-
-/**
- * Input: id tổ chức.
- * Output: Query sổ chứng từ. Owner nhận của cả tổ chức, member chỉ của mình — BE quyết, hook
- *         không cần biết vai trò.
- */
-export function usePayments(organizationId: string) {
-  return useQuery({
-    queryKey: paymentQueryKeys.payments(organizationId),
-    queryFn: () => fetchPayments(organizationId),
-    staleTime: 15_000,
-  })
 }
 
 /**

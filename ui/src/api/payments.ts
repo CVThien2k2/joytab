@@ -1,9 +1,5 @@
 import { apiClient } from "@/api/client"
-import {
-  chargeGroupListResponseSchema,
-  paymentListResponseSchema,
-  paymentResponseSchema,
-} from "@/schema/payment"
+import { chargeGroupListResponseSchema, paymentResponseSchema } from "@/schema/payment"
 import type { OrganizationChargeGroup, Payment } from "@/types/payment"
 
 /**
@@ -18,16 +14,6 @@ export async function fetchOrganizationCharges(
 ): Promise<OrganizationChargeGroup[]> {
   const response = await apiClient.get(`/organizations/${organizationId}/charges/me`)
   return chargeGroupListResponseSchema.parse(response.data).data.groups
-}
-
-/**
- * Input: id tổ chức.
- * Output: Sổ chứng từ. Owner nhận của cả tổ chức, member chỉ nhận của mình — BE ép, không phụ
- *         thuộc tham số nào từ client.
- */
-export async function fetchPayments(organizationId: string): Promise<Payment[]> {
-  const response = await apiClient.get(`/organizations/${organizationId}/payments`)
-  return paymentListResponseSchema.parse(response.data).data.payments
 }
 
 /**

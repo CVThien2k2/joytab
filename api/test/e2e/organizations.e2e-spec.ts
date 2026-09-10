@@ -223,6 +223,28 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
     expect(res.body.code).toBe('ORG_004');
   });
 
+  it('mặc định tắt, owner bật được cài đặt chủ tổ chức tự đánh dấu đã trả', async () => {
+    const list = await api().get('/organizations').set(asUser('owner')).expect(200);
+    const before = list.body.data.organizations.find(
+      (org: { id: string }) => org.id === organizationId,
+    );
+    expect(before.skipOwnerPayment).toBe(false);
+
+    const updated = await api()
+      .patch(`/organizations/${organizationId}`)
+      .set(asUser('owner'))
+      .send({ skipOwnerPayment: true })
+      .expect(200);
+    expect(updated.body.data.organization.skipOwnerPayment).toBe(true);
+
+    // Trả về trạng thái ban đầu — các test sau trong suite không nên bị ảnh hưởng.
+    await api()
+      .patch(`/organizations/${organizationId}`)
+      .set(asUser('owner'))
+      .send({ skipOwnerPayment: false })
+      .expect(200);
+  });
+
   it('owner đóng cửa: mã về null và chính mã đó lập tức hết dùng được', async () => {
     const closed = await api()
       .patch(`/organizations/${organizationId}`)
@@ -309,5 +331,136 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
 
     const outsiderList = await api().get('/organizations').set(asUser('outsider')).expect(200);
     expect(outsiderList.body.data.organizations).toEqual([]);
+  });
+});
+
+/**
+ * Bốn con số của trang chủ. Dựng dữ liệu thẳng bằng Prisma chứ không đi đường API: một buổi
+ * "đã chốt tiền trong quá khứ" qua API là ba request (tạo ở tương lai → vote → dời về quá khứ →
+ * chốt), mà ở đây thứ cần kiểm là phép cộng, không phải luồng chốt tiền.
+ */
+describe('Tổng quan tổ chức ở trang chủ', () => {
+  let orgId: string;
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+
+  async function seedMatch(params: {
+    startOffset: number;
+    status: 'open' | 'settled' | 'canceled';
+    votedBy?: 'owner' | 'joiner';
+    charge?: { user: 'owner' | 'joiner'; amount: number; paymentStatus: 'unpaid' | 'paid' };
+  }): Promise<string> {
+    const startAt = new Date(Date.now() + params.startOffset);
+    const match = await db.match.create({
+      data: {
+        organization_id: orgId,
+        court_name: 'E2E Sân tổng quan',
+        start_at: startAt,
+        end_at: new Date(startAt.getTime() + 2 * HOUR),
+        max_players: 4,
+        male_ratio: 1,
+        status: params.status,
+        created_by: users.owner.id,
+      },
+    });
+    if (params.votedBy) {
+      await db.matchVote.create({ data: { match_id: match.id, user_id: users[params.votedBy].id } });
+    }
+    if (params.charge) {
+      await db.matchCharge.create({
+        data: {
+          match_id: match.id,
+          user_id: users[params.charge.user].id,
+          ratio: 1,
+          amount: params.charge.amount,
+          payment_status: params.charge.paymentStatus,
+        },
+      });
+    }
+    return match.id;
+  }
+
+  const overview = (as: string) =>
+    api().get(`/organizations/${orgId}/overview`).set(asUser(as));
+
+  beforeAll(async () => {
+    // Tổ chức riêng: các describe trên đã để lại tổ chức chung, mà ở đây phải đếm chính xác.
+    const created = await api()
+      .post('/organizations')
+      .set(asUser('owner'))
+      .send({ name: `E2E Tổng quan ${RUN_ID}` })
+      .expect(201);
+    orgId = created.body.data.organization.id;
+
+    const opened = await api()
+      .patch(`/organizations/${orgId}`)
+      .set(asUser('owner'))
+      .send({ joinByCodeEnabled: true })
+      .expect(200);
+    await api()
+      .post('/organizations/join')
+      .set(asUser('joiner'))
+      .send({ joinCode: opened.body.data.organization.joinCode })
+      .expect(201);
+
+    // Hai buổi đã chốt của owner: một còn nợ 50k, một đã trả 30k.
+    await seedMatch({
+      startOffset: -10 * DAY,
+      status: 'settled',
+      votedBy: 'owner',
+      charge: { user: 'owner', amount: 50_000, paymentStatus: 'unpaid' },
+    });
+    await seedMatch({
+      startOffset: -9 * DAY,
+      status: 'settled',
+      votedBy: 'owner',
+      charge: { user: 'owner', amount: 30_000, paymentStatus: 'paid' },
+    });
+    // Buổi đã chốt của người khác: không được cộng vào bất kỳ con số nào của owner.
+    await seedMatch({
+      startOffset: -8 * DAY,
+      status: 'settled',
+      votedBy: 'joiner',
+      charge: { user: 'joiner', amount: 70_000, paymentStatus: 'unpaid' },
+    });
+    // Buổi đã huỷ: không phải buổi "đã chơi" dù owner từng đăng ký.
+    await seedMatch({ startOffset: -7 * DAY, status: 'canceled', votedBy: 'owner' });
+    // Hai buổi phía trước: một owner đã đăng ký, một chưa ai đăng ký.
+    await seedMatch({ startOffset: 2 * DAY, status: 'open', votedBy: 'owner' });
+    await seedMatch({ startOffset: 3 * DAY, status: 'open' });
+    // Buổi `open` đã qua giờ: không phải sắp diễn ra, cũng chưa phải đã chơi (chưa chốt tiền).
+    await seedMatch({ startOffset: -1 * DAY, status: 'open', votedBy: 'owner' });
+  });
+
+  it('cộng đúng tiền và đếm đúng trận của chính người hỏi', async () => {
+    const response = await overview('owner').expect(200);
+    expect(response.body.data.overview).toEqual({
+      unpaidTotal: 50_000,
+      unpaidCount: 1,
+      paidTotal: 30_000,
+      playedCount: 2,
+      upcomingCount: 2,
+    });
+  });
+
+  it('mỗi người thấy tiền của mình, nhưng cùng một số buổi sắp diễn ra', async () => {
+    const response = await overview('joiner').expect(200);
+    expect(response.body.data.overview).toMatchObject({
+      unpaidTotal: 70_000,
+      unpaidCount: 1,
+      paidTotal: 0,
+      playedCount: 1,
+      // Buổi sắp tới là của cả tổ chức nên hai người thấy cùng con số, kể cả buổi chưa đăng ký.
+      upcomingCount: 2,
+    });
+  });
+
+  it('người ngoài không thấy tổ chức tồn tại, chưa đăng nhập thì 401', async () => {
+    await overview('outsider').expect(404);
+    await api().get(`/organizations/${orgId}/overview`).expect(401);
+  });
+
+  it('id không phải uuid bị chặn ở tầng validate', async () => {
+    await api().get('/organizations/khong-phai-uuid/overview').set(asUser('owner')).expect(400);
   });
 });

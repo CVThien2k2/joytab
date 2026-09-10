@@ -5,7 +5,6 @@ import {
   matchDetailSchema,
   matchExpenseSchema,
   matchFormSchema,
-  matchRescheduleFormSchema,
   matchParticipantSchema,
   matchSettlementSchema,
   matchSummarySchema,
@@ -22,6 +21,7 @@ export type MatchCharge = z.infer<typeof matchChargeSchema>
 export type MatchSettlement = z.infer<typeof matchSettlementSchema>
 export type MatchStatus = MatchSummary["status"]
 export type VoteClosedReason = MatchSummary["voteClosedReason"]
+export type ChargePaymentStatus = MatchCharge["paymentStatus"]
 
 /**
  * Form nhập số dạng chuỗi rồi mới ép kiểu, nên input khác output — react-hook-form phải dùng
@@ -29,8 +29,6 @@ export type VoteClosedReason = MatchSummary["voteClosedReason"]
  */
 export type MatchFormValues = z.input<typeof matchFormSchema>
 export type MatchFormPayload = z.infer<typeof matchFormSchema>
-/** Form xác nhận lại giờ sau khi kéo thả — chỉ ngày và hai mốc giờ. */
-export type MatchRescheduleValues = z.input<typeof matchRescheduleFormSchema>
 export type ExpenseLineValues = z.input<typeof expenseLineFormSchema>
 export type SettlementFormValues = z.input<typeof settlementFormSchema>
 export type SettlementFormPayload = z.infer<typeof settlementFormSchema>

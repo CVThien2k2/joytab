@@ -64,3 +64,5 @@ site/
 
 # generated code (api)
 api/src/generated/
+
+data

@@ -20,6 +20,23 @@ export function formatDate(isoString: string): string {
   return dateFormatter.format(new Date(isoString))
 }
 
+const dayLabelFormatter = new Intl.DateTimeFormat("vi-VN", {
+  weekday: "short",
+  day: "2-digit",
+  month: "2-digit",
+})
+
+/**
+ * Input: Chuỗi ISO 8601.
+ * Output: "T5, 11/09" — thứ mấy và ngày nào, không có năm.
+ *
+ *         Thẻ trận nào cũng mang nhãn này nên nó phải ngắn: năm gần như luôn là năm nay, mà
+ *         "thứ mấy" mới là thứ người ta cần để biết buổi đó có đi được không.
+ */
+export function formatDayLabel(isoString: string): string {
+  return dayLabelFormatter.format(new Date(isoString))
+}
+
 /** Tiền Việt: 150.000 — không kèm "₫" vì chỗ dùng tự thêm đơn vị theo ngữ cảnh. */
 const moneyFormatter = new Intl.NumberFormat("vi-VN")
 

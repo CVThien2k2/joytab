@@ -29,6 +29,9 @@ export const organizationChargeGroupSchema = z.object({
 /**
  * Một lần chuyển khoản đã ghi nhận. Không có trạng thái: không ai duyệt, nên một row tồn tại
  * đã nghĩa là "đã chuyển".
+ *
+ * Chỉ còn là kiểu TRẢ VỀ của POST /payments — không màn nào liệt kê sổ chứng từ nữa (mỗi buổi
+ * đã tự mang nhãn đã trả / chưa trả ở trang Lịch sử).
  */
 export const paymentSchema = z.object({
   id: z.string(),
@@ -53,5 +56,4 @@ export const paymentSchema = z.object({
 export const chargeGroupListResponseSchema = envelope(
   z.object({ groups: z.array(organizationChargeGroupSchema) }),
 )
-export const paymentListResponseSchema = envelope(z.object({ payments: z.array(paymentSchema) }))
 export const paymentResponseSchema = envelope(z.object({ payment: paymentSchema }))

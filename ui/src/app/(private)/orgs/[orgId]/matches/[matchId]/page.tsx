@@ -11,10 +11,11 @@ import { useMatch, useSettlement } from "@/hooks/use-matches-api"
 import { useNow } from "@/hooks/use-now"
 import { formatDateTime, formatTimeRange } from "@/lib/format"
 import { matchPhase } from "@/lib/match-phase"
+import { organizationHomePath } from "@/lib/routes"
 import { useAuthStore } from "@/stores/auth-store"
 import { useActiveOrganization } from "@/stores/organization-store"
-import { CancelMatchDialog } from "../_components/cancel-match-dialog"
-import { MatchFormDialog } from "../_components/match-form-dialog"
+import { CancelMatchDialog } from "../../_components/cancel-match-dialog"
+import { MatchFormDialog } from "../../_components/match-form-dialog"
 import { ParticipantList } from "./_components/participant-list"
 import { SettlementSection } from "./_components/settlement-section"
 import { VoteHistoryDialog } from "./_components/vote-history-dialog"
@@ -66,7 +67,7 @@ export default function MatchDetailPage() {
           Không tìm thấy trận này. Có thể nó đã bị xoá hoặc bạn không còn ở tổ chức đó.
         </p>
         <Button asChild variant="outline" className="mt-4">
-          <Link href={`/orgs/${organization.id}/matches`}>Về lịch thi đấu</Link>
+          <Link href={organizationHomePath(organization.id)}>Về trang chủ</Link>
         </Button>
       </main>
     )
@@ -77,7 +78,7 @@ export default function MatchDetailPage() {
   // Sửa: đang đá hay đá xong rồi thì thông tin của trận là thứ mọi người đã đi theo, đổi lúc đó
   // là viết lại một chuyện đã xảy ra (BE ném MATCH_015).
   //
-  // Huỷ: trận huỷ không còn hiện trên lịch, nên huỷ một buổi ĐÃ ĐÁ là xoá mất dấu vết của buổi
+  // Huỷ: trận huỷ không còn hiện ở danh sách buổi sắp tới, nên huỷ một buổi ĐÃ ĐÁ là xoá mất dấu vết của buổi
   // đó — cả danh sách người đi lẫn lịch sử đăng ký vẫn còn trong DB nhưng không còn đường nào
   // đi tới. Huỷ là để nói "buổi này sẽ không diễn ra", không phải để dọn quá khứ (BE: MATCH_016).
   const canEdit = isOwner && match.status === "open" && matchPhase(match, now) === "upcoming"
@@ -88,8 +89,8 @@ export default function MatchDetailPage() {
         <section className="rounded-xl border bg-card p-4">
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-0 flex-1">
-              {/* Nhãn trạng thái ĐẦY ĐỦ, dùng chung `MatchStatusBadge` với thẻ xem nhanh trên
-                  lịch. Trước đây chỗ này tự dựng hai nhãn (đã huỷ / đã chốt tiền) nên một trận
+              {/* Nhãn trạng thái ĐẦY ĐỦ, dùng chung `MatchStatusBadge` với thẻ trận ở danh
+                  sách. Trước đây chỗ này tự dựng hai nhãn (đã huỷ / đã chốt tiền) nên một trận
                   bình thường không có nhãn nào — mở trang ra không biết buổi này còn ở phía
                   trước, đang đá, hay đã xong, trong khi ngoài lịch thì màu chip nói ngay.
                   Chép tay lần nữa ở đây còn là hai chỗ gọi tên cùng một trận theo hai kiểu. */}
@@ -115,9 +116,12 @@ export default function MatchDetailPage() {
           </div>
 
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+            {/* Ô này từng lặp lại đúng tên sân đã in to ở tiêu đề ngay trên. Giờ nó nói ĐỊA
+                CHỈ — thứ duy nhất người ta cần copy ra bản đồ — và chỉ lùi về tên sân khi trận
+                được tạo từ trước lúc có ô địa chỉ. */}
             <div className="flex items-center gap-2">
               <MapPin className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="truncate">{match.courtName}</span>
+              <span className="truncate">{match.address ?? match.courtName}</span>
             </div>
             <div className="flex items-center gap-2">
               <CalendarDays className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -173,15 +177,14 @@ export default function MatchDetailPage() {
         />
       ) : null}
 
-      {/* Hộp thoại dùng CHUNG với thẻ xem nhanh trên lịch — cùng một hậu quả thì phải cùng một
-          câu cảnh báo. Ở đây có thêm `onCanceled`: trận vừa biến mất khỏi lịch nên trang này
-          không còn gì để hiện, phải đưa người dùng về lưới. */}
+      {/* `onCanceled`: trận đã huỷ không còn nằm trong danh sách buổi sắp tới, mà trang này
+          cũng không còn gì để hiện — đưa thẳng người dùng về trang chủ. */}
       <CancelMatchDialog
         match={match}
         organizationId={organization.id}
         open={cancelOpen}
         onOpenChange={setCancelOpen}
-        onCanceled={() => router.push(`/orgs/${organization.id}/matches`)}
+        onCanceled={() => router.push(organizationHomePath(organization.id))}
       />
     </main>
   )

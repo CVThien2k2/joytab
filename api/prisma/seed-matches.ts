@@ -6,8 +6,8 @@ import { PrismaClient } from '../src/generated/prisma/client';
 import { splitExpenses } from '../src/matches/matches.utils';
 
 /**
- * Seed lịch thi đấu cho môi trường dev: người chơi, trận đã đá, trận sắp tới, và một trận đã
- * chốt chi phí sẵn.
+ * Seed lịch thi đấu cho môi trường dev: người chơi, trận đã đá, trận sắp tới, trận đã chốt chi
+ * phí, và trận đã trả tiền xong — đủ để mọi khối trên UI có số liệu thật để vẽ.
  *
  * Khác `seed.ts` ở chỗ nó ghi vào một tổ chức THẬT (tổ chức bạn đang đăng nhập bằng Google),
  * vì mục đích là bấm thử luồng "chốt chi phí" trên UI — mà luồng đó chỉ owner của tổ chức đó
@@ -83,6 +83,8 @@ type MatchPlan = {
   startHour: number;
   hours: number;
   court: string;
+  /** Địa chỉ sân — thẻ trong danh sách hiện nó dưới tên sân. */
+  address: string;
   maxPlayers: number;
   maleRatio: string;
   note?: string;
@@ -91,16 +93,28 @@ type MatchPlan = {
   status: 'open' | 'settled' | 'canceled';
   /** Chỉ dùng khi `status = 'settled'`. Đơn giá, đơn vị đồng. */
   expenses?: { name: string; quantity: number; unitPrice: number }[];
+  /**
+   * Chỉ dùng khi `status = 'settled'`: mọi người ĐÃ trả tiền buổi này.
+   *
+   * Cần có ít nhất một buổi như vậy thì ô "Đã thanh toán" ở trang chủ mới khác 0, và trang
+   * Lịch sử mới có cả hai nhãn "Đã trả" / "Chưa trả" để nhìn ra khác biệt.
+   */
+  paid?: boolean;
   /** Một người đã đăng ký rồi rút — chỉ để lịch sử đăng ký có gì mà xem. */
   canceledBy?: PlayerHandle;
 };
 
 /**
- * Lịch seed, xếp theo trục thời gian. Mỗi trận có một việc để thử:
- *  - đã đá + CHƯA chốt (3 trận): đây là chỗ bấm "Chốt chi phí" — mục đích chính của seed này.
- *  - đã chốt sẵn (1 trận): xem bảng chia tiền và tiền từng người mà không phải tự nhập.
- *  - sắp tới (4 trận): còn chỗ / đủ người / chưa ai đăng ký, để thử đăng ký và dời lịch.
- *  - đã huỷ (1 trận): không hiện trên lịch, có mặt để chắc rằng nó KHÔNG hiện.
+ * Lịch seed, xếp theo trục thời gian. Mỗi trận có một việc để thử — gộp lại thì mọi trạng thái
+ * mà UI vẽ ra đều có ít nhất một dòng dữ liệu thật:
+ *
+ *  - đã chốt + ĐÃ TRẢ (2 trận): nguồn của ô "Đã thanh toán" ở trang chủ, và của nhãn "Đã trả"
+ *    ở Lịch sử đấu.
+ *  - đã chốt + CHƯA trả (1 trận): nguồn của ô "Cần thanh toán" và của nút trả tiền.
+ *  - đã đá + chưa chốt (3 trận): chỗ bấm "Chốt chi phí".
+ *  - sắp tới (4 trận): mình đã đăng ký (viền xanh) / đủ chỗ (viền xám) / còn chỗ (không viền
+ *    màu) / chưa ai đăng ký (vòng "?" trong cụm avatar) — đúng bốn trạng thái của thẻ.
+ *  - đã huỷ (1 trận): không hiện ở buổi sắp tới, và có mặt trong Lịch sử đấu.
  */
 const MATCH_PLANS: MatchPlan[] = [
   {
@@ -109,6 +123,7 @@ const MATCH_PLANS: MatchPlan[] = [
     startHour: 19,
     hours: 2,
     court: 'Sân Cầu Vồng',
+    address: '18 Trần Thái Tông, Cầu Giấy, Hà Nội',
     maxPlayers: 10,
     maleRatio: '1.20',
     note: 'Buổi đã chốt tiền — dùng để xem bảng chia tiền.',
@@ -122,11 +137,50 @@ const MATCH_PLANS: MatchPlan[] = [
     ],
   },
   {
+    key: 'settled-paid',
+    dayOffset: -28,
+    startHour: 19,
+    hours: 2,
+    court: 'Sân Thanh Xuân',
+    address: '45 Nguyễn Trãi, Thanh Xuân, Hà Nội',
+    maxPlayers: 8,
+    maleRatio: '1.20',
+    note: 'Đã chốt và ĐÃ TRẢ hết — nguồn của ô "Đã thanh toán" ở trang chủ.',
+    players: ['lan', 'yen', 'huy', 'long'],
+    realVoters: 'first',
+    status: 'settled',
+    paid: true,
+    expenses: [
+      { name: 'Thuê sân', quantity: 2, unitPrice: 130_000 },
+      { name: 'Cầu', quantity: 4, unitPrice: 28_000 },
+    ],
+  },
+  {
+    key: 'settled-paid-2',
+    dayOffset: -21,
+    startHour: 20,
+    hours: 2,
+    court: 'Sân Trung Kính',
+    address: '92 Trung Kính, Cầu Giấy, Hà Nội',
+    maxPlayers: 10,
+    maleRatio: '1.00',
+    note: 'Đã chốt và đã trả — buổi thứ hai để lịch sử không chỉ có một dòng "Đã trả".',
+    players: ['mai', 'kiet', 'long'],
+    realVoters: 'first',
+    status: 'settled',
+    paid: true,
+    expenses: [
+      { name: 'Thuê sân', quantity: 2, unitPrice: 110_000 },
+      { name: 'Nước', quantity: 6, unitPrice: 12_000 },
+    ],
+  },
+  {
     key: 'past-open-1',
     dayOffset: -9,
     startHour: 19,
     hours: 2,
     court: 'Sân Bách Khoa',
+    address: '1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội',
     maxPlayers: 12,
     maleRatio: '1.50',
     note: 'Đã đá xong, chưa chốt tiền. Hệ số nam 1.5 để thấy chênh lệch nam/nữ.',
@@ -141,6 +195,7 @@ const MATCH_PLANS: MatchPlan[] = [
     startHour: 20,
     hours: 2,
     court: 'Sân Thanh Xuân',
+    address: '45 Nguyễn Trãi, Thanh Xuân, Hà Nội',
     maxPlayers: 8,
     maleRatio: '1.00',
     note: 'Đã đá xong, chưa chốt tiền. Hệ số 1 nên mọi người chia đều.',
@@ -154,6 +209,7 @@ const MATCH_PLANS: MatchPlan[] = [
     startHour: 19,
     hours: 2,
     court: 'Sân Mỹ Đình',
+    address: 'Khu LHTT Mỹ Đình, Nam Từ Liêm, Hà Nội',
     maxPlayers: 10,
     maleRatio: '1.20',
     players: ['lan', 'mai', 'yen', 'huy', 'kiet', 'long'],
@@ -166,6 +222,7 @@ const MATCH_PLANS: MatchPlan[] = [
     startHour: 19,
     hours: 2,
     court: 'Sân Cầu Vồng',
+    address: '18 Trần Thái Tông, Cầu Giấy, Hà Nội',
     maxPlayers: 10,
     maleRatio: '1.20',
     note: 'Còn chỗ. Bạn đã đăng ký sẵn để thấy dấu tích trên chip.',
@@ -179,6 +236,7 @@ const MATCH_PLANS: MatchPlan[] = [
     startHour: 18,
     hours: 2,
     court: 'Sân Trung Kính',
+    address: '92 Trung Kính, Cầu Giấy, Hà Nội',
     maxPlayers: 4,
     maleRatio: '1.00',
     note: 'Đã đủ người — thẻ xem nhanh phải nói "đã đủ" và không cho đăng ký.',
@@ -192,6 +250,7 @@ const MATCH_PLANS: MatchPlan[] = [
     startHour: 19,
     hours: 2,
     court: 'Sân Bách Khoa',
+    address: '1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội',
     maxPlayers: 12,
     maleRatio: '1.50',
     players: ['yen', 'long'],
@@ -204,6 +263,7 @@ const MATCH_PLANS: MatchPlan[] = [
     startHour: 7,
     hours: 2,
     court: 'Sân Hà Đông',
+    address: '12 Quang Trung, Hà Đông, Hà Nội',
     maxPlayers: 8,
     maleRatio: '1.00',
     note: 'Chưa ai đăng ký. Buổi sáng để lịch không chỉ có một dải 19h.',
@@ -217,11 +277,12 @@ const MATCH_PLANS: MatchPlan[] = [
     startHour: 19,
     hours: 2,
     court: 'Sân Mỹ Đình',
+    address: 'Khu LHTT Mỹ Đình, Nam Từ Liêm, Hà Nội',
     maxPlayers: 10,
     maleRatio: '1.00',
-    note: 'Đã huỷ — không được hiện trên lịch.',
+    note: 'Đã huỷ — không hiện ở buổi sắp tới, chỉ tra được ở Lịch sử đấu.',
     players: ['lan', 'mai'],
-    realVoters: 'none',
+    realVoters: 'first',
     status: 'canceled',
   },
 ];
@@ -365,6 +426,7 @@ async function main(): Promise<void> {
     const data = {
       organization_id: organization.id,
       court_name: plan.court,
+      address: plan.address,
       start_at: startAt,
       end_at: endAt,
       max_players: plan.maxPlayers,
@@ -469,12 +531,36 @@ async function main(): Promise<void> {
           gender_at_settle: voters.find((voter) => voter.id === charge.userId)?.gender ?? null,
           ratio: charge.ratio.toFixed(2),
           amount: charge.amount,
-          payment_status: 'unpaid',
+          payment_status: plan.paid ? 'paid' : 'unpaid',
         })),
       });
 
+      // Buổi "đã trả": mỗi người một lần chuyển khoản riêng, đúng như app tạo ra (một payment
+      // gom các khoản của MỘT người). Không có row payments thì các khoản vẫn hiện "Đã trả"
+      // nhưng không có chứng từ nào đứng sau — dữ liệu seed mà tự mâu thuẫn thì tệ hơn không có.
+      if (plan.paid) {
+        await prisma.payment.deleteMany({ where: { id: { in: split.charges.map((charge) => seedUuid(`payment:${id}:${charge.userId}`)) } } });
+        for (const charge of split.charges) {
+          const paymentId = seedUuid(`payment:${id}:${charge.userId}`);
+          await prisma.payment.create({
+            data: {
+              id: paymentId,
+              organization_id: organization.id,
+              user_id: charge.userId,
+              proof_url: 'https://placehold.co/600x800/png?text=Chuyen+khoan',
+              note: `Chuyển khoản buổi ${plan.court}`,
+              submitted_at: new Date(endAt.getTime() + 2 * 60 * 60 * 1000),
+            },
+          });
+          await prisma.matchCharge.updateMany({
+            where: { match_id: id, user_id: charge.userId },
+            data: { payment_id: paymentId },
+          });
+        }
+      }
+
       summary.push(
-        `  ${plan.court} — ĐÃ CHỐT, tổng ${split.total.toLocaleString('vi-VN')}đ, ${split.charges.length} người, dư ${split.surplus.toLocaleString('vi-VN')}đ`,
+        `  ${plan.court} — ĐÃ CHỐT${plan.paid ? ' + ĐÃ TRẢ' : ''}, tổng ${split.total.toLocaleString('vi-VN')}đ, ${split.charges.length} người, dư ${split.surplus.toLocaleString('vi-VN')}đ`,
       );
       continue;
     }

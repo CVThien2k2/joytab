@@ -42,6 +42,8 @@ export const organizationSchema = z.object({
   paymentQrUrl: z.string().nullable(),
   /** Hệ số nam mặc định cho trận mới (nữ là mốc 1). */
   maleRatio: z.number(),
+  /** Giá trị fill sẵn cho ô tích ở màn chốt chi phí — xem settlementFormSchema.skipOwnerPayment. */
+  skipOwnerPayment: z.boolean(),
   joinedAt: z.string(),
 })
 
@@ -127,7 +129,24 @@ export const createOrganizationFormSchema = z.object({
 })
 
 /**
- * Form sửa tổ chức: tên + hệ số nam mặc định.
+ * Bốn con số của trang chủ, đều là của CHÍNH người đang đăng nhập.
+ * Mirror của `OrganizationOverview` ở BE (api/src/common/utils/types.ts).
+ */
+export const organizationOverviewSchema = z.object({
+  unpaidTotal: z.number(),
+  unpaidCount: z.number(),
+  paidTotal: z.number(),
+  playedCount: z.number(),
+  /** Của cả tổ chức, kể cả buổi mình chưa đăng ký — xem chú thích ở BE. */
+  upcomingCount: z.number(),
+})
+
+export const organizationOverviewResponseSchema = envelope(
+  z.object({ overview: organizationOverviewSchema }),
+)
+
+/**
+ * Form sửa tổ chức: tên + hệ số nam mặc định + cài đặt chủ tổ chức tự đánh dấu đã trả.
  *
  * Hệ số nhập dạng chuỗi (input trả chuỗi) rồi mới ép số, nên `z.input` khác `z.output` — form
  * phải dùng riêng hai kiểu này.
@@ -137,6 +156,7 @@ export const editOrganizationFormSchema = createOrganizationFormSchema.extend({
     .number()
     .min(MIN_MALE_RATIO, `Hệ số nam từ ${MIN_MALE_RATIO}`)
     .max(MAX_MALE_RATIO, `Hệ số nam tối đa ${MAX_MALE_RATIO}`),
+  skipOwnerPayment: z.boolean(),
 })
 
 /**

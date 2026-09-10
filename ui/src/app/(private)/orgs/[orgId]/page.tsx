@@ -1,77 +1,46 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { OrganizationAccessCard } from "@/app/(private)/_components/organization-access-card"
-import { organizationHomePath } from "@/lib/routes"
+import { Separator } from "@/components/ui/separator"
 import { useActiveOrganization } from "@/stores/organization-store"
-import { MembersTable } from "./_components/members-table"
-import { OrganizationDangerZone } from "./_components/organization-danger-zone"
-import { OrganizationInfoCard } from "./_components/organization-info-card"
+import { HomeGreeting } from "./_components/home-greeting"
+import { OrganizationStats } from "./_components/organization-stats"
+import { UpcomingMatches } from "./_components/upcoming-matches"
 
 /**
- * Input: Không nhận props — tổ chức đang xem lấy từ store (layout đã fetch và khớp với URL).
- * Output: Trang duy nhất của một tổ chức: thông tin + cấu hình + danh sách thành viên + hành
- *         động rời/xoá.
+ * Input: Không nhận props — tổ chức đang xem lấy từ store (layout đã fetch, khớp với URL).
+ * Output: Trang chủ của một tổ chức, hai khối tách bạch:
  *
- *         MỘT trang chứ không tách tab: mỗi phần chỉ vài dòng, tách ra thì người dùng phải bấm
- *         qua lại để nắm được một thứ duy nhất là "tổ chức này đang thế nào".
+ *          1. Lời chào + ngày hôm nay, rồi bốn con số tổng quan.
+ *          2. Danh sách buổi sắp diễn ra, đăng ký được ngay trên hàng.
  *
- *         Bố cục là các THẺ RỜI xếp theo lưới, không còn là một thẻ dài xâu mọi khối theo
- *         chiều dọc: cách cũ khiến mỗi khối chiếm trọn bề ngang chỉ để chứa hai dòng chữ, phần
- *         còn lại của màn hình bỏ trống mà trang thì vẫn phải cuộn.
+ *         MỌI thành viên vào được. Trước đây đường dẫn này là màn cấu hình chỉ owner mở được,
+ *         còn ai cũng vào lịch thi đấu — nhưng gốc của một tổ chức phải là thứ mọi người mở
+ *         hàng ngày, không phải thứ vài tháng sửa một lần. Cấu hình dời sang `/settings`.
  *
- *         Là client component: tổ chức đọc từ store (server đã fetch ở layout), còn danh sách
- *         thành viên do React Query lấy — xem MembersTable.
+ *         Một đường kẻ giữa hai khối chứ không chỉ là khoảng trắng: chúng là hai loại nội dung
+ *         khác hẳn nhau — trên là những con số ĐỌC, dưới là danh sách LÀM (đăng ký, tạo lịch,
+ *         mở chi tiết) — mà chỉ giãn khoảng cách thì mắt vẫn đọc cả trang thành một mạch.
  *
- *         CHỈ owner vào được. Cả trang này là chỗ đọc và đổi cấu hình tổ chức cùng danh sách
- *         thành viên — việc của chủ tổ chức. Member bị đá về lịch thi đấu: sidebar đã không còn
- *         mục "Tổ chức", nhưng đường dẫn cũ trong bookmark hay link dán cho nhau thì vẫn tới
- *         đây, mà ẩn khỏi nav trong khi URL vẫn mở được thì việc ẩn chỉ là trang trí.
+ *         KHÔNG có nút trả tiền ở đây: ô "Cần thanh toán" dẫn thẳng sang Lịch sử đấu, nơi vừa
+ *         thấy số tiền đó đến từ những buổi nào vừa trả được. Trang chủ nói tình hình, trang
+ *         kia giải quyết.
  *
- *         Đá bằng `replace` trong effect, không phải lúc render: đổi route ngay trong thân
- *         component là ghi state của router trong lúc React đang render cây khác. `replace` chứ
- *         không `push` để Back không rơi lại đúng trang vừa bị đá đi.
+ *         Mở đầu bằng lời chào chứ không phải tên tổ chức: breadcrumb trên thanh header đã nói
+ *         đang ở tổ chức nào, mà nói hai lần thì lần thứ hai chỉ tốn chiều cao.
  */
-export default function OrganizationPage() {
-  const router = useRouter()
+export default function OrganizationHomePage() {
   const organization = useActiveOrganization()
-  const isOwner = organization.role === "owner"
-
-  useEffect(() => {
-    if (!isOwner) router.replace(organizationHomePath(organization.id))
-  }, [isOwner, organization.id, router])
-
-  // Không render gì trong lúc chờ effect đá đi: hiện thoáng qua danh sách thành viên rồi mới
-  // chuyển trang thì đúng cái cần giấu lại là cái loé lên.
-  if (!isOwner) return null
 
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 space-y-4 px-4 py-6 sm:px-6">
-      {/* Thẻ đầu chạy suốt chiều ngang vì nó là tiêu đề của cả trang. */}
-      <OrganizationInfoCard organization={organization} />
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
+      <div className="space-y-4">
+        <HomeGreeting />
+        <OrganizationStats organizationId={organization.id} />
+      </div>
 
-      {/* Mã mời chạy suốt chiều ngang: nó là một hàng gồm mã + hai nút sao chép, chia đôi
-          hàng thì mã và nút phải xuống dòng mà nửa còn lại vẫn trống.
+      <Separator className="my-6" />
 
-          Mã QR không còn thẻ riêng — nó thu về một ô nhỏ ở góc thẻ thông tin (xem
-          PaymentQrButton): thứ mỗi tháng dùng vài lần không đáng chiếm nửa hàng trên trang. */}
-      <OrganizationAccessCard organization={organization} />
-
-      {/* Danh sách thành viên là thứ dài nhất và là thứ người ta vào trang này để xem, nên nằm
-          ngay sau phần cấu hình và giữ trọn chiều ngang — bảng cần bề rộng. */}
-      <section className="pt-2">
-        <h2 className="text-base font-semibold tracking-tight">Thành viên</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {organization.memberCount} người trong tổ chức, chủ tổ chức xếp trước.
-        </p>
-
-        <div className="mt-3">
-          <MembersTable organizationId={organization.id} isOwner={isOwner} />
-        </div>
-      </section>
-
-      <OrganizationDangerZone organization={organization} />
+      <UpcomingMatches organizationId={organization.id} isOwner={organization.role === "owner"} />
     </main>
   )
 }

@@ -10,6 +10,7 @@ export const MAX_MAX_PLAYERS = 100
 export const MIN_MALE_RATIO = 0.1
 export const MAX_MALE_RATIO = 10
 export const MAX_COURT_NAME_LENGTH = 120
+export const MAX_MATCH_ADDRESS_LENGTH = 255
 export const MAX_MATCH_NOTE_LENGTH = 500
 export const MAX_EXPENSE_LINES = 50
 export const MAX_EXPENSE_NAME_LENGTH = 120
@@ -17,6 +18,8 @@ export const MAX_EXPENSE_QUANTITY = 9999
 export const MAX_EXPENSE_UNIT_PRICE = 100_000_000
 /** Không huỷ vote được khi còn dưới ngần này giờ — dùng để giải thích, BE mới là chỗ chặn. */
 export const MATCH_CANCEL_LOCK_HOURS = 2
+/** Trần khoảng ngày của GET /matches: hỏi rộng hơn ngần này thì BE từ chối (MATCH_RANGE_MAX_DAYS). */
+export const MATCH_RANGE_MAX_DAYS = 92
 export const MATCH_STATUSES = ["open", "settled", "canceled"] as const
 export const matchStatusSchema = z.enum(MATCH_STATUSES)
 
@@ -34,6 +37,8 @@ export const matchSummarySchema = z.object({
   /** Chỉ có ở lịch cá nhân (xuyên tổ chức) — chip phải nói rõ trận của tổ chức nào. */
   organizationName: z.string().optional(),
   courtName: z.string(),
+  /** Địa chỉ sân, người tạo nhập tay. null = chưa khai. */
+  address: z.string().nullable(),
   startAt: z.string(),
   endAt: z.string(),
   maxPlayers: z.number(),
@@ -45,6 +50,16 @@ export const matchSummarySchema = z.object({
   voteClosedReason: voteClosedReasonSchema,
   myAmount: z.number().nullable(),
   myPaymentStatus: chargePaymentStatusSchema.nullable(),
+  /** Đã đăng ký và chưa tới mốc khoá 2 tiếng — BE tính, FE không tự trừ giờ. */
+  canCancelVote: z.boolean(),
+  /** Vài người đăng ký sớm nhất (BE cắt ở 5) — đủ để thẻ vẽ chồng avatar. */
+  participantsPreview: z.array(
+    z.object({
+      userId: z.string(),
+      fullName: z.string().nullable(),
+      avatarUrl: z.string().nullable(),
+    }),
+  ),
 })
 
 export const matchParticipantSchema = z.object({
@@ -57,7 +72,6 @@ export const matchParticipantSchema = z.object({
 
 export const matchDetailSchema = matchSummarySchema.extend({
   participants: z.array(matchParticipantSchema),
-  canCancelVote: z.boolean(),
 })
 
 export const matchVoteEventSchema = z.object({
@@ -95,7 +109,16 @@ export const matchSettlementSchema = z.object({
   editable: z.boolean(),
 })
 
-export const matchListResponseSchema = envelope(z.object({ matches: z.array(matchSummarySchema) }))
+/**
+ * Một LÔ trận: dùng chung cho `/matches/upcoming` (sớm nhất trước) và `/matches/history` (mới
+ * nhất trước). `nextCursor = null` là đã hết.
+ *
+ * Không có meta phân trang: đây là danh sách cuộn, không có số trang lẫn tổng số dòng để hiện.
+ * `nextCursor` là chuỗi do BE sinh, FE gửi lại nguyên văn chứ không tự dựng.
+ */
+export const matchPageResponseSchema = envelope(
+  z.object({ matches: z.array(matchSummarySchema), nextCursor: z.string().nullable() }),
+)
 export const matchResponseSchema = envelope(z.object({ match: matchSummarySchema }))
 export const matchDetailResponseSchema = envelope(z.object({ match: matchDetailSchema }))
 export const matchHistoryResponseSchema = envelope(
@@ -124,6 +147,10 @@ export const matchFormSchema = z
       .trim()
       .min(1, "Vui lòng nhập tên sân")
       .max(MAX_COURT_NAME_LENGTH, `Tên sân tối đa ${MAX_COURT_NAME_LENGTH} ký tự`),
+    address: z
+      .string()
+      .trim()
+      .max(MAX_MATCH_ADDRESS_LENGTH, `Địa chỉ tối đa ${MAX_MATCH_ADDRESS_LENGTH} ký tự`),
     date: z.string().min(1, "Vui lòng chọn ngày"),
     startTime: z.string().regex(TIME_REGEX, "Giờ bắt đầu không hợp lệ"),
     endTime: z.string().regex(TIME_REGEX, "Giờ kết thúc không hợp lệ"),
@@ -147,26 +174,6 @@ export const matchFormSchema = z
       .string()
       .trim()
       .max(MAX_MATCH_NOTE_LENGTH, `Ghi chú tối đa ${MAX_MATCH_NOTE_LENGTH} ký tự`),
-  })
-  .refine((values) => values.endTime > values.startTime, {
-    message: "Giờ kết thúc phải sau giờ bắt đầu",
-    path: ["endTime"],
-  })
-
-/**
- * Form xác nhận lại giờ sau khi kéo thả một trận trên lịch.
- *
- * Cùng ba ô ngày/giờ với `matchFormSchema` nhưng KHÔNG dùng lại nó qua `pick`: form kia còn
- * bắt buộc tên sân và số người, mà kéo thả thì không đụng tới hai thứ đó.
- *
- * Cố tình không cấm quá khứ. BE cho phép dời trận về quá khứ (owner nhập bù một buổi đã đá
- * xong), nên chặn ở đây là FE tự đặt ra một luật mà server không có.
- */
-export const matchRescheduleFormSchema = z
-  .object({
-    date: z.string().min(1, "Vui lòng chọn ngày"),
-    startTime: z.string().regex(TIME_REGEX, "Giờ bắt đầu không hợp lệ"),
-    endTime: z.string().regex(TIME_REGEX, "Giờ kết thúc không hợp lệ"),
   })
   .refine((values) => values.endTime > values.startTime, {
     message: "Giờ kết thúc phải sau giờ bắt đầu",
@@ -197,6 +204,8 @@ export const settlementFormSchema = z.object({
     .number()
     .min(MIN_MALE_RATIO, `Hệ số nam từ ${MIN_MALE_RATIO}`)
     .max(MAX_MALE_RATIO, `Hệ số nam tối đa ${MAX_MALE_RATIO}`),
+  /** Chủ tổ chức tự đánh dấu đã trả — không đổi cách chia tiền, chỉ đổi trạng thái khoản đó. */
+  skipOwnerPayment: z.boolean(),
   expenses: z
     .array(expenseLineFormSchema)
     .min(1, "Cần ít nhất một khoản chi")

@@ -10,10 +10,17 @@ export type Crumb = {
   current: boolean
 }
 
-/** Nhãn của các trang con trong một tổ chức, theo segment ngay sau `/orgs/<id>`. */
+/**
+ * Nhãn của các trang con trong một tổ chức, theo segment ngay sau `/orgs/<id>`.
+ *
+ * `matches` KHÔNG có ở đây dù `/orgs/<id>/matches/<matchId>` vẫn là route thật: đoạn đó không
+ * còn trang nào của riêng nó (danh sách buổi đá đã về trang chủ), nên một mẩu "Lịch thi đấu"
+ * bấm vào được sẽ dẫn tới 404. Trang chi tiết trận vì vậy treo thẳng dưới tên tổ chức — xem
+ * nhánh `matches` ở dưới.
+ */
 const ORGANIZATION_LABELS: Record<string, string> = {
-  matches: "Lịch thi đấu",
-  payments: "Thanh toán",
+  history: "Lịch sử đấu",
+  settings: "Tổ chức",
 }
 
 /**
@@ -43,9 +50,19 @@ export function useBreadcrumb(): Crumb[] {
   const root = `/orgs/${active.id}`
   if (!pathname.startsWith(root)) return []
 
-  // "" ở trang gốc, "matches" hoặc "payments" ở trang con, và có thể còn id trận phía sau.
+  // "" ở trang chủ, "history"/"settings" ở trang con, "matches/<id>" ở trang chi tiết trận.
   const rest = pathname.slice(root.length).split("/").filter(Boolean)
   if (rest.length === 0) return [{ href: root, label: active.name, current: true }]
+
+  // Chi tiết trận: nhảy thẳng từ tên tổ chức sang trận, không có mẩu trung gian nào — đoạn
+  // `matches` trên URL không phải một trang. Nhãn cố định vì tên sân chỉ biết sau khi fetch,
+  // mà breadcrumb thì render ngay: để trống một nhịp rồi mới nhảy ra chữ còn khó đọc hơn.
+  if (rest[0] === "matches") {
+    return [
+      { href: root, label: active.name, current: false },
+      { href: pathname, label: "Chi tiết trận", current: true },
+    ]
+  }
 
   const sectionLabel = ORGANIZATION_LABELS[rest[0]]
   if (!sectionLabel) return [{ href: root, label: active.name, current: true }]
@@ -55,12 +72,6 @@ export function useBreadcrumb(): Crumb[] {
     { href: root, label: active.name, current: false },
     { href: sectionHref, label: sectionLabel, current: rest.length === 1 },
   ]
-
-  // Trang chi tiết trận: tên sân chỉ biết sau khi fetch, mà breadcrumb thì render ngay — nên
-  // dùng một nhãn cố định thay vì để trống một nhịp rồi mới nhảy ra chữ.
-  if (rest.length > 1) {
-    crumbs.push({ href: pathname, label: "Chi tiết trận", current: true })
-  }
 
   return crumbs
 }

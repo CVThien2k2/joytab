@@ -1,25 +1,25 @@
 import { apiClient } from "@/api/client"
 import {
   matchDetailResponseSchema,
+  matchPageResponseSchema,
   matchHistoryResponseSchema,
-  matchListResponseSchema,
   matchResponseSchema,
   matchSettlementResponseSchema,
 } from "@/schema/match"
 import type {
+  ChargePaymentStatus,
   MatchDetail,
   MatchSettlement,
+  MatchStatus,
   MatchSummary,
   MatchVoteEvent,
   SettlementFormPayload,
 } from "@/types/match"
 
-/** Khoảng ngày của bộ lịch. Cả hai đều ISO 8601; không gửi thì BE tự lấy quanh hôm nay. */
-export type MatchRange = { from?: string; to?: string }
-
 /** Body tạo/sửa lịch — đã ghép ngày + giờ thành ISO ở tầng gọi. */
 export type MatchPayload = {
   courtName: string
+  address?: string
   startAt: string
   endAt: string
   maxPlayers: number
@@ -28,20 +28,68 @@ export type MatchPayload = {
 }
 
 /**
- * Input: id tổ chức + khoảng ngày.
- * Output: Các trận của tổ chức, sớm nhất trước. Gồm cả trận đã huỷ để lịch hiện chúng mờ đi.
+ * Bộ lọc của tab Lịch sử. Mảng rỗng / không có = không lọc theo trục đó.
  *
- *         Parse lại bằng schema thay vì tin BE: shape sai phải nổ ở đây, không phải ở chỗ
- *         component đọc `match.playerCount`.
+ * `to` là biên MỞ: chỗ gọi phải quy về 0h ngày hôm sau ngày người dùng chọn, nếu không thì
+ * "đến 30/8" sẽ cắt mất chính các buổi trong ngày 30/8.
  */
-export async function fetchOrganizationMatches(params: {
+export type MatchHistoryFilters = {
+  from?: string
+  to?: string
+  status?: MatchStatus[]
+  paymentStatus?: ChargePaymentStatus[]
+}
+
+/** Một lô trận. `nextCursor = null` là đã hết, không còn gì để cuộn thêm. */
+export type MatchPage = {
+  matches: MatchSummary[]
+  nextCursor: string | null
+}
+
+/**
+ * Input: id tổ chức + bộ lọc + mốc cuộn của lô trước (`undefined` cho lô đầu).
+ * Output: Một lô trận đã chốt tiền / đã huỷ, mới nhất trước.
+ *
+ *         Tự dựng query bằng `URLSearchParams` chứ không đưa mảng cho axios: axios serialize
+ *         mảng thành `status[]=a&status[]=b`, mà cặp ngoặc đó chỉ được gom lại thành mảng nếu
+ *         BE đang dùng query parser `extended`. Lặp key trần (`status=a&status=b`) thì parser
+ *         nào cũng ra mảng.
+ */
+export async function fetchOrganizationMatchHistory(params: {
   organizationId: string
-  range?: MatchRange
-}): Promise<MatchSummary[]> {
-  const response = await apiClient.get(`/organizations/${params.organizationId}/matches`, {
-    params: params.range,
-  })
-  return matchListResponseSchema.parse(response.data).data.matches
+  filters: MatchHistoryFilters
+  cursor?: string
+}): Promise<MatchPage> {
+  const search = new URLSearchParams()
+  if (params.filters.from) search.set("from", params.filters.from)
+  if (params.filters.to) search.set("to", params.filters.to)
+  for (const status of params.filters.status ?? []) search.append("status", status)
+  for (const status of params.filters.paymentStatus ?? []) search.append("paymentStatus", status)
+  if (params.cursor) search.set("cursor", params.cursor)
+
+  const query = search.toString()
+  const response = await apiClient.get(
+    `/organizations/${params.organizationId}/matches/history${query ? `?${query}` : ""}`,
+  )
+  return matchPageResponseSchema.parse(response.data).data
+}
+
+/**
+ * Input: id tổ chức + mốc cuộn của lô trước (`undefined` cho lô đầu).
+ * Output: Một lô buổi CHƯA KẾT THÚC của tổ chức, sớm nhất trước.
+ *
+ *         Khác `fetchOrganizationMatches` (nhận khoảng ngày, trả hết một lượt, trần 92 ngày):
+ *         đây là "mọi buổi phía trước", cuộn tới đâu tải tới đó nên xa mấy cũng tới được.
+ */
+export async function fetchOrganizationUpcomingMatches(params: {
+  organizationId: string
+  cursor?: string
+}): Promise<MatchPage> {
+  const query = params.cursor ? `?cursor=${encodeURIComponent(params.cursor)}` : ""
+  const response = await apiClient.get(
+    `/organizations/${params.organizationId}/matches/upcoming${query}`,
+  )
+  return matchPageResponseSchema.parse(response.data).data
 }
 
 export async function fetchMatch(matchId: string): Promise<MatchDetail> {

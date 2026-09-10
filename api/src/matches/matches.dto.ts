@@ -3,6 +3,8 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
+  IsIn,
   IsInt,
   IsISO8601,
   IsNumber,
@@ -10,19 +12,29 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
+import { CHARGE_PAYMENT_STATUSES } from '../payments/payments.constants';
 import {
   MALE_RATIO_DECIMALS,
+  MATCH_HISTORY_CURSOR_REGEX,
+  MATCH_HISTORY_DEFAULT_LIMIT,
+  MATCH_HISTORY_MAX_LIMIT,
+  MATCH_HISTORY_STATUSES,
   MAX_COURT_NAME_LENGTH,
+  MAX_MATCH_ADDRESS_LENGTH,
   MAX_EXPENSE_LINES,
   MAX_EXPENSE_NAME_LENGTH,
   MAX_EXPENSE_QUANTITY,
   MAX_EXPENSE_UNIT_PRICE,
   MAX_MALE_RATIO,
+  MATCH_UPCOMING_CURSOR_REGEX,
+  MATCH_UPCOMING_DEFAULT_LIMIT,
+  MATCH_UPCOMING_MAX_LIMIT,
   MAX_MATCH_NOTE_LENGTH,
   MAX_MAX_PLAYERS,
   MIN_COURT_NAME_LENGTH,
@@ -35,6 +47,17 @@ function trimOrUndefined(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Ép một giá trị query về mảng.
+ *
+ * `?status=settled&status=canceled` thì Express đã gom sẵn thành mảng, nhưng gửi đúng MỘT giá
+ * trị thì nó là chuỗi trần — mà `@IsIn({ each: true })` trên chuỗi lại xét từng KÝ TỰ.
+ */
+function toArrayOrUndefined(value: unknown): unknown {
+  if (value === undefined) return value;
+  return Array.isArray(value) ? value : [value];
 }
 
 /** Param của các route lồng dưới tổ chức. */
@@ -64,6 +87,79 @@ export class MatchRangeQueryDto {
 }
 
 /**
+ * Query của GET /organizations/:organizationId/matches/history.
+ *
+ * Khác DTO của bộ lịch ở ba chỗ, và cả ba đều vì lịch sử là để CUỘN chứ không phải để xem một
+ * kỳ: khoảng ngày không gửi nghĩa là cả quá khứ (không có mặc định quanh hôm nay, không có
+ * trần `MATCH_RANGE_MAX_DAYS`), có hai bộ lọc trạng thái, và đi theo `cursor` thay vì số trang.
+ */
+/**
+ * Query của GET /organizations/:organizationId/matches/upcoming.
+ *
+ * Không có bộ lọc nào: danh sách này luôn là "mọi buổi chưa kết thúc của tổ chức, sớm nhất
+ * trước". Muốn lọc thì đó là việc của lịch sử.
+ */
+export class MatchUpcomingQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Số dòng mỗi lô không hợp lệ' })
+  @Min(1, { message: 'Số dòng mỗi lô phải từ 1' })
+  @Max(MATCH_UPCOMING_MAX_LIMIT, {
+    message: `Số dòng mỗi lô tối đa ${MATCH_UPCOMING_MAX_LIMIT}`,
+  })
+  limit: number = MATCH_UPCOMING_DEFAULT_LIMIT;
+
+  /** Mốc cuộn do lô trước trả về. Xem MATCH_UPCOMING_CURSOR_REGEX. */
+  @IsOptional()
+  @Matches(MATCH_UPCOMING_CURSOR_REGEX, { message: 'Mốc cuộn không hợp lệ' })
+  cursor?: string;
+}
+
+export class MatchHistoryQueryDto {
+  /** Lọc trên `start_at`, biên nửa mở `[from, to)` — cùng quy ước với bộ lịch. */
+  @IsOptional()
+  @IsISO8601({}, { message: 'Ngày bắt đầu không hợp lệ' })
+  from?: string;
+
+  @IsOptional()
+  @IsISO8601({}, { message: 'Ngày kết thúc không hợp lệ' })
+  to?: string;
+
+  /** Không gửi = cả hai trạng thái của lịch sử. */
+  @IsOptional()
+  @Transform(({ value }): unknown => toArrayOrUndefined(value))
+  @IsArray({ message: 'Trạng thái không hợp lệ' })
+  @IsIn(MATCH_HISTORY_STATUSES, { each: true, message: 'Trạng thái không hợp lệ' })
+  status?: (typeof MATCH_HISTORY_STATUSES)[number][];
+
+  /**
+   * Không gửi = không lọc theo thanh toán.
+   *
+   * Lọc theo khoản của CHÍNH người hỏi, nên trận mình không tham gia (không có khoản nào) rơi
+   * ra ngoài kết quả — nó không "chưa trả", nó không có gì để trả.
+   */
+  @IsOptional()
+  @Transform(({ value }): unknown => toArrayOrUndefined(value))
+  @IsArray({ message: 'Trạng thái thanh toán không hợp lệ' })
+  @IsIn(CHARGE_PAYMENT_STATUSES, { each: true, message: 'Trạng thái thanh toán không hợp lệ' })
+  paymentStatus?: (typeof CHARGE_PAYMENT_STATUSES)[number][];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Số dòng mỗi lô không hợp lệ' })
+  @Min(1, { message: 'Số dòng mỗi lô phải từ 1' })
+  @Max(MATCH_HISTORY_MAX_LIMIT, {
+    message: `Số dòng mỗi lô tối đa ${MATCH_HISTORY_MAX_LIMIT}`,
+  })
+  limit: number = MATCH_HISTORY_DEFAULT_LIMIT;
+
+  /** Mốc cuộn do lô trước trả về. Xem MATCH_HISTORY_CURSOR_REGEX. */
+  @IsOptional()
+  @Matches(MATCH_HISTORY_CURSOR_REGEX, { message: 'Mốc cuộn không hợp lệ' })
+  cursor?: string;
+}
+
+/**
  * Body của POST /organizations/:organizationId/matches.
  *
  * `maleRatio` tuỳ chọn: không gửi thì lấy mặc định của tổ chức. Gửi thì trận này dùng số
@@ -76,6 +172,14 @@ export class CreateMatchDto {
     message: `Tên sân tối đa ${MAX_COURT_NAME_LENGTH} ký tự`,
   })
   courtName: string;
+
+  @IsOptional()
+  @Transform(({ value }): unknown => trimOrUndefined(value))
+  @IsString({ message: 'Địa chỉ không hợp lệ' })
+  @MaxLength(MAX_MATCH_ADDRESS_LENGTH, {
+    message: `Địa chỉ tối đa ${MAX_MATCH_ADDRESS_LENGTH} ký tự`,
+  })
+  address?: string;
 
   @IsISO8601({}, { message: 'Giờ bắt đầu không hợp lệ' })
   startAt: string;
@@ -122,6 +226,14 @@ export class UpdateMatchDto {
     message: `Tên sân tối đa ${MAX_COURT_NAME_LENGTH} ký tự`,
   })
   courtName?: string;
+
+  @IsOptional()
+  @Transform(({ value }): unknown => trimOrUndefined(value))
+  @IsString({ message: 'Địa chỉ không hợp lệ' })
+  @MaxLength(MAX_MATCH_ADDRESS_LENGTH, {
+    message: `Địa chỉ tối đa ${MAX_MATCH_ADDRESS_LENGTH} ký tự`,
+  })
+  address?: string;
 
   @IsOptional()
   @IsISO8601({}, { message: 'Giờ bắt đầu không hợp lệ' })
@@ -194,6 +306,16 @@ export class SettleMatchDto {
   @Min(MIN_MALE_RATIO, { message: `Hệ số nam phải từ ${MIN_MALE_RATIO}` })
   @Max(MAX_MALE_RATIO, { message: `Hệ số nam không quá ${MAX_MALE_RATIO}` })
   maleRatio: number;
+
+  /**
+   * BẬT thì khoản của chủ tổ chức (nếu có tham gia trận) được tạo thẳng ở trạng thái đã trả —
+   * không đổi cách chia tiền, chỉ đổi trạng thái khoản đó. FE fill sẵn từ cài đặt tổ chức
+   * nhưng owner tự tích/bỏ được ở từng lần chốt. Mặc định TẮT nếu không gửi field, để client
+   * cũ (và các lần gọi settlement có sẵn) không phải biết tới field mới này mới chốt được.
+   */
+  @IsOptional()
+  @IsBoolean({ message: 'Giá trị bật/tắt không hợp lệ' })
+  skipOwnerPayment: boolean = false;
 
   @IsArray({ message: 'Danh sách chi phí không hợp lệ' })
   @ArrayMinSize(1, { message: 'Cần ít nhất một khoản chi' })

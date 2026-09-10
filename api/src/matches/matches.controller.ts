@@ -3,9 +3,11 @@ import { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import {
   CreateMatchDto,
+  MatchHistoryQueryDto,
   MatchIdParamDto,
   MatchOrganizationParamDto,
   MatchRangeQueryDto,
+  MatchUpcomingQueryDto,
   SettleMatchDto,
   UpdateMatchDto,
 } from './matches.dto';
@@ -37,6 +39,49 @@ export class OrganizationMatchesController {
     return {
       matches: await this.matchesService.listForOrganization(request.userId, params.organizationId, query),
     };
+  }
+
+  /**
+   * Input: cookie `at` + id tổ chức + ?limit&cursor.
+   * Output: { matches, nextCursor } — một lô buổi chưa kết thúc, SỚM NHẤT trước;
+   *         `nextCursor = null` là đã hết.
+   *
+   *         Đứng riêng với `list` ở trên: `list` hỏi "khoảng ngày này có trận nào" và bị chặn
+   *         ở 92 ngày, còn đây là "mọi buổi phía trước", cuộn tới đâu tải tới đó.
+   */
+  @Get('upcoming')
+  async upcoming(
+    @Req() request: Request & { userId: string },
+    @Param() params: MatchOrganizationParamDto,
+    @Query() query: MatchUpcomingQueryDto,
+  ) {
+    return this.matchesService.listUpcomingForOrganization(
+      request.userId,
+      params.organizationId,
+      query,
+    );
+  }
+
+  /**
+   * Input: cookie `at` + id tổ chức + ?from&to&status[]&paymentStatus[]&limit&cursor.
+   * Output: { matches, nextCursor } — một lô lịch sử, MỚI NHẤT trước; `nextCursor = null` là
+   *         đã hết. Chỉ trận đã chốt tiền hoặc đã huỷ.
+   *
+   *         Đứng riêng với `list` ở trên vì hai câu hỏi khác nhau: bộ lịch hỏi "kỳ này có
+   *         những trận nào" (một khoảng ngày, lấy hết), còn đây là "trước giờ tôi đã đá những
+   *         trận nào" (cuộn dần, lọc theo trạng thái và tiền của chính mình).
+   */
+  @Get('history')
+  async history(
+    @Req() request: Request & { userId: string },
+    @Param() params: MatchOrganizationParamDto,
+    @Query() query: MatchHistoryQueryDto,
+  ) {
+    return this.matchesService.listHistoryForOrganization(
+      request.userId,
+      params.organizationId,
+      query,
+    );
   }
 
   /**

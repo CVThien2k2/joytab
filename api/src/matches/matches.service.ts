@@ -15,8 +15,20 @@ import {
   VoteClosedReason,
 } from '../common/utils/types';
 import { DatabaseService } from '../database/database.service';
-import { MATCH_CANCEL_LOCK_MS, MATCH_RANGE_MAX_DAYS } from './matches.constants';
-import { CreateMatchDto, MatchRangeQueryDto, SettleMatchDto, UpdateMatchDto } from './matches.dto';
+import {
+  MATCH_CANCEL_LOCK_MS,
+  MATCH_HISTORY_STATUSES,
+  MATCH_PARTICIPANT_PREVIEW_LIMIT,
+  MATCH_RANGE_MAX_DAYS,
+} from './matches.constants';
+import {
+  CreateMatchDto,
+  MatchHistoryQueryDto,
+  MatchRangeQueryDto,
+  MatchUpcomingQueryDto,
+  SettleMatchDto,
+  UpdateMatchDto,
+} from './matches.dto';
 import { splitExpenses } from './matches.utils';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -26,6 +38,7 @@ type MatchRow = {
   id: string;
   organization_id: string;
   court_name: string;
+  address: string | null;
   start_at: Date;
   end_at: Date;
   max_players: number;
@@ -34,7 +47,8 @@ type MatchRow = {
   status: string;
   organization?: { name: string } | null;
   _count: { votes: number };
-  votes: { id: string }[];
+  /** Vài người đăng ký sớm nhất — phần xem trước, KHÔNG phải cả danh sách. */
+  votes: { user: { id: string; full_name: string | null; avatar_url: string | null } }[];
   charges: { amount: number; payment_status: string }[];
 };
 
@@ -84,6 +98,7 @@ export class MatchesService {
         data: {
           organization_id: organizationId,
           court_name: dto.courtName,
+          address: dto.address ?? null,
           start_at: startAt,
           end_at: endAt,
           max_players: dto.maxPlayers,
@@ -96,7 +111,8 @@ export class MatchesService {
     });
 
     this.logger.log(`Match ${match.id} created in organization ${organizationId} by ${userId}`);
-    return this.toSummary(match, new Date());
+    // Tạo trận KHÔNG tự đăng ký cho người tạo — owner lên lịch hộ cả nhóm là chuyện thường.
+    return this.toSummary(match, new Date(), false);
   }
 
   /**
@@ -121,7 +137,169 @@ export class MatchesService {
     });
 
     const now = new Date();
-    return matches.map((match) => this.toSummary(match as MatchRow, now));
+    const voted = await this.votedSetOf(
+      userId,
+      matches.map((match) => match.id),
+    );
+    return matches.map((match) => this.toSummary(match as MatchRow, now, voted.has(match.id)));
+  }
+
+  /**
+   * Input: userId + id tổ chức + số dòng mỗi lô + mốc cuộn.
+   * Output: Một lô buổi CHƯA KẾT THÚC của tổ chức, sớm nhất trước, kèm mốc cuộn cho lô sau
+   *         (`null` = đã hết).
+   *
+   *         "Chưa kết thúc" xét trên `end_at`, không phải `start_at`: buổi 19h-21h lúc 20h vẫn
+   *         là buổi đang diễn ra, mọi người còn đang ở sân — cắt theo giờ bắt đầu là nó biến
+   *         mất khỏi trang chủ ngay giữa trận.
+   *
+   *         Trận đã HUỶ không có ở đây: nó không còn là một buổi để đi. Trận đã CHỐT TIỀN thì
+   *         `end_at` của nó vốn đã ở quá khứ nên tự rơi ra. Cả hai tra được ở lịch sử.
+   *
+   *         KHÔNG nhận khoảng ngày như `listForOrganization`: đây là "mọi thứ phía trước", cuộn
+   *         tới đâu tải tới đó, nên không có trần 92 ngày nào áp vào.
+   *
+   *         Cuộn bằng CURSOR chứ không `skip`: một trận mới được tạo trong lúc người ta đang
+   *         cuộn sẽ chèn vào giữa danh sách và đẩy mọi lô sau trôi một dòng — thành ra một thẻ
+   *         hiện hai lần.
+   */
+  async listUpcomingForOrganization(
+    userId: string,
+    organizationId: string,
+    query: MatchUpcomingQueryDto,
+  ): Promise<{ matches: MatchSummary[]; nextCursor: string | null }> {
+    await requireMembership(this.databaseService, userId, organizationId);
+
+    const cursor = this.decodeCursor(query.cursor);
+    const now = new Date();
+    const rows = await this.databaseService.match.findMany({
+      where: {
+        organization_id: organizationId,
+        status: { not: 'canceled' },
+        end_at: { gt: now },
+        // Keyset đi TỚI (ngược chiều lịch sử): phần nằm sau mốc cuộn theo thứ tự tăng dần.
+        ...(cursor
+          ? {
+              OR: [
+                { start_at: { gt: cursor.startAt } },
+                { start_at: cursor.startAt, id: { gt: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ start_at: 'asc' }, { id: 'asc' }],
+      // Lấy THỪA một dòng để biết còn nữa hay không — rẻ hơn một query count.
+      take: query.limit + 1,
+      include: this.summaryInclude(userId),
+    });
+
+    const hasMore = rows.length > query.limit;
+    const batch = hasMore ? rows.slice(0, query.limit) : rows;
+    const last = batch.at(-1);
+    const voted = await this.votedSetOf(
+      userId,
+      batch.map((match) => match.id),
+    );
+
+    return {
+      matches: batch.map((match) => this.toSummary(match as MatchRow, now, voted.has(match.id))),
+      nextCursor: hasMore && last ? `${last.start_at.toISOString()}|${last.id}` : null,
+    };
+  }
+
+  /**
+   * Input: userId + id tổ chức + bộ lọc (khoảng ngày, trạng thái, thanh toán) + mốc cuộn.
+   * Output: Một lô lịch sử CỦA CHÍNH NGƯỜI HỎI, mới nhất trước, kèm mốc cuộn cho lô sau
+   *         (`null` = đã hết).
+   *
+   *         Chỉ trận `settled`/`canceled`: trận `open` dù đã qua giờ vẫn là việc đang treo
+   *         (chưa chốt tiền), nên nó thuộc trang chủ, không thuộc lịch sử.
+   *
+   *         Và chỉ những buổi mình có mặt — xem mệnh đề `AND` bên dưới.
+   *
+   *         Cuộn bằng CURSOR chứ không `skip`: đây là danh sách cuộn vô hạn, mà offset thì
+   *         lệch ngay khi có trận mới được chốt trong lúc người ta đang cuộn — nó nhảy lên đầu
+   *         và đẩy mọi lô sau trôi một dòng, thành ra một thẻ hiện hai lần.
+   */
+  async listHistoryForOrganization(
+    userId: string,
+    organizationId: string,
+    query: MatchHistoryQueryDto,
+  ): Promise<{ matches: MatchSummary[]; nextCursor: string | null }> {
+    await requireMembership(this.databaseService, userId, organizationId);
+
+    const cursor = this.decodeCursor(query.cursor);
+    const rows = await this.databaseService.match.findMany({
+      where: {
+        organization_id: organizationId,
+        status: { in: query.status ?? [...MATCH_HISTORY_STATUSES] },
+        ...(query.from || query.to
+          ? {
+              start_at: {
+                ...(query.from ? { gte: new Date(query.from) } : {}),
+                ...(query.to ? { lt: new Date(query.to) } : {}),
+              },
+            }
+          : {}),
+        // Khoản của CHÍNH người hỏi. Một trận có tối đa một row charge cho một user
+        // (@@unique([match_id, user_id])), nên `some` ở đây là chính xác chứ không phải
+        // "có ai đó trong trận đã trả".
+        ...(query.paymentStatus
+          ? { charges: { some: { user_id: userId, payment_status: { in: query.paymentStatus } } } }
+          : {}),
+        // Hai mệnh đề dưới đây đều là OR nên phải nằm trong `AND`, không rải thẳng ra object:
+        // hai key `OR` cùng cấp thì cái sau ghi đè cái trước — im lặng, và chỉ lộ ra ở trang thứ hai.
+        AND: [
+          // CHỈ những buổi CHÍNH người hỏi có mặt. Lịch sử là sổ của riêng mình ("mình đã đá
+          // buổi nào, còn nợ buổi nào"), không phải sổ của cả tổ chức — buổi mình không đăng
+          // ký thì không có gì để tra lại, mà vẫn đẩy buổi của mình xuống dưới.
+          //
+          // Hai vế vì hai loại row nói lên sự có mặt ở hai giai đoạn khác nhau: `votes` là
+          // đăng ký (còn nguyên cả khi trận bị huỷ), `charges` là tiền đã chia lúc chốt. Chỉ
+          // xét votes thì mất buổi được chốt tiền cho người không kịp vote; chỉ xét charges
+          // thì mất mọi buổi đã huỷ.
+          {
+            OR: [
+              { votes: { some: { user_id: userId } } },
+              { charges: { some: { user_id: userId } } },
+            ],
+          },
+          // Keyset: lấy đúng phần nằm SAU mốc cuộn theo thứ tự sắp ở dưới.
+          ...(cursor
+            ? [
+                {
+                  OR: [
+                    { start_at: { lt: cursor.startAt } },
+                    { start_at: cursor.startAt, id: { lt: cursor.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      // `id` là tie-breaker: hai trận cùng giờ bắt đầu mà thứ tự không cố định thì giữa hai lô
+      // sẽ có thẻ hiện hai lần hoặc mất hẳn.
+      orderBy: [{ start_at: 'desc' }, { id: 'desc' }],
+      // Lấy THỪA một dòng để biết còn nữa hay không — rẻ hơn một query count, mà tổng số thì
+      // danh sách cuộn vô hạn cũng không hiện ở đâu.
+      take: query.limit + 1,
+      include: this.summaryInclude(userId),
+    });
+
+    const hasMore = rows.length > query.limit;
+    const batch = hasMore ? rows.slice(0, query.limit) : rows;
+    const last = batch.at(-1);
+    const now = new Date();
+
+    const voted = await this.votedSetOf(
+      userId,
+      batch.map((match) => match.id),
+    );
+
+    return {
+      matches: batch.map((match) => this.toSummary(match as MatchRow, now, voted.has(match.id))),
+      nextCursor: hasMore && last ? `${last.start_at.toISOString()}|${last.id}` : null,
+    };
   }
 
   /**
@@ -158,23 +336,19 @@ export class MatchesService {
       votedAt: vote.voted_at.toISOString(),
     }));
 
-    // `votes` ở đây là TOÀN BỘ danh sách (để dựng participants), không phải một dòng của
-    // riêng người hỏi như summaryInclude — nên tự tính `voted` thay vì để toSummary đoán.
-    const voted = votes.some((vote) => vote.user_id === userId);
+    // `votes` ở đây là TOÀN BỘ danh sách (để dựng participants), không phải phần xem trước như
+    // summaryInclude — nên cắt lại đúng số lượng ấy cho `toSummary`, và tự tính `voted`.
     const summary = this.toSummary(
       {
         ...(match as unknown as MatchRow),
         _count: { votes: votes.length },
-        votes: voted ? [{ id: 'self' }] : [],
+        votes: votes.slice(0, MATCH_PARTICIPANT_PREVIEW_LIMIT),
       },
       now,
+      votes.some((vote) => vote.user_id === userId),
     );
 
-    return {
-      ...summary,
-      participants,
-      canCancelVote: voted && now.getTime() < match.start_at.getTime() - MATCH_CANCEL_LOCK_MS,
-    };
+    return { ...summary, participants };
   }
 
   /**
@@ -226,6 +400,7 @@ export class MatchesService {
         where: { id: matchId },
         data: {
           ...(dto.courtName !== undefined ? { court_name: dto.courtName } : {}),
+          ...(dto.address !== undefined ? { address: dto.address || null } : {}),
           ...(dto.startAt !== undefined ? { start_at: startAt } : {}),
           ...(dto.endAt !== undefined ? { end_at: endAt } : {}),
           ...(dto.maxPlayers !== undefined ? { max_players: dto.maxPlayers } : {}),
@@ -237,7 +412,8 @@ export class MatchesService {
     });
 
     this.logger.log(`Match ${matchId} updated by ${userId}`);
-    return this.toSummary(updated, new Date());
+    const voted = await this.votedSetOf(userId, [matchId]);
+    return this.toSummary(updated, new Date(), voted.has(matchId));
   }
 
   /**
@@ -413,9 +589,12 @@ export class MatchesService {
    *         Người bị chia tiền là những người CÒN vote — huỷ vote đã bị chặn trong 2 giờ
    *         cuối nên danh sách này chính là những người đã cam kết đi.
    *
-   *         Gọi lại được để sửa, NHƯNG chỉ khi mọi khoản còn `unpaid`. Một ảnh chuyển khoản
-   *         có thể đang treo cho nhiều trận; đổi tiền một trận sẽ làm ảnh đó không khớp với
-   *         bất kỳ tổng nào, và người đã trả không nên thấy con số đổi sau lưng mình.
+   *         Gọi lại được để sửa, NHƯNG chỉ khi chưa có khoản nào gắn một lần chuyển khoản
+   *         THẬT (`payment_id`). Một ảnh chuyển khoản có thể đang treo cho nhiều trận; đổi
+   *         tiền một trận sẽ làm ảnh đó không khớp với bất kỳ tổng nào, và người đã trả không
+   *         nên thấy con số đổi sau lưng mình. Khoản `paid` do `skipOwnerPayment` tự đánh dấu
+   *         (xem bên dưới) không có `payment_id` nên không tính — không có tiền thật nào bị
+   *         đổi dưới chân ai cả, vẫn sửa lại được bình thường.
    *
    *         Toàn bộ nằm trong MỘT transaction: xoá bảng cũ mà tạo bảng mới hỏng thì trận mất
    *         sạch chi phí, tệ hơn là không sửa được.
@@ -427,7 +606,7 @@ export class MatchesService {
     if (new Date() < match.start_at) throw new AppException(ERROR_CODES.MATCH_010);
 
     const locked = await this.databaseService.matchCharge.findFirst({
-      where: { match_id: matchId, payment_status: { not: 'unpaid' } },
+      where: { match_id: matchId, payment_id: { not: null } },
       select: { id: true },
     });
     if (locked) throw new AppException(ERROR_CODES.MATCH_011);
@@ -470,6 +649,10 @@ export class MatchesService {
           gender_at_settle: genderByUser.get(charge.userId) ?? null,
           ratio: charge.ratio,
           amount: charge.amount,
+          // Chủ tổ chức tự đánh dấu đã trả: KHÔNG đổi số tiền, chỉ đổi trạng thái khoản của
+          // chính họ. `payment_id` vẫn để trống — đây không phải một lần chuyển khoản thật,
+          // nên không được tính vào `locked` ở trên hay vào sổ chứng từ (Payment).
+          payment_status: charge.userId === userId && dto.skipOwnerPayment ? 'paid' : 'unpaid',
         })),
       });
       await tx.match.update({
@@ -537,7 +720,9 @@ export class MatchesService {
         paymentStatus: this.toPaymentStatus(charge.payment_status),
       })),
       surplus: collected - total,
-      editable: charges.every((charge) => charge.payment_status === 'unpaid'),
+      // Cùng luật với `locked` ở settle(): chỉ khoản có `payment_id` thật (một lần chuyển
+      // khoản đã gửi) mới khoá sửa. Khoản `paid` do owner tự đánh dấu không có payment_id.
+      editable: charges.every((charge) => charge.payment_id === null),
     };
   }
 
@@ -622,7 +807,19 @@ export class MatchesService {
   private summaryInclude(userId: string) {
     return {
       _count: { select: { votes: true } },
-      votes: { where: { user_id: userId }, select: { id: true }, take: 1 },
+      // Người đăng ký SỚM NHẤT trước, cắt ở `MATCH_PARTICIPANT_PREVIEW_LIMIT`. Đây là phần xem
+      // trước cho thẻ danh sách, không phải cả danh sách — nên thứ tự phải cố định (`id` làm
+      // tie-breaker) để cùng một trận không đổi mặt người giữa hai lần tải.
+      //
+      // Trước đây chỗ này lấy đúng vote CỦA NGƯỜI HỎI để biết họ đã đăng ký chưa; giờ cờ đó do
+      // phía gọi truyền vào `toSummary` (danh sách hỏi một lượt cho cả lô — xem `votedSetOf`).
+      votes: {
+        orderBy: [{ voted_at: 'asc' as const }, { id: 'asc' as const }],
+        take: MATCH_PARTICIPANT_PREVIEW_LIMIT,
+        select: {
+          user: { select: { id: true, full_name: true, avatar_url: true } },
+        },
+      },
       charges: {
         where: { user_id: userId },
         select: { amount: true, payment_status: true },
@@ -632,10 +829,30 @@ export class MatchesService {
   }
 
   /**
+   * Input: userId + các trận vừa lấy về.
+   * Output: Tập id những trận mà user ĐÃ đăng ký.
+   *
+   *         MỘT query cho cả lô thay vì gắn kèm vào từng dòng: phần `votes` của mỗi dòng giờ là
+   *         danh sách xem trước (5 người sớm nhất), mà người hỏi có thể là người đăng ký thứ 12
+   *         — đọc cờ từ đó là sai với đúng những trận đông người.
+   *
+   *         Index `@@unique([match_id, user_id])` phủ đúng câu này nên nó chỉ là một lần quét
+   *         index, không phụ thuộc số người trong trận.
+   */
+  private async votedSetOf(userId: string, matchIds: string[]): Promise<Set<string>> {
+    if (matchIds.length === 0) return new Set();
+    const votes = await this.databaseService.matchVote.findMany({
+      where: { user_id: userId, match_id: { in: matchIds } },
+      select: { match_id: true },
+    });
+    return new Set(votes.map((vote) => vote.match_id));
+  }
+
+  /**
    * Input: row trận (đã include) + thời điểm hiện tại.
    * Output: MatchSummary cho FE.
    */
-  private toSummary(match: MatchRow, now: Date): MatchSummary {
+  private toSummary(match: MatchRow, now: Date, voted: boolean): MatchSummary {
     const playerCount = match._count.votes;
     const charge = match.charges[0];
 
@@ -644,6 +861,7 @@ export class MatchesService {
       organizationId: match.organization_id,
       ...(match.organization ? { organizationName: match.organization.name } : {}),
       courtName: match.court_name,
+      address: match.address,
       startAt: match.start_at.toISOString(),
       endAt: match.end_at.toISOString(),
       maxPlayers: match.max_players,
@@ -651,10 +869,16 @@ export class MatchesService {
       maleRatio: Number(match.male_ratio),
       note: match.note,
       status: this.toStatus(match.status),
-      voted: match.votes.length > 0,
+      voted,
       voteClosedReason: this.voteClosedReason(match, playerCount, now),
       myAmount: charge ? charge.amount : null,
       myPaymentStatus: charge ? this.toPaymentStatus(charge.payment_status) : null,
+      canCancelVote: voted && now.getTime() < match.start_at.getTime() - MATCH_CANCEL_LOCK_MS,
+      participantsPreview: match.votes.map((vote) => ({
+        userId: vote.user.id,
+        fullName: vote.user.full_name,
+        avatarUrl: vote.user.avatar_url,
+      })),
     };
   }
 
@@ -716,6 +940,23 @@ export class MatchesService {
 
     const maxTo = new Date(from.getTime() + MATCH_RANGE_MAX_DAYS * DAY_MS);
     return { from, to: to > maxTo ? maxTo : to };
+  }
+
+  /**
+   * Input: mốc cuộn dạng `"<start_at ISO>|<match id>"`, hoặc không có.
+   * Output: Hai mảnh của nó, hoặc `null` khi đây là lô đầu.
+   *
+   *         Dùng chung cho cả lịch sử lẫn danh sách buổi sắp tới: hai danh sách chạy ngược
+   *         chiều nhau nhưng mốc cuộn cùng một shape, mà hai hàm giải mã giống hệt nhau thì sẽ
+   *         có lúc chỉ một trong hai được sửa.
+   *
+   *         Không phòng chuỗi rác: regex ở tầng DTO đã chốt shape, nên tới đây mà còn kiểm lại
+   *         là hai chỗ cùng gác một cửa.
+   */
+  private decodeCursor(cursor?: string): { startAt: Date; id: string } | null {
+    if (!cursor) return null;
+    const [startAt, id] = cursor.split('|');
+    return { startAt: new Date(startAt), id };
   }
 
   /** Cột VarChar nên giá trị lạ là có thể; quy về 'open' thay vì để lọt kiểu sai lên FE. */

@@ -85,6 +85,8 @@ export type OrganizationSummary = {
   paymentQrUrl: string | null;
   /** Hệ số nam mặc định cho trận mới (nữ là mốc 1). */
   maleRatio: number;
+  /** Giá trị FILL SẴN cho ô tích ở màn chốt chi phí — xem SettleMatchDto.skipOwnerPayment. */
+  skipOwnerPayment: boolean;
   /** ISO 8601 — thời điểm user đang hỏi vào tổ chức này. */
   joinedAt: string;
 };
@@ -137,6 +139,8 @@ export type MatchSummary = {
   /** Chỉ có ở lịch cá nhân (xuyên tổ chức) — chip trên lịch phải nói rõ trận của tổ chức nào. */
   organizationName?: string;
   courtName: string;
+  /** Địa chỉ sân, người tạo nhập tay. null = chưa khai. */
+  address: string | null;
   /** ISO 8601 có offset. */
   startAt: string;
   endAt: string;
@@ -151,6 +155,28 @@ export type MatchSummary = {
   /** Số tiền của user đang hỏi ở trận này; null khi trận chưa chốt hoặc user không tham gia. */
   myAmount: number | null;
   myPaymentStatus: ChargePaymentStatus | null;
+  /**
+   * Còn huỷ vote được không (đã vote, và chưa tới mốc 2 giờ trước giờ chơi).
+   *
+   * Nằm ở SUMMARY chứ không riêng detail: danh sách trận sắp diễn ra ở trang chủ có nút huỷ
+   * đăng ký ngay trên thẻ, mà để FE tự trừ 2 tiếng là dựng bản sao thứ hai của luật khoá —
+   * bản sao đó sẽ lệch ngay lần đầu đổi hằng số.
+   */
+  canCancelVote: boolean;
+  /**
+   * Vài người đã đăng ký, sớm nhất trước — đủ để thẻ trong danh sách vẽ chồng avatar.
+   *
+   * Tên khác `participants` của MatchDetail và CỐ Ý ít field hơn: đây là thứ đi kèm MỌI dòng
+   * của mọi danh sách, nên nó phải rẻ. Ai đăng ký lúc nào, giới tính gì thì mở chi tiết mới có.
+   */
+  participantsPreview: MatchParticipantPreview[];
+};
+
+/** Một người trong phần xem trước ở thẻ danh sách. */
+export type MatchParticipantPreview = {
+  userId: string;
+  fullName: string | null;
+  avatarUrl: string | null;
 };
 
 /** Một người đang tham gia trận. */
@@ -166,8 +192,6 @@ export type MatchParticipant = {
 /** Chi tiết một trận: summary + danh sách người tham gia. */
 export type MatchDetail = MatchSummary & {
   participants: MatchParticipant[];
-  /** Còn huỷ vote được không (đã vote, và chưa tới mốc 2 giờ trước giờ chơi). */
-  canCancelVote: boolean;
 };
 
 /** Một dòng lịch sử vote. Append-only nên chỉ có đọc. */
@@ -257,4 +281,23 @@ export type PaymentSummary = {
   total: number;
   /** Các trận mà lần chuyển khoản này trả cho. */
   items: { matchId: string; courtName: string; startAt: string; amount: number }[];
+};
+
+/**
+ * Bốn con số ở trang chủ của một tổ chức, đều tính cho CHÍNH người hỏi.
+ *
+ * Là một endpoint riêng chứ không ghép từ các API sẵn có: `charges/me` chỉ trả khoản CHƯA trả
+ * (nên không cộng ra được `paidTotal`), còn lịch sử thì cuộn theo cursor và cố tình không có
+ * tổng số dòng — đếm ở FE là phải kéo về cả bảng chỉ để lấy một con số.
+ */
+export type OrganizationOverview = {
+  /** Σ khoản chưa trả của tôi trong tổ chức này. Khớp với `unpaidTotal` của `charges/me`. */
+  unpaidTotal: number;
+  unpaidCount: number;
+  /** Σ khoản đã trả — cùng nguồn với `unpaidTotal` nên hai con số luôn cùng đơn vị và cùng nhịp. */
+  paidTotal: number;
+  /** Số buổi đã chốt tiền mà tôi có mặt. Buổi đã huỷ không tính: nó không diễn ra. */
+  playedCount: number;
+  /** Số buổi còn ở phía trước của cả tổ chức (chưa chốt, chưa huỷ), kể cả buổi tôi chưa đăng ký. */
+  upcomingCount: number;
 };

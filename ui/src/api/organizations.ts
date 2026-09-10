@@ -4,6 +4,7 @@ import {
   activeOrganizationResponseSchema,
   organizationListResponseSchema,
   organizationMemberListResponseSchema,
+  organizationOverviewResponseSchema,
   organizationPreviewResponseSchema,
   organizationResponseSchema,
 } from "@/schema/organization"
@@ -12,6 +13,7 @@ import type {
   JoinOrganizationPayload,
   Organization,
   OrganizationMember,
+  OrganizationOverview,
   OrganizationPreview,
   Pagination,
 } from "@/types/organization"
@@ -120,7 +122,7 @@ export async function updateJoinByCodeEnabled(payload: {
 }
 
 /**
- * Input: id tổ chức + tên mới + hệ số nam mặc định.
+ * Input: id tổ chức + tên mới + hệ số nam mặc định + cài đặt chủ tổ chức tự đánh dấu đã trả.
  * Output: Tổ chức sau khi đổi. Chỉ owner gọi được.
  *
  *         KHÔNG gửi kèm `joinByCodeEnabled`: BE coi mỗi field là một ý định riêng, gửi kèm là
@@ -130,10 +132,12 @@ export async function updateOrganization(payload: {
   organizationId: string
   name: string
   maleRatio: number
+  skipOwnerPayment: boolean
 }): Promise<Organization> {
   const response = await apiClient.patch(`/organizations/${payload.organizationId}`, {
     name: payload.name,
     maleRatio: payload.maleRatio,
+    skipOwnerPayment: payload.skipOwnerPayment,
   })
   return organizationResponseSchema.parse(response.data).data.organization
 }
@@ -186,6 +190,20 @@ export async function fetchOrganizationMembers(
     `/organizations/${params.organizationId}/members?${search.toString()}`,
   )
   return organizationMemberListResponseSchema.parse(response.data).data
+}
+
+/**
+ * Input: id tổ chức.
+ * Output: Bốn con số của trang chủ, của chính người đang đăng nhập.
+ *
+ *         Một request cho cả bốn: chúng đứng cạnh nhau trên cùng một hàng thẻ, mà bốn request
+ *         thì hàng đó hiện ra lệch nhịp từng thẻ một.
+ */
+export async function fetchOrganizationOverview(
+  organizationId: string,
+): Promise<OrganizationOverview> {
+  const response = await apiClient.get(`/organizations/${organizationId}/overview`)
+  return organizationOverviewResponseSchema.parse(response.data).data.overview
 }
 
 /**

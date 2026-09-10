@@ -10,19 +10,17 @@ import type { MatchSummary } from "@/types/match"
  * Input: trận muốn huỷ (`null` = chưa chọn gì) + trạng thái mở.
  * Output: Hộp thoại xác nhận huỷ một buổi đá.
  *
- *         Là component riêng vì có HAI chỗ mở nó: thẻ xem nhanh trên lịch (đường của owner khi
- *         đang nhìn cả tuần) và trang chi tiết trận. Hai bản chép tay là hai câu cảnh báo sẽ
- *         trôi mỗi cái một kiểu — mà đây đúng là câu phải giống nhau, vì nó mô tả cùng một hậu
- *         quả không lấy lại được.
+ *         Là component riêng chứ không viết thẳng vào trang chi tiết: nó sống cạnh
+ *         `match-form-dialog` ở tầng tổ chức, nơi mọi trang trong tổ chức với tới được — câu
+ *         cảnh báo cho một hậu quả không lấy lại được thì chỉ nên có đúng một bản.
  *
- *         Không tự dựng nút bấm: hai chỗ gọi có hình dạng khác hẳn nhau (một nút nhỏ trong thẻ
- *         hover và một nút viền trong khối tiêu đề trang), nên nút thuộc về phía gọi.
+ *         Không tự dựng nút bấm: nút thuộc về phía gọi, nơi biết nó phải trông như thế nào.
  *
- *         `onCanceled` để phía gọi tự xử phần sau: trang chi tiết phải điều hướng đi vì trận vừa
- *         biến mất khỏi lịch, còn trên lịch thì không cần đi đâu cả — danh sách tự làm mới.
+ *         `onCanceled` để phía gọi tự xử phần sau: trang chi tiết phải điều hướng đi vì trận
+ *         vừa biến mất khỏi danh sách buổi sắp tới.
  *
  *         Sắc `destructive`: huỷ trận không có nút hoàn tác. Lịch sử đăng ký vẫn nằm trong DB,
- *         nhưng trận đã huỷ không còn hiện trên lưới nên cũng không còn đường nào đi tới nó.
+ *         nhưng buổi đã huỷ chỉ còn tra được ở trang Lịch sử đấu.
  */
 export function CancelMatchDialog({
   match,

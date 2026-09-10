@@ -60,8 +60,8 @@ model RefreshToken {
 /// Một tổ chức = một không gian làm việc chung. User tham gia được nhiều tổ chức, mỗi tổ
 /// chức nhiều thành viên — quan hệ n-n nằm ở organization_members.
 model Organization {
-  id             String               @id @default(uuid()) @db.Uuid
-  name           String               @db.VarChar(100)
+  id                 String               @id @default(uuid()) @db.Uuid
+  name               String               @db.VarChar(100)
   /// Mã 8 ký tự để người khác tự nhập vào tham gia, hoặc NULL khi tổ chức đang kín.
   ///
   /// NULL CHÍNH LÀ công tắc: không có cột `join_by_code_enabled` riêng, vì hai nguồn sự thật
@@ -73,22 +73,27 @@ model Organization {
   ///
   /// Lưu PLAINTEXT (khác refresh_token) vì mọi thành viên phải đọc được để chia sẻ. `unique`
   /// vẫn dùng được với cột nullable: Postgres cho phép nhiều NULL trong unique index.
-  join_code      String?              @unique @db.VarChar(12)
+  join_code          String?              @unique @db.VarChar(12)
   /// Ảnh QR chuyển khoản của tổ chức. NULL = owner chưa cấu hình, FE ẩn nút thanh toán.
   ///
   /// Nguồn DUY NHẤT: trận KHÔNG giữ bản sao. Vì một lần chuyển khoản gom nhiều trận
   /// (xem Payment), mỗi trận một QR thì người trả không biết quét cái nào.
-  payment_qr_url String?
+  payment_qr_url     String?
   /// Hệ số nam mặc định cho trận mới. Nữ luôn là mốc 1, nam đóng `male_ratio` lần nữ.
   /// Trận CHỤP LẠI giá trị này lúc tạo nên đổi ở đây không làm đổi trận đã tạo.
-  male_ratio     Decimal              @default(1.0) @db.Decimal(4, 2)
+  male_ratio         Decimal              @default(1.0) @db.Decimal(4, 2)
+  /// Mặc định cho ô tích ở màn chốt chi phí: BẬT thì khoản của chủ tổ chức (nếu có tham gia
+  /// trận) được tạo thẳng ở trạng thái đã trả — dùng khi chủ tổ chức là người đã ứng tiền ra
+  /// trước, không cần tự thanh toán lại cho chính mình. KHÔNG đổi cách chia tiền, chỉ đổi
+  /// trạng thái khoản đó. Chỉ là giá trị FILL SẴN — owner vẫn tự tích/bỏ được ở từng lần chốt.
+  skip_owner_payment Boolean              @default(false)
   /// Chỉ để truy vết ai tạo. KHÔNG dùng để kiểm quyền — quyền đọc ở organization_members.role.
-  created_by     String               @db.Uuid
-  created_at     DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime             @updatedAt @db.Timestamptz(6)
-  members        OrganizationMember[]
-  matches        Match[]
-  payments       Payment[]
+  created_by         String               @db.Uuid
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @updatedAt @db.Timestamptz(6)
+  members            OrganizationMember[]
+  matches            Match[]
+  payments           Payment[]
 
   @@map("organizations")
 }
@@ -118,6 +123,9 @@ model Match {
   id              String    @id @default(uuid()) @db.Uuid
   organization_id String    @db.Uuid
   court_name      String    @db.VarChar(120)
+  /// Địa chỉ sân, nhập tự do. NULL = chưa khai — trận cũ tạo trước khi có ô này, và người tạo
+  /// vẫn được bỏ trống khi sân là chỗ cả nhóm đã biết.
+  address         String?   @db.VarChar(255)
   start_at        DateTime  @db.Timestamptz(6)
   /// Bắt buộc, không suy ra từ start_at: khoảng [start_at, end_at) chính là thứ dùng để
   /// biết hai trận có trùng giờ hay không (xem MatchVote).
@@ -246,14 +254,14 @@ model MatchCharge {
 /// duyệt. Vì vậy không còn `status`/`reject_reason`/`confirmed_*` — một row tồn tại nghĩa là
 /// tiền đã được báo là đã chuyển, và ảnh chứng từ nằm ngay trong row đó.
 model Payment {
-  id              String    @id @default(uuid()) @db.Uuid
-  organization_id String    @db.Uuid
-  user_id         String    @db.Uuid
+  id              String   @id @default(uuid()) @db.Uuid
+  organization_id String   @db.Uuid
+  user_id         String   @db.Uuid
   /// Ảnh chuyển khoản. BẮT BUỘC — không có nhánh tiền mặt, nên một lần thanh toán không có
   /// ảnh là một lần cả nhóm không có gì để đối chiếu về sau.
   proof_url       String
   note            String?
-  submitted_at    DateTime  @default(now()) @db.Timestamptz(6)
+  submitted_at    DateTime @default(now()) @db.Timestamptz(6)
 
   organization Organization  @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   user         User          @relation(fields: [user_id], references: [id], onDelete: Cascade)

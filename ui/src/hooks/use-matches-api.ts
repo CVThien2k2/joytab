@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { getApiErrorMessage } from "@/api/error"
 import {
@@ -9,13 +9,14 @@ import {
   createMatch,
   fetchMatch,
   fetchMatchHistory,
-  fetchOrganizationMatches,
+  fetchOrganizationMatchHistory,
+  fetchOrganizationUpcomingMatches,
   fetchSettlement,
   settleMatch,
   updateMatch,
   voteMatch,
+  type MatchHistoryFilters,
   type MatchPayload,
-  type MatchRange,
 } from "@/api/matches"
 import type { SettlementFormPayload } from "@/types/match"
 
@@ -27,8 +28,16 @@ import type { SettlementFormPayload } from "@/types/match"
  */
 export const matchQueryKeys = {
   organization: (organizationId: string) => ["matches", "organization", organizationId] as const,
-  organizationRange: (organizationId: string, range?: MatchRange) =>
-    [...matchQueryKeys.organization(organizationId), range?.from ?? "", range?.to ?? ""] as const,
+  /**
+   * Lịch sử của một tổ chức, lồng DƯỚI khoá tổ chức chứ không đứng riêng: chốt tiền hay trả
+   * tiền xong là các mutation hiện có đã invalidate đúng tiền tố đó (kể cả bên
+   * use-payments-api), nên danh sách lịch sử tự mới lại mà không phải thêm khoá vào hai chỗ.
+   */
+  organizationHistory: (organizationId: string, filters: MatchHistoryFilters) =>
+    [...matchQueryKeys.organization(organizationId), "history", filters] as const,
+  /** Buổi sắp diễn ra — cũng lồng dưới khoá tổ chức nên mọi mutation hiện có tự làm mới nó. */
+  organizationUpcoming: (organizationId: string) =>
+    [...matchQueryKeys.organization(organizationId), "upcoming"] as const,
   detail: (matchId: string) => ["matches", "detail", matchId] as const,
   history: (matchId: string) => ["matches", "history", matchId] as const,
   settlement: (matchId: string) => ["matches", "settlement", matchId] as const,
@@ -56,28 +65,65 @@ function invalidateMatchData(
     void queryClient.invalidateQueries({ queryKey: matchQueryKeys.settlement(params.matchId) })
   }
   void queryClient.invalidateQueries({ queryKey: ["charges"] })
+  // Bốn con số ở trang chủ đếm chính những thứ vừa đổi (buổi sắp tới, buổi đã chốt, tiền).
+  void queryClient.invalidateQueries({ queryKey: ["organizations", "overview"] })
 }
 
 /**
- * Input: id tổ chức + khoảng ngày đang xem trên lịch.
- * Output: Query các trận của tổ chức.
+ * Input: id tổ chức.
+ * Output: Query cuộn vô hạn các buổi chưa kết thúc, sớm nhất trước.
  *
- *         `staleTime` 15 giây: số người đã đăng ký đổi theo phút chứ không theo giây, nhưng
- *         ngắn hơn danh sách thành viên vì đây là con số người ta nhìn để quyết định có đi
- *         hay không.
+ *         Cuộn theo cursor chứ không lấy hết một lượt: một tổ chức đá đều thì lịch phía trước
+ *         có thể dài hàng trăm buổi, mà màn hình đầu chỉ hiện được vài dòng.
+ *
+ *         `staleTime` 15 giây, bằng với lịch theo khoảng ngày: sĩ số và "mình đã đăng ký chưa"
+ *         là hai con số người ta nhìn để quyết định có đi hay không.
  */
-export function useOrganizationMatches(organizationId: string, range?: MatchRange) {
-  return useQuery({
-    queryKey: matchQueryKeys.organizationRange(organizationId, range),
-    queryFn: () => fetchOrganizationMatches({ organizationId, range }),
+export function useOrganizationUpcomingMatches(organizationId: string) {
+  return useInfiniteQuery({
+    queryKey: matchQueryKeys.organizationUpcoming(organizationId),
+    queryFn: ({ pageParam }) =>
+      fetchOrganizationUpcomingMatches({ organizationId, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 15_000,
   })
 }
 
-export function useMatch(matchId: string) {
+/**
+ * Input: id tổ chức + bộ lọc của tab Lịch sử.
+ * Output: Query cuộn vô hạn — mỗi `fetchNextPage` là một lô nối sau lô trước.
+ *
+ *         Bộ lọc nằm TRONG queryKey, nên đổi filter là react-query tự bắt đầu lại từ lô đầu:
+ *         không có bước "reset về trang 1" nào phải nhớ gọi bằng tay.
+ *
+ *         `staleTime` 30 giây, dài hơn lịch sắp tới (15s): trận đã chốt tiền hay đã huỷ thì
+ *         gần như không đổi nữa, chỉ trạng thái trả tiền của mình là còn động.
+ */
+export function useOrganizationMatchHistory(organizationId: string, filters: MatchHistoryFilters) {
+  return useInfiniteQuery({
+    queryKey: matchQueryKeys.organizationHistory(organizationId, filters),
+    queryFn: ({ pageParam }) =>
+      fetchOrganizationMatchHistory({ organizationId, filters, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    staleTime: 30_000,
+  })
+}
+
+/**
+ * Input: id trận + có gọi hay không.
+ * Output: Query chi tiết một trận (summary + danh sách người tham gia đầy đủ).
+ *
+ *         `enabled` để hộp thoại xem nhanh chỉ hỏi khi nó thật sự mở: component đó vẫn nằm
+ *         trong cây sau khi đóng (còn giữ trận vừa xem để chạy animation ra), mà đóng rồi thì
+ *         không có gì để tải nữa.
+ */
+export function useMatch(matchId: string, enabled = true) {
   return useQuery({
     queryKey: matchQueryKeys.detail(matchId),
     queryFn: () => fetchMatch(matchId),
+    enabled: enabled && Boolean(matchId),
     staleTime: 15_000,
   })
 }
@@ -123,23 +169,16 @@ export function useCreateMatch(organizationId: string, onSuccess?: () => void) {
 
 /**
  * Input: id tổ chức + callback sau khi lưu xong.
- * Output: Mutation sửa trận — dùng cho cả form sửa lẫn thao tác kéo thả trên lịch.
- *
- *         Kéo thả cần hoàn tác chip khi server từ chối, nhưng hàm `revert` chỉ tồn tại trong
- *         đúng lần kéo đó — nên chỗ gọi truyền `onError` theo từng lần `mutate`, không khai
- *         sẵn ở đây.
+ * Output: Mutation sửa trận.
  */
-export function useUpdateMatch(
-  organizationId: string,
-  options?: { onSuccess?: () => void; silent?: boolean },
-) {
+export function useUpdateMatch(organizationId: string, options?: { onSuccess?: () => void }) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: (params: { matchId: string; payload: Partial<MatchPayload> }) =>
       updateMatch(params),
     onSuccess: (match) => {
-      if (!options?.silent) toast.success("Đã cập nhật lịch thi đấu")
+      toast.success("Đã cập nhật lịch thi đấu")
       options?.onSuccess?.()
       invalidateMatchData(queryClient, { organizationId, matchId: match.id })
     },

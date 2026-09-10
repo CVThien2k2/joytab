@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Check } from "lucide-react"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { LoadingOverlay } from "@/components/common/loading-overlay"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { useUpdateOrganization } from "@/hooks/use-organizations-api"
 import {
   MAX_MALE_RATIO,
@@ -31,7 +32,8 @@ import type {
 
 /**
  * Input: Tổ chức đang xem + trạng thái mở và hàm đóng.
- * Output: Hộp thoại sửa thông tin tổ chức: tên và hệ số chia tiền mặc định.
+ * Output: Hộp thoại sửa thông tin tổ chức: tên, hệ số chia tiền mặc định, và cài đặt chủ tổ
+ *         chức tự đánh dấu đã trả khi chốt chi phí.
  *
  *         Hệ số HIỂN THỊ ở thẻ đầu trang và chỉ SỬA ở đây: nó là một thuộc tính của tổ chức mà
  *         ai cũng cần biết (nó quyết định mình đóng bao nhiêu), nhưng đổi thì hiếm — để một ô
@@ -61,14 +63,24 @@ export function EditOrganizationDialog({
     resolver: zodResolver(editOrganizationFormSchema),
     mode: "onSubmit",
     reValidateMode: "onChange",
-    defaultValues: { name: organization.name, maleRatio: organization.maleRatio },
+    defaultValues: {
+      name: organization.name,
+      maleRatio: organization.maleRatio,
+      skipOwnerPayment: organization.skipOwnerPayment,
+    },
   })
 
   const mutation = useUpdateOrganization(onClose)
 
   useEffect(() => {
-    if (open) form.reset({ name: organization.name, maleRatio: organization.maleRatio })
-  }, [open, organization.name, organization.maleRatio, form])
+    if (open) {
+      form.reset({
+        name: organization.name,
+        maleRatio: organization.maleRatio,
+        skipOwnerPayment: organization.skipOwnerPayment,
+      })
+    }
+  }, [open, organization.name, organization.maleRatio, organization.skipOwnerPayment, form])
 
   return (
     <Dialog
@@ -86,6 +98,7 @@ export function EditOrganizationDialog({
               organizationId: organization.id,
               name: payload.name,
               maleRatio: payload.maleRatio,
+              skipOwnerPayment: payload.skipOwnerPayment,
             }),
           )}
           noValidate
@@ -127,11 +140,28 @@ export function EditOrganizationDialog({
                   aria-invalid={!!form.formState.errors.maleRatio}
                   {...form.register("maleRatio")}
                 />
-                <FieldDescription>
-                  Số lần nam đóng so với nữ — nữ là mốc 1. Ví dụ 1.2 nghĩa là nam đóng gấp 1.2 lần
-                  nữ.
-                </FieldDescription>
+                <FieldDescription>Giá nam = hệ số × giá nữ</FieldDescription>
                 <FieldError errors={[form.formState.errors.maleRatio]} />
+              </Field>
+
+              {/* Giá trị FILL SẴN cho ô tích ở màn chốt chi phí — owner vẫn tự tích/bỏ được ở
+                  từng lần chốt, đây chỉ là mặc định chung của tổ chức. */}
+              <Field>
+                <div className="flex items-center justify-between gap-3">
+                  <FieldLabel htmlFor="skipOwnerPayment">Chủ tổ chức đã ứng tiền</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name="skipOwnerPayment"
+                    render={({ field }) => (
+                      <Switch
+                        id="skipOwnerPayment"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                </div>
+                <FieldDescription>Phần của chủ tổ chức tự động tính là đã trả</FieldDescription>
               </Field>
             </div>
 

@@ -3,7 +3,7 @@
  * cùng một người trong hai app rơi vào cùng một màu, nhìn là nhận ra nhau.
  *
  * Từng có thêm một bảng màu băm cho nhãn trạng thái, giờ bỏ: ba giai đoạn của một trận có thứ
- * tự và có nghĩa, nên màu của chúng phải gán tay cho đúng nghĩa (xem `MATCH_PHASE_EVENT_CLASS`)
+ * tự và có nghĩa, nên màu của chúng phải gán tay cho đúng nghĩa
  * chứ không phải "băm ra ba màu khác nhau là được".
  */
 

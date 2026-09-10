@@ -104,6 +104,19 @@ export class OrganizationsController {
   }
 
   /**
+   * Input: cookie `at` + id tổ chức trên URL.
+   * Output: { overview } — bốn con số của trang chủ, tính cho chính người gọi.
+   *
+   *         Không có biến thể "của người khác": mọi con số ở đây là của người đang đăng nhập,
+   *         nên không nhận userId từ query — owner cũng chỉ thấy phần của mình.
+   */
+  @Get(':id/overview')
+  async overview(@Req() request: Request & { userId: string }, @Param() params: OrganizationIdParamDto) {
+    const overview = await this.organizationsService.overview(request.userId, params.id);
+    return { overview };
+  }
+
+  /**
    * Input: cookie `at` + id tổ chức trên URL + ?page&pageSize&q.
    * Output: { members, pagination } — một trang thành viên, owner trước rồi theo thứ tự vào.
    *

@@ -14,6 +14,7 @@ import {
   createOrganization,
   deleteOrganization,
   fetchOrganizationMembers,
+  fetchOrganizationOverview,
   fetchOrganizationPreview,
   fetchOrganizations,
   joinOrganizationByCode,
@@ -33,6 +34,7 @@ import type { Organization } from "@/types/organization"
 export const organizationQueryKeys = {
   list: ["organizations", "list"] as const,
   preview: (joinCode: string) => ["organizations", "preview", joinCode] as const,
+  overview: (organizationId: string) => ["organizations", "overview", organizationId] as const,
 }
 
 /**
@@ -48,6 +50,26 @@ export function useOrganizations() {
     queryFn: fetchOrganizations,
     retry: false,
     staleTime: 5 * 60_000,
+  })
+}
+
+/**
+ * Input: id tổ chức.
+ * Output: Query bốn con số của trang chủ.
+ *
+ *         `staleTime` 15 giây, bằng với công nợ và danh sách trận: bốn con số này nói về cùng
+ *         những thứ đó, để lệch nhịp thì thẻ và danh sách ngay dưới nó nói hai chuyện khác nhau.
+ *
+ *         Bốn con số này đọc lại từ hai nguồn khác nhau (tiền và trận), nên khoá của nó được
+ *         nhắc tên riêng trong `invalidatePaymentData` lẫn `invalidateMatchData` — trả tiền hay
+ *         đăng ký một buổi mà thẻ vẫn đứng im là kiểu sai không ai báo mà ai cũng thấy.
+ */
+export function useOrganizationOverview(organizationId: string) {
+  return useQuery({
+    queryKey: organizationQueryKeys.overview(organizationId),
+    queryFn: () => fetchOrganizationOverview(organizationId),
+    enabled: Boolean(organizationId),
+    staleTime: 15_000,
   })
 }
 

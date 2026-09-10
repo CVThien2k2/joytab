@@ -3,6 +3,7 @@ import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import {
   OrganizationMemberSummary,
+  OrganizationOverview,
   OrganizationPreview,
   OrganizationRole,
   OrganizationSummary,
@@ -25,6 +26,7 @@ type OrganizationWithMembership = {
   join_code: string | null;
   payment_qr_url: string | null;
   male_ratio: unknown;
+  skip_owner_payment: boolean;
   _count: { members: number };
 };
 
@@ -117,6 +119,63 @@ export class OrganizationsService {
         // max(1) để FE luôn có ít nhất một trang để hiện, kể cả khi tìm không ra ai.
         totalPages: Math.max(1, Math.ceil(totalItems / query.pageSize)),
       },
+    };
+  }
+
+  /**
+   * Input: userId + id tổ chức.
+   * Output: Bốn con số của trang chủ, tính cho CHÍNH người hỏi.
+   *
+   *         Nằm ở module tổ chức chứ không ở matches/payments: nó không thuộc riêng bên nào —
+   *         hai con số đầu là tiền (match_charges), hai con số sau là trận (matches). Đặt vào
+   *         một trong hai module là bên còn lại phải mở một endpoint thứ hai cho cùng một màn.
+   *
+   *         Bốn query chạy SONG SONG trong một transaction: chúng độc lập nhau, mà bốn lượt
+   *         chờ nối đuôi thì trang chủ tải chậm gấp bốn lần không vì lý do gì.
+   *
+   *         `unpaidTotal` cố ý cùng nguồn với `charges/me` (bảng match_charges, `unpaid` của
+   *         chính user) để thẻ ở trang chủ và hộp thoại trả tiền không bao giờ nói hai số.
+   */
+  async overview(userId: string, organizationId: string): Promise<OrganizationOverview> {
+    await this.requireMembership(userId, organizationId);
+
+    const mine = { user_id: userId, match: { organization_id: organizationId } };
+    const [unpaid, paid, playedCount, upcomingCount] = await this.databaseService.$transaction([
+      this.databaseService.matchCharge.aggregate({
+        where: { ...mine, payment_status: 'unpaid' },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      this.databaseService.matchCharge.aggregate({
+        where: { ...mine, payment_status: 'paid' },
+        _sum: { amount: true },
+      }),
+      // "Đã chơi" = buổi ĐÃ CHỐT TIỀN mà mình có mặt. Không đếm buổi `open` đã qua giờ: chừng
+      // nào chưa chốt thì nó vẫn là việc đang treo, và có buổi treo vài tuần rồi mới huỷ.
+      this.databaseService.match.count({
+        where: {
+          organization_id: organizationId,
+          status: 'settled',
+          OR: [
+            { votes: { some: { user_id: userId } } },
+            { charges: { some: { user_id: userId } } },
+          ],
+        },
+      }),
+      // "Sắp diễn ra" = của CẢ tổ chức, không riêng buổi mình đã đăng ký: đây là con số đứng
+      // ngay trên danh sách buổi sắp tới, mà danh sách đó cũng hiện cả buổi chưa đăng ký.
+      this.databaseService.match.count({
+        where: { organization_id: organizationId, status: 'open', start_at: { gt: new Date() } },
+      }),
+    ]);
+
+    return {
+      // `_sum` là null khi không có row nào khớp — không phải 0.
+      unpaidTotal: unpaid._sum.amount ?? 0,
+      unpaidCount: unpaid._count,
+      paidTotal: paid._sum.amount ?? 0,
+      playedCount,
+      upcomingCount,
     };
   }
 
@@ -325,6 +384,7 @@ export class OrganizationsService {
         // đổi tên tổ chức không vô tình xoá mất mã QR đang dùng.
         ...(dto.paymentQrUrl !== undefined ? { payment_qr_url: dto.paymentQrUrl || null } : {}),
         ...(dto.maleRatio !== undefined ? { male_ratio: dto.maleRatio } : {}),
+        ...(dto.skipOwnerPayment !== undefined ? { skip_owner_payment: dto.skipOwnerPayment } : {}),
       },
       include: { _count: { select: { members: true } } },
     });
@@ -339,6 +399,7 @@ export class OrganizationsService {
       dto.joinByCodeEnabled === false ? 'closed' : null,
       dto.paymentQrUrl !== undefined ? 'payment QR changed' : null,
       dto.maleRatio !== undefined ? `male ratio set to ${dto.maleRatio}` : null,
+      dto.skipOwnerPayment !== undefined ? `skip owner payment set to ${dto.skipOwnerPayment}` : null,
     ].filter(Boolean);
     if (changes.length > 0) {
       this.logger.log(`Organization ${organizationId} ${changes.join(', ')} by ${userId}`);
@@ -451,6 +512,7 @@ export class OrganizationsService {
       memberCount: organization._count.members,
       paymentQrUrl: organization.payment_qr_url,
       maleRatio: Number(organization.male_ratio),
+      skipOwnerPayment: organization.skip_owner_payment,
       joinedAt: joinedAt.toISOString(),
     };
   }

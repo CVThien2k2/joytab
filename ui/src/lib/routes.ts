@@ -1,12 +1,19 @@
 /**
  * Input: id tổ chức.
- * Output: Trang mặc định khi vào một tổ chức — lịch thi đấu.
+ * Output: Trang chủ của tổ chức — nơi có bốn con số và danh sách buổi sắp tới.
  *
- * Khai một chỗ vì có hai lối vào dùng chung nó (ngã ba `/` và nút chuyển tổ chức ở sidebar):
- * hai chỗ tự viết `/orgs/${id}/matches` là hai chỗ sẽ lệch nhau khi đổi trang mặc định.
+ * Khai một chỗ vì có ba lối vào dùng chung nó (ngã ba `/`, nút chuyển tổ chức ở sidebar, và cú
+ * đá member ra khỏi trang cấu hình): ba chỗ tự viết đường dẫn là ba chỗ sẽ lệch nhau khi đổi
+ * trang mặc định.
  *
- * Lịch là thứ người ta mở hàng ngày, còn trang thông tin tổ chức thì vài tháng mới sửa một lần.
+ * Đúng bằng gốc `/orgs/<id>`, nhưng vẫn giữ hàm chứ không viết thẳng: nó từng là `/matches` và
+ * có thể đổi lần nữa.
  */
 export function organizationHomePath(organizationId: string): string {
-  return `/orgs/${organizationId}/matches`
+  return `/orgs/${organizationId}`
+}
+
+/** Trang cấu hình tổ chức. Chỉ owner mở được — chính trang đó tự đá member về trang chủ. */
+export function organizationSettingsPath(organizationId: string): string {
+  return `/orgs/${organizationId}/settings`
 }
