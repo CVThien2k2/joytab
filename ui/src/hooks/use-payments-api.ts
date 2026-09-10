@@ -3,13 +3,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { getApiErrorMessage } from "@/api/error"
-import { createPayment, fetchOrganizationCharges } from "@/api/payments"
+import { createPayment, fetchOrganizationCharges, fetchPayment } from "@/api/payments"
 import { matchQueryKeys } from "@/hooks/use-matches-api"
 
 export const paymentQueryKeys = {
   charges: () => ["charges"] as const,
   organizationCharges: (organizationId: string) =>
     [...paymentQueryKeys.charges(), "organization", organizationId] as const,
+  /**
+   * Một chứng từ đã gửi. ĐỨNG RIÊNG, không lồng dưới `charges`: chứng từ là bản ghi bất biến
+   * (không sửa, không huỷ), nên nó không việc gì phải mới lại mỗi lần công nợ đổi.
+   */
+  payment: (organizationId: string, paymentId: string) =>
+    ["payments", organizationId, paymentId] as const,
 }
 
 /**
@@ -67,6 +73,22 @@ export function useUnpaidChargeSummary(organizationId: string) {
     unpaidCount,
     unpaidTotal: unpaidCount > 0 ? (group?.unpaidTotal ?? 0) : 0,
   }
+}
+
+/**
+ * Input: id tổ chức + id chứng từ (chuỗi rỗng = không có gì để hỏi).
+ * Output: Query một lần chuyển khoản.
+ *
+ *         `staleTime: Infinity` — chứng từ không sửa được và không huỷ được, nên một lần lấy
+ *         về là đúng mãi. Mở lại hộp thoại lần thứ hai không sinh request nào.
+ */
+export function usePayment(organizationId: string, paymentId: string) {
+  return useQuery({
+    queryKey: paymentQueryKeys.payment(organizationId, paymentId),
+    queryFn: () => fetchPayment({ organizationId, paymentId }),
+    enabled: Boolean(organizationId) && Boolean(paymentId),
+    staleTime: Infinity,
+  })
 }
 
 /**

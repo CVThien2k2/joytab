@@ -21,7 +21,7 @@ import { UpcomingMatches } from "./_components/upcoming-matches"
  *         khác hẳn nhau — trên là những con số ĐỌC, dưới là danh sách LÀM (đăng ký, tạo lịch,
  *         mở chi tiết) — mà chỉ giãn khoảng cách thì mắt vẫn đọc cả trang thành một mạch.
  *
- *         KHÔNG có nút trả tiền ở đây: ô "Cần thanh toán" dẫn thẳng sang Lịch sử đấu, nơi vừa
+ *         KHÔNG có nút trả tiền ở đây: ô "Cần thanh toán" dẫn thẳng sang Trận của tôi, nơi vừa
  *         thấy số tiền đó đến từ những buổi nào vừa trả được. Trang chủ nói tình hình, trang
  *         kia giải quyết.
  *

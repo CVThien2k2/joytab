@@ -8,6 +8,7 @@ import {
   MatchOrganizationParamDto,
   MatchRangeQueryDto,
   MatchUpcomingQueryDto,
+  OrganizationHistoryQueryDto,
   SettleMatchDto,
   UpdateMatchDto,
 } from './matches.dto';
@@ -78,6 +79,28 @@ export class OrganizationMatchesController {
     @Query() query: MatchHistoryQueryDto,
   ) {
     return this.matchesService.listHistoryForOrganization(
+      request.userId,
+      params.organizationId,
+      query,
+    );
+  }
+
+  /**
+   * Input: cookie `at` + id tổ chức + ?scope&limit&cursor.
+   * Output: { matches, nextCursor } — một lô lịch sử của CẢ TỔ CHỨC, mới nhất trước, mỗi dòng
+   *         kèm tổng tiền và tiến độ thu. `nextCursor = null` là đã hết. CHỈ owner (ORG_004).
+   *
+   *         Đứng riêng với `history` ở trên vì hai người hỏi hai câu khác nhau: `history` là
+   *         sổ của một người ("mình đã đá buổi nào, còn nợ buổi nào"), còn đây là sổ điều hành
+   *         ("buổi nào chưa chốt giá, buổi nào chưa thu hết tiền").
+   */
+  @Get('org-history')
+  async organizationHistory(
+    @Req() request: Request & { userId: string },
+    @Param() params: MatchOrganizationParamDto,
+    @Query() query: OrganizationHistoryQueryDto,
+  ) {
+    return this.matchesService.listOrganizationHistory(
       request.userId,
       params.organizationId,
       query,

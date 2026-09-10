@@ -35,6 +35,7 @@ import {
   MATCH_UPCOMING_CURSOR_REGEX,
   MATCH_UPCOMING_DEFAULT_LIMIT,
   MATCH_UPCOMING_MAX_LIMIT,
+  ORGANIZATION_HISTORY_SCOPES,
   MAX_MATCH_NOTE_LENGTH,
   MAX_MAX_PLAYERS,
   MIN_COURT_NAME_LENGTH,
@@ -154,6 +155,34 @@ export class MatchHistoryQueryDto {
   limit: number = MATCH_HISTORY_DEFAULT_LIMIT;
 
   /** Mốc cuộn do lô trước trả về. Xem MATCH_HISTORY_CURSOR_REGEX. */
+  @IsOptional()
+  @Matches(MATCH_HISTORY_CURSOR_REGEX, { message: 'Mốc cuộn không hợp lệ' })
+  cursor?: string;
+}
+
+/**
+ * Query của GET /organizations/:organizationId/matches/org-history.
+ *
+ * Gọn hơn `MatchHistoryQueryDto` một cách CÓ CHỦ Ý: không khoảng ngày, không mảng trạng thái,
+ * không trạng thái thanh toán — chỉ một lát cắt. Sổ của tổ chức là chỗ chủ tổ chức tìm việc
+ * còn treo, mà ba trục lọc cho một câu hỏi như vậy thì hai trục sẽ luôn để trống.
+ */
+export class OrganizationHistoryQueryDto {
+  /** Không gửi = `all`. Xem ORGANIZATION_HISTORY_SCOPES. */
+  @IsOptional()
+  @IsIn(ORGANIZATION_HISTORY_SCOPES, { message: 'Lát cắt lịch sử không hợp lệ' })
+  scope: (typeof ORGANIZATION_HISTORY_SCOPES)[number] = 'all';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Số dòng mỗi lô không hợp lệ' })
+  @Min(1, { message: 'Số dòng mỗi lô phải từ 1' })
+  @Max(MATCH_HISTORY_MAX_LIMIT, {
+    message: `Số dòng mỗi lô tối đa ${MATCH_HISTORY_MAX_LIMIT}`,
+  })
+  limit: number = MATCH_HISTORY_DEFAULT_LIMIT;
+
+  /** Cùng shape mốc cuộn với lịch sử cá nhân — cùng một kiểu keyset trên (start_at, id). */
   @IsOptional()
   @Matches(MATCH_HISTORY_CURSOR_REGEX, { message: 'Mốc cuộn không hợp lệ' })
   cursor?: string;

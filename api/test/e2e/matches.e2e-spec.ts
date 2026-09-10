@@ -653,7 +653,12 @@ describe('Lịch sử thi đấu', () => {
       .send({ joinCode: opened.body.data.organization.joinCode })
       .expect(201);
 
+    // Buổi đã đá XONG mà owner chưa chốt tiền: vẫn là quá khứ của người đi, nên vẫn thuộc sổ.
     ids.openPast = await seed({ startOffset: -40 * DAY, status: 'open', votedBy: 'owner' });
+    // Hai fixture canh đúng cái biên `end_at`: một buổi ĐANG đá (đã qua giờ bắt đầu, chưa tới
+    // giờ tan) và một buổi còn ở tương lai. Cả hai là việc phía trước, không phải lịch sử.
+    ids.openOngoing = await seed({ startOffset: -1 * HOUR, status: 'open', votedBy: 'owner' });
+    ids.openFuture = await seed({ startOffset: 5 * DAY, status: 'open', votedBy: 'owner' });
     // Buổi đã huỷ mà owner từng đăng ký: sau khi huỷ không còn charge nào, nên đây là fixture
     // duy nhất chứng minh vế `votes` của bộ lọc "buổi của tôi" có tác dụng.
     ids.canceled = await seed({ startOffset: -30 * DAY, status: 'canceled', votedBy: 'owner' });
@@ -663,8 +668,10 @@ describe('Lịch sử thi đấu', () => {
       charge: { user: 'owner', paymentStatus: 'paid' },
       votedBy: 'owner',
     });
-    // Có tiền phải trả nhưng không có row vote (owner chốt tay cho người vào muộn): fixture
-    // của vế `charges` trong bộ lọc "buổi của tôi".
+    // Có tiền phải trả nhưng KHÔNG có row vote — fixture của vế `charges` trong bộ lọc "buổi
+    // của tôi". Đây là trạng thái dựng TAY: đi đường API thì không tạo ra được, vì `settle`
+    // dựng charges từ chính danh sách vote và vote thì không xoá được sau giờ bắt đầu. Nó
+    // kiểm cái lưới an toàn ấy chịu được trạng thái đó, KHÔNG kiểm một luồng đang có thật.
     ids.unpaid = await seed({
       startOffset: -10 * DAY,
       status: 'settled',
@@ -679,19 +686,26 @@ describe('Lịch sử thi đấu', () => {
     });
   });
 
-  it('chỉ lấy trận đã chốt tiền và đã huỷ, mới nhất trước', async () => {
+  it('lấy buổi đã chốt tiền, đã huỷ và buổi đã đá xong mà chưa chốt, mới nhất trước', async () => {
     const response = await history('owner').expect(200);
     const returned = idsOf(response.body);
 
-    expect(returned).toHaveLength(3);
-    expect(returned).not.toContain(ids.openPast);
-    expect(returned).toEqual([ids.unpaid, ids.paid, ids.canceled]);
+    expect(returned).toHaveLength(4);
+    expect(returned).toEqual([ids.unpaid, ids.paid, ids.canceled, ids.openPast]);
     expect(response.body.data.nextCursor).toBeNull();
 
     const times = response.body.data.matches.map((match: { startAt: string }) =>
       new Date(match.startAt).getTime(),
     );
     expect([...times].sort((a: number, b: number) => b - a)).toEqual(times);
+  });
+
+  it('buổi chưa chốt chỉ vào lịch sử khi đã đá XONG, không phải khi vừa bắt đầu', async () => {
+    const returned = idsOf((await history('owner').expect(200)).body);
+
+    expect(returned).toContain(ids.openPast);
+    expect(returned).not.toContain(ids.openOngoing);
+    expect(returned).not.toContain(ids.openFuture);
   });
 
   it('mỗi dòng nói đúng "tôi tham gia chưa" và "tôi trả tiền chưa"', async () => {
@@ -1033,5 +1047,362 @@ describe('Buổi sắp diễn ra', () => {
   it('member xem được, người ngoài không thấy tổ chức tồn tại', async () => {
     await upcoming('mate').expect(200);
     await upcoming('outsider').expect(404);
+  });
+});
+
+/**
+ * Sổ lịch sử của CẢ TỔ CHỨC — cái owner mở để tìm việc còn treo, khác hẳn sổ cá nhân ở trên.
+ *
+ * Ba thứ phải đúng ở đây: chỉ owner vào được, ba lát cắt cắt đúng chỗ, và ba con số tiền đếm
+ * trên khoản của MỌI người chứ không riêng người đang hỏi.
+ */
+describe('Lịch sử tổ chức', () => {
+  let orgId: string;
+  const ids: Record<string, string> = {};
+
+  /** Cùng lý do với `seed` của sổ cá nhân: API chặn tạo trận ở quá khứ, mà đây toàn quá khứ. */
+  async function seed(params: {
+    startOffset: number;
+    status: 'open' | 'settled' | 'canceled';
+    charges?: { user: 'owner' | 'mate'; paymentStatus: 'unpaid' | 'paid'; amount: number }[];
+  }): Promise<string> {
+    const startAt = new Date(Date.now() + params.startOffset);
+    const match = await db.match.create({
+      data: {
+        organization_id: orgId,
+        court_name: 'E2E Sân sổ tổ chức',
+        start_at: startAt,
+        end_at: new Date(startAt.getTime() + 2 * HOUR),
+        max_players: 4,
+        male_ratio: 1,
+        status: params.status,
+        created_by: users.owner.id,
+      },
+    });
+    for (const charge of params.charges ?? []) {
+      await db.matchCharge.create({
+        data: {
+          match_id: match.id,
+          user_id: users[charge.user].id,
+          ratio: 1,
+          amount: charge.amount,
+          payment_status: charge.paymentStatus,
+        },
+      });
+    }
+    return match.id;
+  }
+
+  const orgHistory = (as: string, query: string = '') =>
+    api().get(`/organizations/${orgId}/matches/org-history${query}`).set(asUser(as));
+
+  /** Sổ CÁ NHÂN của owner trong chính tổ chức này — để đối chiếu hai sổ cắt khác nhau ra sao. */
+  const myHistory = () =>
+    api().get(`/organizations/${orgId}/matches/history`).set(asUser('owner')).expect(200);
+
+  const idsOf = (body: { data: { matches: { id: string }[] } }) =>
+    body.data.matches.map((match) => match.id);
+
+  beforeAll(async () => {
+    const created = await api()
+      .post('/organizations')
+      .set(asUser('owner'))
+      .send({ name: `E2E Org history ${RUN_ID}` })
+      .expect(201);
+    orgId = created.body.data.organization.id;
+
+    const opened = await api()
+      .patch(`/organizations/${orgId}`)
+      .set(asUser('owner'))
+      .send({ joinByCodeEnabled: true })
+      .expect(200);
+    await api()
+      .post('/organizations/join')
+      .set(asUser('mate'))
+      .send({ joinCode: opened.body.data.organization.joinCode })
+      .expect(201);
+
+    // Đã đá xong mà chưa chốt giá — việc còn PHẢI LÀM.
+    ids.unsettled = await seed({ startOffset: -40 * DAY, status: 'open' });
+    // Hai fixture canh biên `end_at`: đang đá và còn ở tương lai. Cả hai không phải lịch sử,
+    // và quan trọng hơn: chúng cũng `open` nên nếu lát cắt "chưa chốt giá" quên xét giờ thì
+    // chúng sẽ lọt vào danh sách việc phải làm.
+    ids.ongoing = await seed({ startOffset: -1 * HOUR, status: 'open' });
+    ids.future = await seed({ startOffset: 5 * DAY, status: 'open' });
+    // Đã huỷ: có trong "tất cả", KHÔNG có trong hai lát việc-còn-treo — huỷ rồi thì không còn
+    // giá nào để chốt và không còn đồng nào để thu.
+    ids.canceled = await seed({ startOffset: -30 * DAY, status: 'canceled' });
+    // Đã chốt và đã thu đủ — xong hẳn.
+    ids.collected = await seed({
+      startOffset: -20 * DAY,
+      status: 'settled',
+      charges: [
+        { user: 'owner', paymentStatus: 'paid', amount: 60_000 },
+        { user: 'mate', paymentStatus: 'paid', amount: 40_000 },
+      ],
+    });
+    // Đã chốt nhưng còn một người chưa trả — việc còn phải ĐÒI. Hai khoản khác số tiền để
+    // `totalAmount` không thể tình cờ đúng bằng một phép nhân.
+    ids.uncollected = await seed({
+      startOffset: -10 * DAY,
+      status: 'settled',
+      charges: [
+        { user: 'owner', paymentStatus: 'paid', amount: 70_000 },
+        { user: 'mate', paymentStatus: 'unpaid', amount: 30_000 },
+      ],
+    });
+  });
+
+  it('mặc định trả mọi buổi đã là quá khứ của tổ chức, mới nhất trước', async () => {
+    const response = await orgHistory('owner').expect(200);
+    const returned = idsOf(response.body);
+
+    expect(returned).toEqual([ids.uncollected, ids.collected, ids.canceled, ids.unsettled]);
+    expect(returned).not.toContain(ids.ongoing);
+    expect(returned).not.toContain(ids.future);
+    expect(response.body.data.nextCursor).toBeNull();
+  });
+
+  it('trả cả buổi owner không tham gia — đây là sổ của tổ chức, không phải sổ cá nhân', async () => {
+    // Owner không đăng ký buổi nào trong describe này; hai buổi đã chốt thì có khoản của owner,
+    // hai buổi kia (chưa chốt / đã huỷ) thì không dính dáng gì tới owner cả.
+    //
+    // Sổ CÁ NHÂN vì thế chỉ thấy hai buổi có tiền của mình, còn sổ TỔ CHỨC thấy đủ bốn. Đúng
+    // hai buổi chênh nhau đó là lý do trang này tồn tại: buổi chưa chốt giá — việc còn phải
+    // làm của owner — không bao giờ xuất hiện ở sổ cá nhân.
+    expect(idsOf((await orgHistory('owner').expect(200)).body)).toEqual([
+      ids.uncollected,
+      ids.collected,
+      ids.canceled,
+      ids.unsettled,
+    ]);
+    expect(idsOf((await myHistory()).body)).toEqual([ids.uncollected, ids.collected]);
+  });
+
+  it('lát "chưa chốt giá" chỉ lấy buổi đã tan mà còn open', async () => {
+    const response = await orgHistory('owner', '?scope=unsettled').expect(200);
+    expect(idsOf(response.body)).toEqual([ids.unsettled]);
+  });
+
+  it('lát "chưa thu hết tiền" chỉ lấy buổi đã chốt mà còn người chưa trả', async () => {
+    const response = await orgHistory('owner', '?scope=uncollected').expect(200);
+    expect(idsOf(response.body)).toEqual([ids.uncollected]);
+  });
+
+  it('mỗi dòng mang tổng tiền và tiến độ thu của CẢ buổi', async () => {
+    const response = await orgHistory('owner').expect(200);
+    const byId = new Map<string, { totalAmount: number; paidCount: number; chargeCount: number }>(
+      response.body.data.matches.map((match: { id: string }) => [match.id, match]),
+    );
+
+    expect(byId.get(ids.uncollected)).toMatchObject({
+      totalAmount: 100_000,
+      paidCount: 1,
+      chargeCount: 2,
+    });
+    expect(byId.get(ids.collected)).toMatchObject({
+      totalAmount: 100_000,
+      paidCount: 2,
+      chargeCount: 2,
+    });
+    // Chưa chốt giá và đã huỷ đều không có khoản nào — cả ba con số phải là 0, không phải null.
+    expect(byId.get(ids.unsettled)).toMatchObject({ totalAmount: 0, paidCount: 0, chargeCount: 0 });
+    expect(byId.get(ids.canceled)).toMatchObject({ totalAmount: 0, paidCount: 0, chargeCount: 0 });
+  });
+
+  it('khoản của người khác không bị đọc nhầm thành khoản của owner', async () => {
+    // `myAmount` phải là khoản của CHÍNH owner (70.000 ở buổi `uncollected`), không phải khoản
+    // đầu tiên trong mảng charges của buổi.
+    const response = await orgHistory('owner').expect(200);
+    const row = response.body.data.matches.find(
+      (match: { id: string }) => match.id === ids.uncollected,
+    );
+    expect(row).toMatchObject({ myAmount: 70_000, myPaymentStatus: 'paid' });
+  });
+
+  it('cuộn theo cursor: nối liền, không lặp, hết thì trả null', async () => {
+    const all = idsOf((await orgHistory('owner').expect(200)).body);
+
+    const collected: string[] = [];
+    let cursor: string | null = null;
+    let rounds = 0;
+    do {
+      const query = `?limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const page = await orgHistory('owner', query).expect(200);
+      expect(page.body.data.matches.length).toBeLessThanOrEqual(2);
+      collected.push(...idsOf(page.body));
+      cursor = page.body.data.nextCursor;
+      rounds += 1;
+    } while (cursor && rounds < 10);
+
+    expect(collected).toEqual(all);
+    expect(new Set(collected).size).toBe(collected.length);
+    expect(cursor).toBeNull();
+  });
+
+  it('scope lạ và cursor sai shape đều bị chặn ở tầng validate', async () => {
+    await orgHistory('owner', '?scope=khong-co-lat-nay').expect(400);
+    await orgHistory('owner', '?cursor=khong-phai-cursor').expect(400);
+  });
+
+  it('member bị chặn, người ngoài không thấy tổ chức tồn tại', async () => {
+    const asMember = await orgHistory('mate').expect(403);
+    expect(asMember.body.code).toBe('ORG_004');
+    await orgHistory('outsider').expect(404);
+  });
+});
+
+/**
+ * Chứng từ của MỘT lần chuyển khoản — thứ owner mở ra đọc khi thấy một dòng "Đã trả" ở bảng
+ * chia tiền và muốn biết tiền đó về bằng cách nào.
+ *
+ * Dựng dữ liệu thẳng bằng Prisma thay vì đi qua luồng gửi thanh toán: ở đây chỉ kiểm ĐƯỜNG
+ * ĐỌC (ai đọc được, đọc ra cái gì), còn luồng gửi đã có describe riêng ở trên.
+ */
+describe('Chi tiết một lần thanh toán', () => {
+  let orgId: string;
+  let paymentId: string;
+  const matchIds: string[] = [];
+
+  const detail = (as: string, id: string = paymentId) =>
+    api().get(`/organizations/${orgId}/payments/${id}`).set(asUser(as));
+
+  beforeAll(async () => {
+    const created = await api()
+      .post('/organizations')
+      .set(asUser('owner'))
+      .send({ name: `E2E Payment detail ${RUN_ID}` })
+      .expect(201);
+    orgId = created.body.data.organization.id;
+
+    const opened = await api()
+      .patch(`/organizations/${orgId}`)
+      .set(asUser('owner'))
+      .send({ joinByCodeEnabled: true })
+      .expect(200);
+    for (const member of ['mate', 'third']) {
+      await api()
+        .post('/organizations/join')
+        .set(asUser(member))
+        .send({ joinCode: opened.body.data.organization.joinCode })
+        .expect(201);
+    }
+
+    // HAI buổi trả bằng MỘT lần chuyển khoản — chính là chuyện chứng từ này phải nói ra được.
+    for (const [index, courtName] of ['E2E Sân chứng từ 1', 'E2E Sân chứng từ 2'].entries()) {
+      const startAt = new Date(Date.now() - (index + 1) * 10 * DAY);
+      const match = await db.match.create({
+        data: {
+          organization_id: orgId,
+          court_name: courtName,
+          start_at: startAt,
+          end_at: new Date(startAt.getTime() + 2 * HOUR),
+          max_players: 4,
+          male_ratio: 1,
+          status: 'settled',
+          created_by: users.owner.id,
+        },
+      });
+      matchIds.push(match.id);
+    }
+
+    const payment = await db.payment.create({
+      data: {
+        organization_id: orgId,
+        user_id: users.mate.id,
+        proof_url: 'http://localhost:4566/joytab/proof-detail.png',
+        note: 'Chuyển khoản 2 buổi',
+      },
+    });
+    paymentId = payment.id;
+
+    // Hai khoản khác số tiền để `total` không thể tình cờ đúng bằng một phép nhân.
+    for (const [index, matchId] of matchIds.entries()) {
+      await db.matchCharge.create({
+        data: {
+          match_id: matchId,
+          user_id: users.mate.id,
+          ratio: 1,
+          amount: index === 0 ? 70_000 : 30_000,
+          payment_status: 'paid',
+          payment_id: paymentId,
+        },
+      });
+    }
+  });
+
+  it('owner đọc được ảnh, ghi chú, tổng và ĐỦ các buổi mà lần đó trả cho', async () => {
+    const response = await detail('owner').expect(200);
+    const payment = response.body.data.payment;
+
+    expect(payment).toMatchObject({
+      id: paymentId,
+      userId: users.mate.id,
+      proofUrl: 'http://localhost:4566/joytab/proof-detail.png',
+      note: 'Chuyển khoản 2 buổi',
+      total: 100_000,
+    });
+    expect(payment.items.map((item: { matchId: string }) => item.matchId).sort()).toEqual(
+      [...matchIds].sort(),
+    );
+    expect(payment.items.map((item: { courtName: string }) => item.courtName).sort()).toEqual([
+      'E2E Sân chứng từ 1',
+      'E2E Sân chứng từ 2',
+    ]);
+  });
+
+  it('người gửi đọc được chứng từ của chính mình', async () => {
+    const response = await detail('mate').expect(200);
+    expect(response.body.data.payment.id).toBe(paymentId);
+  });
+
+  it('bảng chia tiền chỉ đúng lần thanh toán của từng khoản', async () => {
+    const settlement = await api()
+      .get(`/matches/${matchIds[0]}/settlement`)
+      .set(asUser('owner'))
+      .expect(200);
+    const charge = settlement.body.data.settlement.charges.find(
+      (item: { userId: string }) => item.userId === users.mate.id,
+    );
+    // Chính con số này là thứ nút "Xem chi tiết" ở FE dùng để biết mở chứng từ nào.
+    expect(charge).toMatchObject({ paymentStatus: 'paid', paymentId });
+  });
+
+  it('khoản owner tự đánh dấu đã trả thì `paid` mà KHÔNG có lần thanh toán nào', async () => {
+    // Trạng thái này có thật: lúc chốt giá owner tick "tự đánh dấu đã trả" cho chính mình.
+    // FE dựa vào `paymentId === null` để nói "thanh toán này không có ảnh chuyển khoản".
+    await db.matchCharge.create({
+      data: {
+        match_id: matchIds[0],
+        user_id: users.owner.id,
+        ratio: 1,
+        amount: 50_000,
+        payment_status: 'paid',
+      },
+    });
+
+    const settlement = await api()
+      .get(`/matches/${matchIds[0]}/settlement`)
+      .set(asUser('owner'))
+      .expect(200);
+    const charge = settlement.body.data.settlement.charges.find(
+      (item: { userId: string }) => item.userId === users.owner.id,
+    );
+    expect(charge).toMatchObject({ paymentStatus: 'paid', paymentId: null });
+  });
+
+  it('member khác không đọc được chứng từ của người ta', async () => {
+    // `third` ở trong tổ chức nhưng không phải owner và cũng không phải người gửi. 404 chứ
+    // không 403: 403 đã là xác nhận rằng lần chuyển khoản đó có thật.
+    const response = await detail('third').expect(404);
+    expect(response.body.code).toBe('PAY_001');
+  });
+
+  it('id lạ, id sai shape, và người ngoài đều không đọc được', async () => {
+    const missing = await detail('owner', '00000000-0000-4000-8000-000000000000').expect(404);
+    expect(missing.body.code).toBe('PAY_001');
+
+    await detail('owner', 'khong-phai-uuid').expect(400);
+    await detail('outsider').expect(404);
   });
 });

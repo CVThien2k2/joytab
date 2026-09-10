@@ -172,6 +172,23 @@ export type MatchSummary = {
   participantsPreview: MatchParticipantPreview[];
 };
 
+/**
+ * Một dòng trong sổ lịch sử của TỔ CHỨC. `MatchSummary` cộng đúng ba con số nói về tiền của
+ * cả buổi, chứ không riêng tiền của người đang hỏi.
+ *
+ * Ba con số này chỉ có nghĩa khi trận đã chốt giá; buổi chưa chốt và buổi đã huỷ không có
+ * khoản nào nên cả ba đều bằng 0 — thẻ ở FE đọc `status` trước rồi mới quyết định có hiện
+ * chúng hay không.
+ */
+export type OrganizationHistoryMatch = MatchSummary & {
+  /** Tổng tiền cả buổi = tổng các khoản đã chia. Không phải tổng chi phí đã nhập: hai số này
+   *  bằng nhau theo cách `settle` chia, nhưng số ở đây là số người ta THỰC SỰ phải trả. */
+  totalAmount: number;
+  /** Số người đã trả / tổng số người bị chia tiền. Tiến độ thu của buổi. */
+  paidCount: number;
+  chargeCount: number;
+};
+
 /** Một người trong phần xem trước ở thẻ danh sách. */
 export type MatchParticipantPreview = {
   userId: string;
@@ -221,6 +238,14 @@ export type MatchChargeItem = {
   ratio: number;
   amount: number;
   paymentStatus: ChargePaymentStatus;
+  /**
+   * Lần chuyển khoản đã trả cho khoản này; `null` = chưa có lần nào.
+   *
+   * `paid` mà `paymentId` vẫn null là chuyện CÓ THẬT, không phải dữ liệu hỏng: lúc chốt giá,
+   * owner tick "tự đánh dấu đã trả" cho chính mình thì khoản sang `paid` mà không sinh row
+   * payment nào — nên không có ảnh chuyển khoản để mở ra xem.
+   */
+  paymentId: string | null;
 };
 
 /**

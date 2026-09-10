@@ -26,13 +26,10 @@ const FACE_LIMIT = 4
 function Face({
   name,
   overlap,
-  multiline = false,
   children,
 }: {
   name: string
   overlap: boolean
-  /** Nhãn dài (danh sách tên) thì cho xuống dòng thay vì kéo tooltip chạy ngang khỏi màn hình. */
-  multiline?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -45,12 +42,7 @@ function Face({
     >
       {children}
 
-      <span
-        className={cn(
-          "pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-30 origin-bottom -translate-x-1/2 translate-y-1 scale-90 rounded-lg border bg-popover px-2 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-md transition-all duration-150 ease-out group-hover/face:translate-y-0 group-hover/face:scale-100 group-hover/face:opacity-100",
-          multiline ? "w-max max-w-56 text-center leading-snug" : "whitespace-nowrap",
-        )}
-      >
+      <span className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-30 origin-bottom -translate-x-1/2 translate-y-1 scale-90 rounded-lg border bg-popover px-2 py-1 text-[11px] font-medium whitespace-nowrap text-popover-foreground opacity-0 shadow-md transition-all duration-150 ease-out group-hover/face:translate-y-0 group-hover/face:scale-100 group-hover/face:opacity-100">
         {name}
       </span>
     </span>
@@ -58,41 +50,26 @@ function Face({
 }
 
 /**
- * Input: vài người đăng ký sớm nhất (BE cắt sẵn) + TỔNG số người + màu nền của khung chứa nó.
+ * Input: vài người đăng ký sớm nhất (BE cắt sẵn) + TỔNG số người.
  * Output: Cụm avatar chồng lên nhau, phần dư gom vào viên "+N".
  *
  *         `total` tách khỏi `participants` vì hai con số khác nhau: danh sách chỉ có 5 người
  *         đầu, còn "+N" phải tính từ tổng thật. Truyền nhầm `participants.length` vào đây là
  *         một buổi 20 người trông như buổi 5 người.
  *
- *         `ringClass` để viền mỗi avatar ăn theo nền của chỗ đặt nó — trên thẻ là `bg-card`,
- *         trong hộp thoại là `bg-background`. Viền sai màu thì cụm avatar trông như dán đè lên
- *         một mảng khác màu.
- *
  *         Chưa có ai đăng ký thì vẽ một vòng nét đứt "?" thay vì để trống: ô trống ở giữa hàng
  *         đọc thành "chỗ này chưa tải xong", còn vòng nét đứt nói rõ là chưa ai vào.
- *
- *         Truyền vào DANH SÁCH ĐẦY ĐỦ thì viên "+N" biết tên những người còn lại và bung ra khi
- *         rê chuột; truyền vào bản xem trước thì nó chỉ đếm số. Cùng một component, khác nhau ở
- *         chỗ gọi biết bao nhiêu.
+
  */
 export function ParticipantFaces({
   participants,
   total,
-  ringClass = "ring-card",
 }: {
   participants: MatchSummary["participantsPreview"]
   total: number
-  ringClass?: string
 }) {
   const faces = participants.slice(0, FACE_LIMIT)
   const overflow = total - faces.length
-
-  // Rê vào viên "+N" thì hiện TÊN những người còn lại — nhưng chỉ khi biết đủ tên. Thẻ trong
-  // danh sách chỉ có 5 người đầu (BE cắt sẵn) nên ở đó vế `rest.length === overflow` sai và
-  // nhãn lùi về đếm số; hộp thoại xem nhanh tải danh sách đầy đủ nên nó liệt kê được.
-  const rest = participants.slice(FACE_LIMIT).map((person) => person.fullName ?? "Thành viên")
-  const knowsRest = rest.length === overflow
 
   return (
     <span
@@ -105,23 +82,14 @@ export function ParticipantFaces({
             name={person.fullName ?? "Thành viên"}
             src={person.avatarUrl}
             size={26}
-            className={cn("ring-2", ringClass)}
+            className="ring-2 ring-card"
           />
         </Face>
       ))}
 
       {overflow > 0 ? (
-        <Face
-          name={knowsRest ? rest.join(", ") : `Và ${overflow} người khác`}
-          multiline={knowsRest}
-          overlap
-        >
-          <span
-            className={cn(
-              "grid size-6.5 place-items-center rounded-full bg-primary font-mono text-[10px] font-bold text-primary-foreground ring-2",
-              ringClass,
-            )}
-          >
+        <Face name={`Và ${overflow} người khác`} overlap>
+          <span className="grid size-6.5 place-items-center rounded-full bg-primary font-mono text-[10px] font-bold text-primary-foreground ring-2 ring-card">
             +{overflow}
           </span>
         </Face>

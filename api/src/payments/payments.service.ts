@@ -166,6 +166,32 @@ export class PaymentsService {
     return payments.map((payment) => this.toSummary(payment));
   }
 
+  /**
+   * Input: userId + id tổ chức + id lần thanh toán.
+   * Output: Một lần chuyển khoản: ảnh, ghi chú, thời điểm, tổng, và các trận nó trả cho.
+   *
+   *         Owner đọc được mọi lần thanh toán của tổ chức mình (đây là chứng từ để đối chiếu
+   *         khi có tranh cãi), member chỉ đọc được lần của chính mình.
+   *
+   *         Mọi lối từ chối đều trả PAY_001 404 — không có, không thuộc tổ chức đang hỏi, hay
+   *         của người khác đều cùng một câu. 403 ở đây là đã xác nhận id đó có thật và có ai đó
+   *         đã chuyển khoản, tức là đã rò rỉ đúng thứ đang giấu.
+   */
+  async detail(userId: string, organizationId: string, paymentId: string): Promise<PaymentSummary> {
+    const role = await requireMembership(this.databaseService, userId, organizationId);
+
+    const payment = await this.databaseService.payment.findUnique({
+      where: { id: paymentId },
+      include: this.paymentInclude(),
+    });
+    if (!payment || payment.organization_id !== organizationId) {
+      throw new AppException(ERROR_CODES.PAY_001);
+    }
+    if (role !== 'owner' && payment.user_id !== userId) throw new AppException(ERROR_CODES.PAY_001);
+
+    return this.toSummary(payment);
+  }
+
   /** Include dùng chung cho mọi truy vấn payment: người gửi + các khoản kèm ngữ cảnh trận. */
   private paymentInclude() {
     return {

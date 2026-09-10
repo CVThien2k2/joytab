@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, History, LayoutDashboard, PanelLeft } from "lucide-react"
+import { Building2, ClipboardList, History, LayoutDashboard, PanelLeft } from "lucide-react"
 import { JoytabLogo } from "@/components/common/joytab-logo"
 import { RailTooltip } from "@/components/common/rail-tooltip"
 import { SidebarProfileMenu } from "@/components/common/sidebar-profile-menu"
@@ -16,14 +16,19 @@ import { cn } from "@/lib/utils"
  * không `startsWith`: nó là tiền tố của mọi trang con nên startsWith sẽ làm nó sáng cùng lúc
  * với mục con.
  *
- * `ownerOnly` = chỉ chủ tổ chức thấy. Member còn Trang chủ và Lịch sử đấu — hai thứ họ dùng
- * hàng ngày; còn trang Tổ chức là chỗ ĐỔI cấu hình và xem danh sách thành viên, member vào
- * cũng không làm được gì. Ẩn ở đây chỉ là lớp ngoài: chính trang đó tự đá member về trang chủ,
- * và API danh sách thành viên cũng chỉ trả cho owner (ORG_004).
+ * `ownerOnly` = chỉ chủ tổ chức thấy. Member còn Trang chủ và Trận của tôi — hai thứ họ dùng
+ * hàng ngày; còn Lịch sử tổ chức và trang Tổ chức đều là việc của người điều hành, member vào
+ * cũng không làm được gì. Ẩn ở đây chỉ là lớp ngoài: chính hai trang đó tự đá member về trang
+ * chủ, và API của chúng cũng chỉ trả cho owner (ORG_004).
+ *
+ * "Trận của tôi" và "Lịch sử tổ chức" đứng cạnh nhau và CỐ Ý cắt cùng một tập buổi đã qua theo
+ * hai câu hỏi khác nhau: một bên là "mình đã đá buổi nào, còn nợ buổi nào", bên kia là "tổ
+ * chức còn buổi nào chưa chốt giá, chưa thu hết tiền".
  */
 const ORGANIZATION_ITEMS = [
   { segment: "", label: "Trang chủ", icon: LayoutDashboard, ownerOnly: false },
-  { segment: "history", label: "Lịch sử đấu", icon: History, ownerOnly: false },
+  { segment: "history", label: "Trận của tôi", icon: History, ownerOnly: false },
+  { segment: "org-history", label: "Lịch sử tổ chức", icon: ClipboardList, ownerOnly: true },
   { segment: "settings", label: "Tổ chức", icon: Building2, ownerOnly: true },
 ] as const
 

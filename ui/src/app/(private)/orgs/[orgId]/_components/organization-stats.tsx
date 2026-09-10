@@ -110,7 +110,7 @@ function StatCard({
  *         Hai ô tiền đứng trước hai ô đếm buổi: tiền là thứ người ta liếc vào trước, còn số
  *         buổi là thứ để biết.
  *
- *         Ô "Cần thanh toán" DẪN sang trang Lịch sử đấu: ở đó mới nhìn ra số tiền này đến từ
+ *         Ô "Cần thanh toán" DẪN sang trang Trận của tôi: ở đó mới nhìn ra số tiền này đến từ
  *         những buổi nào, và cũng chính là chỗ trả tiền. Trang chủ vì vậy không mang nút trả —
  *         một con số kèm đường đi tới chỗ giải quyết thì gọn hơn một nút nằm giữa màn hình.
  *
@@ -132,7 +132,7 @@ export function OrganizationStats({ organizationId }: { organizationId: string }
       value: data && `${formatMoney(data.unpaidTotal)}đ`,
       Icon: Wallet,
       href: `/orgs/${organizationId}/history`,
-      hrefLabel: "Xem chi tiết ở Lịch sử đấu",
+      hrefLabel: "Xem chi tiết ở Trận của tôi",
     },
     {
       label: "Đã thanh toán",

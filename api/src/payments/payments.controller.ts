@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { CreatePaymentDto, PaymentOrganizationParamDto } from './payments.dto';
+import { CreatePaymentDto, PaymentIdParamDto, PaymentOrganizationParamDto } from './payments.dto';
 import { PaymentsService } from './payments.service';
 
 /**
@@ -38,6 +38,21 @@ export class PaymentsController {
   async list(@Req() request: Request & { userId: string }, @Param() params: PaymentOrganizationParamDto) {
     return {
       payments: await this.paymentsService.list(request.userId, params.organizationId),
+    };
+  }
+
+  /**
+   * Input: cookie `at` + id tổ chức + id lần thanh toán.
+   * Output: { payment } — chứng từ của lần chuyển khoản đó: ảnh, ghi chú, thời điểm, tổng, và
+   *         danh sách trận nó trả cho.
+   *
+   *         Owner đọc được mọi lần của tổ chức; member chỉ đọc được lần của chính mình. Mọi
+   *         lối từ chối đều là PAY_001 404 (xem service).
+   */
+  @Get('payments/:id')
+  async detail(@Req() request: Request & { userId: string }, @Param() params: PaymentIdParamDto) {
+    return {
+      payment: await this.paymentsService.detail(request.userId, params.organizationId, params.id),
     };
   }
 

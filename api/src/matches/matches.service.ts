@@ -11,6 +11,7 @@ import {
   MatchStatus,
   MatchSummary,
   MatchVoteEventItem,
+  OrganizationHistoryMatch,
   ChargePaymentStatus,
   VoteClosedReason,
 } from '../common/utils/types';
@@ -20,12 +21,14 @@ import {
   MATCH_HISTORY_STATUSES,
   MATCH_PARTICIPANT_PREVIEW_LIMIT,
   MATCH_RANGE_MAX_DAYS,
+  ORGANIZATION_HISTORY_SCOPES,
 } from './matches.constants';
 import {
   CreateMatchDto,
   MatchHistoryQueryDto,
   MatchRangeQueryDto,
   MatchUpcomingQueryDto,
+  OrganizationHistoryQueryDto,
   SettleMatchDto,
   UpdateMatchDto,
 } from './matches.dto';
@@ -212,8 +215,9 @@ export class MatchesService {
    * Output: Một lô lịch sử CỦA CHÍNH NGƯỜI HỎI, mới nhất trước, kèm mốc cuộn cho lô sau
    *         (`null` = đã hết).
    *
-   *         Chỉ trận `settled`/`canceled`: trận `open` dù đã qua giờ vẫn là việc đang treo
-   *         (chưa chốt tiền), nên nó thuộc trang chủ, không thuộc lịch sử.
+   *         Quá khứ của một người gồm ba loại: buổi đã chốt tiền, buổi đã huỷ, và buổi đã đá
+   *         XONG mà chủ tổ chức chưa chốt tiền — loại thứ ba mang đúng câu "mình đá rồi mà
+   *         chưa biết phải trả bao nhiêu", nên bỏ nó ra là bỏ mất một việc còn treo.
    *
    *         Và chỉ những buổi mình có mặt — xem mệnh đề `AND` bên dưới.
    *
@@ -229,10 +233,12 @@ export class MatchesService {
     await requireMembership(this.databaseService, userId, organizationId);
 
     const cursor = this.decodeCursor(query.cursor);
+    // MỘT mốc "bây giờ" cho cả câu truy vấn lẫn lúc dựng từng dòng trả về: nếu lấy hai lần thì
+    // một buổi vừa tan đúng giữa hai lệnh sẽ vào được danh sách mà lại mang nhãn "đang diễn ra".
+    const now = new Date();
     const rows = await this.databaseService.match.findMany({
       where: {
         organization_id: organizationId,
-        status: { in: query.status ?? [...MATCH_HISTORY_STATUSES] },
         ...(query.from || query.to
           ? {
               start_at: {
@@ -254,16 +260,42 @@ export class MatchesService {
           // buổi nào, còn nợ buổi nào"), không phải sổ của cả tổ chức — buổi mình không đăng
           // ký thì không có gì để tra lại, mà vẫn đẩy buổi của mình xuống dưới.
           //
-          // Hai vế vì hai loại row nói lên sự có mặt ở hai giai đoạn khác nhau: `votes` là
-          // đăng ký (còn nguyên cả khi trận bị huỷ), `charges` là tiền đã chia lúc chốt. Chỉ
-          // xét votes thì mất buổi được chốt tiền cho người không kịp vote; chỉ xét charges
-          // thì mất mọi buổi đã huỷ.
+          // `votes` là vế LÀM VIỆC: mọi buổi có mặt trong sổ đều tới đây qua nó, kể cả buổi
+          // bị huỷ (huỷ trận không xoá vote).
+          //
+          // `votes` một mình là ĐỦ với luật hôm nay: `settle` dựng charges từ chính danh sách
+          // vote, mà vote thì không xoá được sau giờ bắt đầu (MATCH_005) nên không thể có
+          // charge nào mất vote của nó. Vế `charges` ở đây là LƯỚI AN TOÀN, không phải một
+          // trường hợp đang xảy ra — giữ vì cái giá của nó là một `EXISTS`, còn cái giá của
+          // việc thiếu nó là một người có tiền phải trả mà không thấy buổi đó ở đâu để trả.
+          // Ngày nào thêm "owner thêm người vào buổi đã đá xong" hoặc nới luật huỷ vote thì
+          // vế này thành vế làm việc thật.
           {
             OR: [
               { votes: { some: { user_id: userId } } },
               { charges: { some: { user_id: userId } } },
             ],
           },
+          // Cái gì đã là QUÁ KHỨ của một người: buổi đã chốt tiền, buổi đã huỷ, và buổi đã đá
+          // xong mà chủ tổ chức chưa chốt tiền — buổi thứ ba này vẫn phải tra được, vì nó
+          // chính là câu "mình đã đá rồi mà chưa biết phải trả bao nhiêu".
+          //
+          // Vế thứ ba xét `end_at` chứ không `start_at`: buổi 19h-21h lúc 20h vẫn đang diễn
+          // ra, mọi người còn ở sân — nó là việc phía trước. Cùng mốc `end_at` với danh sách
+          // buổi sắp tới, nên hai danh sách chia đôi đúng khớp: không buổi nào ở cả hai, cũng
+          // không buổi nào rơi ra ngoài cả hai.
+          //
+          // Buổi đã huỷ không xét giờ: huỷ chỉ được lúc chưa tới giờ, nên buổi huỷ nào cũng
+          // nằm ở tương lai — đòi nó đã tan thì lịch sử sẽ không bao giờ có buổi huỷ nào.
+          {
+            OR: [
+              { status: { in: [...MATCH_HISTORY_STATUSES] } },
+              { status: 'open', end_at: { lt: now } },
+            ],
+          },
+          // `?status=` là bộ lọc GIAO THÊM chứ không thay thế mệnh đề trên: gửi `settled` là
+          // thu hẹp trong phần quá khứ, không phải mở lại cửa cho buổi chưa tan.
+          ...(query.status ? [{ status: { in: query.status } }] : []),
           // Keyset: lấy đúng phần nằm SAU mốc cuộn theo thứ tự sắp ở dưới.
           ...(cursor
             ? [
@@ -289,7 +321,6 @@ export class MatchesService {
     const hasMore = rows.length > query.limit;
     const batch = hasMore ? rows.slice(0, query.limit) : rows;
     const last = batch.at(-1);
-    const now = new Date();
 
     const voted = await this.votedSetOf(
       userId,
@@ -299,6 +330,128 @@ export class MatchesService {
     return {
       matches: batch.map((match) => this.toSummary(match as MatchRow, now, voted.has(match.id))),
       nextCursor: hasMore && last ? `${last.start_at.toISOString()}|${last.id}` : null,
+    };
+  }
+
+  /**
+   * Input: userId (phải là owner) + id tổ chức + lát cắt + số dòng mỗi lô + mốc cuộn.
+   * Output: Một lô lịch sử của CẢ TỔ CHỨC, mới nhất trước, kèm ba con số tiền của từng buổi.
+   *
+   *         Đứng riêng với `listHistoryForOrganization` chứ không thêm một cờ vào nó: hai
+   *         danh sách khác nhau ở mọi mặt trừ cái tên. Bên kia CHỈ lấy buổi người hỏi có mặt
+   *         và lọc theo khoản của chính họ; bên này lấy mọi buổi của tổ chức và lọc theo
+   *         trạng thái thu tiền của cả buổi. Nhồi cả hai vào một hàm thì mọi mệnh đề `where`
+   *         đều phải kèm một câu "trừ khi đang ở chế độ kia".
+   *
+   *         CHỈ owner (ORG_004). Đây là sổ điều hành: tổng tiền từng buổi và ai chưa trả là
+   *         chuyện của người đi thu, không phải của người đóng.
+   *
+   *         Phạm vi "quá khứ" dùng ĐÚNG một định nghĩa với lịch sử cá nhân — đã chốt giá, đã
+   *         huỷ, hoặc đã tan mà chưa chốt — nên hai trang không bao giờ nói khác nhau về việc
+   *         một buổi đã qua hay chưa.
+   */
+  async listOrganizationHistory(
+    userId: string,
+    organizationId: string,
+    query: OrganizationHistoryQueryDto,
+  ): Promise<{ matches: OrganizationHistoryMatch[]; nextCursor: string | null }> {
+    await requireOwner(this.databaseService, userId, organizationId);
+
+    const cursor = this.decodeCursor(query.cursor);
+    // MỘT mốc "bây giờ" cho cả câu truy vấn lẫn lúc dựng từng dòng — cùng lý do đã ghi ở
+    // `listHistoryForOrganization`.
+    const now = new Date();
+    const rows = await this.databaseService.match.findMany({
+      where: {
+        organization_id: organizationId,
+        AND: [
+          this.organizationHistoryScopeWhere(query.scope, now),
+          // Keyset: lấy đúng phần nằm SAU mốc cuộn theo thứ tự sắp ở dưới.
+          ...(cursor
+            ? [
+                {
+                  OR: [
+                    { start_at: { lt: cursor.startAt } },
+                    { start_at: cursor.startAt, id: { lt: cursor.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      orderBy: [{ start_at: 'desc' }, { id: 'desc' }],
+      // Lấy THỪA một dòng để biết còn nữa hay không — rẻ hơn một query count.
+      take: query.limit + 1,
+      include: {
+        _count: { select: { votes: true } },
+        votes: {
+          orderBy: [{ voted_at: 'asc' as const }, { id: 'asc' as const }],
+          take: MATCH_PARTICIPANT_PREVIEW_LIMIT,
+          select: { user: { select: { id: true, full_name: true, avatar_url: true } } },
+        },
+        // TOÀN BỘ khoản của buổi, không lọc theo người hỏi như `summaryInclude`: ba con số ở
+        // đây nói về tiền của cả buổi. Khoản của chính owner vẫn dựng được từ chính mảng này
+        // (lọc theo `user_id` ở dưới), nên không phải hỏi thêm một lượt.
+        charges: { select: { user_id: true, amount: true, payment_status: true } },
+      },
+    });
+
+    const hasMore = rows.length > query.limit;
+    const batch = hasMore ? rows.slice(0, query.limit) : rows;
+    const last = batch.at(-1);
+
+    const voted = await this.votedSetOf(
+      userId,
+      batch.map((match) => match.id),
+    );
+
+    return {
+      matches: batch.map((match) => ({
+        // `toSummary` đọc `charges[0]` như khoản CỦA NGƯỜI HỎI, nên phải đưa nó đúng mảng đã
+        // lọc — đưa cả mảng vào là owner sẽ thấy tiền của người đăng ký đầu tiên là tiền mình.
+        ...this.toSummary(
+          {
+            ...match,
+            charges: match.charges.filter((charge) => charge.user_id === userId),
+          } as MatchRow,
+          now,
+          voted.has(match.id),
+        ),
+        totalAmount: match.charges.reduce((sum, charge) => sum + charge.amount, 0),
+        paidCount: match.charges.filter((charge) => charge.payment_status === 'paid').length,
+        chargeCount: match.charges.length,
+      })),
+      nextCursor: hasMore && last ? `${last.start_at.toISOString()}|${last.id}` : null,
+    };
+  }
+
+  /**
+   * Input: lát cắt + mốc "bây giờ".
+   * Output: Mệnh đề `where` của lát cắt đó.
+   *
+   *         Tách khỏi câu query vì đây là chỗ DUY NHẤT ba tab khác nhau — phần còn lại (keyset,
+   *         thứ tự, include) dùng chung từng chữ.
+   */
+  private organizationHistoryScopeWhere(
+    scope: (typeof ORGANIZATION_HISTORY_SCOPES)[number],
+    now: Date,
+  ) {
+    // Chưa chốt giá: đã tan mà vẫn `open`. Buổi đã HUỶ không nằm ở đây dù cũng chưa chốt —
+    // huỷ rồi thì không còn giá nào để chốt, mà để nó trong tab này là đẩy một việc không có
+    // thật vào danh sách việc phải làm.
+    if (scope === 'unsettled') return { status: 'open', end_at: { lt: now } };
+
+    // Chưa thu hết tiền: đã chốt giá nhưng còn ít nhất một người chưa trả. Buổi chưa chốt
+    // không thuộc tab này — chưa có khoản nào thì không thể nói là chưa thu.
+    if (scope === 'uncollected') {
+      return { status: 'settled', charges: { some: { payment_status: 'unpaid' } } };
+    }
+
+    // Tất cả: đúng định nghĩa "quá khứ" của lịch sử cá nhân — đã chốt, đã huỷ, hoặc đã tan mà
+    // chưa chốt. Xét `end_at` chứ không `start_at` ở vế thứ ba: buổi 19h-21h lúc 20h vẫn đang
+    // diễn ra. Buổi đã huỷ không xét giờ vì huỷ chỉ được lúc chưa tới giờ.
+    return {
+      OR: [{ status: { in: [...MATCH_HISTORY_STATUSES] } }, { status: 'open', end_at: { lt: now } }],
     };
   }
 
@@ -718,6 +871,9 @@ export class MatchesService {
         ratio: Number(charge.ratio),
         amount: charge.amount,
         paymentStatus: this.toPaymentStatus(charge.payment_status),
+        // Cột đã có sẵn trong chính query này (`editable` ở dưới cũng đọc nó), nên đưa lên FE
+        // không tốn thêm lượt nào.
+        paymentId: charge.payment_id,
       })),
       surplus: collected - total,
       // Cùng luật với `locked` ở settle(): chỉ khoản có `payment_id` thật (một lần chuyển

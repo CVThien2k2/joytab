@@ -10,7 +10,6 @@ import type { MatchSummary } from "@/types/match"
 import { CancelMatchDialog } from "./cancel-match-dialog"
 import { CreateMatchButton } from "./create-match-button"
 import { MatchFormDialog } from "./match-form-dialog"
-import { MatchQuickView } from "./match-quick-view"
 
 /**
  * Input: id tổ chức + người xem có phải owner không.
@@ -31,10 +30,9 @@ import { MatchQuickView } from "./match-quick-view"
  *         Nút "Tạo lịch" đứng cùng hàng với tiêu đề, sát mép phải: nó tạo ra thứ nằm ngay bên
  *         dưới nó. Vẫn hiện khi danh sách rỗng — đó đúng là lúc cần nó nhất.
  *
- *         Bấm một thẻ mở hộp thoại XEM NHANH, không rời trang: xem xong là còn ở nguyên chỗ cũ
- *         để lướt tiếp. Ba hộp thoại (xem nhanh, sửa, huỷ) đều sống Ở ĐÂY chứ không trong thẻ:
- *         mở hộp sửa thì hộp xem nhanh phải đóng lại, mà một hộp thoại không tự đóng mình để
- *         mở hộp khác được.
+ *         Bấm một thẻ là đi thẳng trang chi tiết. Owner có thêm hai nút sửa/huỷ ngay trên thẻ,
+ *         nhưng HAI HỘP THOẠI của chúng sống ở đây chứ không trong thẻ: mỗi thẻ tự giữ một cặp
+ *         dialog là mỗi lô 20 dòng dựng thêm 40 hộp thoại ẩn.
  */
 export function UpcomingMatches({
   organizationId,
@@ -44,10 +42,9 @@ export function UpcomingMatches({
   isOwner: boolean
 }) {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
-  // Trận đang xem giữ cả object chứ không giữ id: hai hộp thoại sửa/huỷ CHỤP LẠI trận ở thời
-  // điểm bấm, mà danh sách thì tự làm mới ngầm — không thể tráo dữ liệu dưới tay người đang gõ.
+  // Trận đang sửa/huỷ giữ cả object chứ không giữ id: hai hộp thoại CHỤP LẠI trận ở thời điểm
+  // bấm, mà danh sách thì tự làm mới ngầm — không thể tráo dữ liệu dưới tay người đang gõ.
   const [selected, setSelected] = useState<MatchSummary | null>(null)
-  const [quickOpen, setQuickOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
 
@@ -79,15 +76,14 @@ export function UpcomingMatches({
     return () => observer.disconnect()
   }, [hasNextPage, fetchNextPage, pageCount])
 
-  const openQuickView = useCallback((match: MatchSummary) => {
+  const openEdit = useCallback((match: MatchSummary) => {
     setSelected(match)
-    setQuickOpen(true)
+    setEditOpen(true)
   }, [])
 
-  /** Đóng hộp xem nhanh rồi mới mở hộp kia — hai lớp nền mờ chồng nhau thì không nhìn ra gì. */
-  const handOver = useCallback((next: (open: boolean) => void) => {
-    setQuickOpen(false)
-    next(true)
+  const openCancel = useCallback((match: MatchSummary) => {
+    setSelected(match)
+    setCancelOpen(true)
   }, [])
 
   return (
@@ -114,7 +110,12 @@ export function UpcomingMatches({
           <ul className="flex flex-col gap-2">
             {matches.map((match) => (
               <li key={match.id}>
-                <MatchCard match={match} votable onSelect={() => openQuickView(match)} />
+                <MatchCard
+                  match={match}
+                  votable
+                  onEdit={isOwner ? openEdit : undefined}
+                  onCancel={isOwner ? openCancel : undefined}
+                />
               </li>
             ))}
           </ul>
@@ -128,15 +129,6 @@ export function UpcomingMatches({
           ) : null}
         </>
       )}
-
-      <MatchQuickView
-        match={selected}
-        isOwner={isOwner}
-        open={quickOpen}
-        onOpenChange={setQuickOpen}
-        onEdit={() => handOver(setEditOpen)}
-        onCancel={() => handOver(setCancelOpen)}
-      />
 
       {isOwner ? (
         <>

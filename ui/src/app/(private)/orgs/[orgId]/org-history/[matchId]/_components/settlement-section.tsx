@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { Receipt } from "lucide-react"
-import { PayNowButton } from "@/components/common/pay-now-button"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { useSettlement } from "@/hooks/use-matches-api"
@@ -13,28 +12,27 @@ import type { MatchDetail } from "@/types/match"
 import { SettlementDialog } from "./settlement-dialog"
 
 /**
- * Input: chi tiết trận + có phải chủ tổ chức không + id người đang xem.
- * Output: Khu chi phí của trận.
+ * Input: chi tiết trận.
+ * Output: Khu chi phí của trận, nhìn từ chủ tổ chức.
  *
- *         Ba trạng thái, ba nội dung khác nhau:
- *          - chưa tới giờ chơi: nói rõ là chốt được sau khi trận bắt đầu, không hiện nút chết;
- *          - đã đá xong mà chưa chốt: chủ tổ chức thấy nút chốt, người khác thấy lời nhắc;
- *          - đã chốt: các khoản đã chi + tổng, và với chính mình thì thêm đường sang trang
- *            thanh toán.
+ *         Hai trạng thái, và chỉ hai:
+ *          - CHƯA chốt: một nút "Chốt chi phí" (kèm câu giải thích khi chưa bấm được);
+ *          - ĐÃ chốt: các khoản đã chi + tổng, chỉ để đọc.
+ *
+ *         Không còn nhận `isOwner` hay `currentUserId`: trang chứa nó chỉ owner vào được, nên
+ *         nhánh "người khác thấy lời nhắc" là nhánh chết. Và cũng không còn khối "bạn cần trả
+ *         X" — trả tiền đi từ "Trận của tôi" hoặc dải nhắc nợ, chỗ nói về tiền CỦA MÌNH; ở đây
+ *         người xem đang đứng ở vai người đi thu.
+ *
+ *         Chốt giá là MỘT lần: đã chốt rồi thì không còn nút sửa lại bảng chia tiền. Muốn đổi
+ *         thì đó là một quyết định phải nói ra ngoài phần mềm, không phải một ô sửa im lặng
+ *         trong khi có người đã cầm con số cũ đi chuyển khoản.
  *
  *         Tiền của TỪNG NGƯỜI không nằm ở đây mà hiện ngay trên dòng của họ trong danh sách
  *         người tham gia: hai danh sách cùng một nhóm người thì người ta phải dò tên từ bảng
  *         này sang bảng kia mới trả lời được "ai trả bao nhiêu".
  */
-export function SettlementSection({
-  match,
-  isOwner,
-  currentUserId,
-}: {
-  match: MatchDetail
-  isOwner: boolean
-  currentUserId: string
-}) {
+export function SettlementSection({ match }: { match: MatchDetail }) {
   const now = useNow()
   const [dialogOpen, setDialogOpen] = useState(false)
   // Đổi `key` mỗi lần mở để hộp thoại dựng lại với bảng chi phí mới nhất. Hộp thoại vẫn nằm sẵn
@@ -59,13 +57,11 @@ export function SettlementSection({
           {match.status === "canceled"
             ? "Trận đã huỷ nên không có chi phí."
             : started
-              ? isOwner
-                ? `${phase === "ended" ? "Trận đã kết thúc" : "Trận đang diễn ra"}. Nhập chi phí để chia tiền cho những người đã đăng ký.`
-                : "Chủ tổ chức chưa chốt chi phí cho trận này."
+              ? `${phase === "ended" ? "Trận đã kết thúc" : "Trận đang diễn ra"}. Nhập chi phí để chia tiền cho những người đã đăng ký.`
               : "Chốt chi phí được sau khi trận bắt đầu."}
         </p>
 
-        {isOwner && started && match.status !== "canceled" ? (
+        {started && match.status !== "canceled" ? (
           <>
             <Button type="button" className="mt-3" onClick={openDialog}>
               <Receipt aria-hidden="true" />
@@ -97,31 +93,14 @@ export function SettlementSection({
     )
   }
 
-  const myCharge = settlement.charges.find((charge) => charge.userId === currentUserId)
-
   return (
     <section className="overflow-hidden rounded-xl border bg-card">
-      <header className="flex flex-wrap items-center gap-2 border-b p-4">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold">Chi phí</h2>
-          <p className="text-xs text-muted-foreground">
-            Tổng {formatMoney(settlement.total)}đ · hệ số nam ×{settlement.maleRatio}
-            {settlement.surplus > 0 ? ` · dư ${formatMoney(settlement.surplus)}đ vào quỹ` : ""}
-          </p>
-        </div>
-
-        {isOwner ? (
-          settlement.editable ? (
-            <Button type="button" variant="outline" onClick={openDialog}>
-              Sửa chia tiền
-            </Button>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Đã có người trả nên không sửa được nữa — số trên ảnh chuyển khoản của họ phải còn khớp
-              với bảng này.
-            </p>
-          )
-        ) : null}
+      <header className="border-b p-4">
+        <h2 className="text-sm font-semibold">Chi phí</h2>
+        <p className="text-xs text-muted-foreground">
+          Tổng {formatMoney(settlement.total)}đ · hệ số nam ×{settlement.maleRatio}
+          {settlement.surplus > 0 ? ` · dư ${formatMoney(settlement.surplus)}đ vào quỹ` : ""}
+        </p>
       </header>
 
       <ul className="divide-y">
@@ -137,30 +116,6 @@ export function SettlementSection({
           </li>
         ))}
       </ul>
-
-      {myCharge && myCharge.paymentStatus === "unpaid" ? (
-        <div className="flex flex-wrap items-center gap-3 border-t bg-muted/40 p-4">
-          <p className="min-w-0 flex-1 text-sm">
-            Bạn cần trả <span className="font-semibold">{formatMoney(myCharge.amount)}đ</span> cho
-            trận này.
-          </p>
-          {/* Mở thẳng hộp thoại thanh toán, không dẫn đi đâu cả: số tiền đã nằm ngay bên trái,
-              việc còn lại chỉ là quét QR và chụp ảnh chuyển khoản. Nút trả cho TẤT CẢ khoản
-              đang nợ ở tổ chức này chứ không riêng buổi này — một lần chuyển khoản trả được
-              nhiều buổi, và trong hộp thoại vẫn bỏ tick được buổi không muốn trả. */}
-          <PayNowButton organizationId={match.organizationId} size="default" label="Thanh toán" />
-        </div>
-      ) : null}
-
-      <SettlementDialog
-        key={openToken}
-        match={match}
-        organizationId={match.organizationId}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        initialExpenses={settlement.expenses}
-        initialMaleRatio={settlement.maleRatio}
-      />
     </section>
   )
 }

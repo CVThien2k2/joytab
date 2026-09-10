@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useLastPresent } from "@/hooks/use-last-present"
 import { useRemoveOrganizationMember } from "@/hooks/use-organizations-api"
 import type { OrganizationMember } from "@/types/organization"
 
@@ -37,7 +38,11 @@ export function RemoveMemberDialog({
   onClose: () => void
 }) {
   const mutation = useRemoveOrganizationMember(organizationId, onClose)
-  const displayName = member ? member.fullName?.trim() || member.email : ""
+  // `member` vừa là dữ liệu vừa là trạng thái mở, nên lúc đóng nó về null NGAY trong khi hộp
+  // thoại còn đang chạy animation ra — tên người sẽ biến mất và hộp co lại ngay trước lúc mờ
+  // đi. Giữ lại người vừa xem cho tới lần mở sau.
+  const shown = useLastPresent(member)
+  const displayName = shown ? shown.fullName?.trim() || shown.email : ""
 
   return (
     <Dialog
@@ -53,7 +58,7 @@ export function RemoveMemberDialog({
           <DialogTitle>Xoá thành viên khỏi tổ chức?</DialogTitle>
           <DialogDescription>
             <span className="font-medium text-foreground">{displayName}</span>
-            {member && member.fullName?.trim() ? ` (${member.email})` : ""} sẽ mất quyền truy cập tổ
+            {shown && shown.fullName?.trim() ? ` (${shown.email})` : ""} sẽ mất quyền truy cập tổ
             chức này ngay lập tức. Muốn vào lại thì phải dùng mã hoặc liên kết mời.
           </DialogDescription>
         </DialogHeader>

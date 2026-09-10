@@ -8,6 +8,12 @@ export class PaymentOrganizationParamDto {
   organizationId: string;
 }
 
+/** Param của GET /organizations/:organizationId/payments/:id. */
+export class PaymentIdParamDto extends PaymentOrganizationParamDto {
+  @IsUUID(undefined, { message: 'Id lần thanh toán không hợp lệ' })
+  id: string;
+}
+
 /**
  * Body của POST /organizations/:organizationId/payments.
  *

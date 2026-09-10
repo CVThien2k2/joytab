@@ -1,6 +1,7 @@
 "use client"
 
 import { usePathname } from "next/navigation"
+import { useMatch } from "@/hooks/use-matches-api"
 import { useOrganizationStore } from "@/stores/organization-store"
 
 /** Một mẩu breadcrumb. `current` = trang đang đứng, không render thành link. */
@@ -13,14 +14,24 @@ export type Crumb = {
 /**
  * Nhãn của các trang con trong một tổ chức, theo segment ngay sau `/orgs/<id>`.
  *
- * `matches` KHÔNG có ở đây dù `/orgs/<id>/matches/<matchId>` vẫn là route thật: đoạn đó không
- * còn trang nào của riêng nó (danh sách buổi đá đã về trang chủ), nên một mẩu "Lịch thi đấu"
- * bấm vào được sẽ dẫn tới 404. Trang chi tiết trận vì vậy treo thẳng dưới tên tổ chức — xem
- * nhánh `matches` ở dưới.
+ * Mỗi segment ở đây là một trang THẬT bấm vào được. Chi tiết trận không có mục riêng: nó là
+ * trang con của `org-history`, nên mượn luôn mẩu này làm mẩu cha — xem nhánh ở cuối hook.
  */
 const ORGANIZATION_LABELS: Record<string, string> = {
-  history: "Lịch sử đấu",
+  history: "Trận của tôi",
+  "org-history": "Lịch sử tổ chức",
   settings: "Tổ chức",
+}
+
+/**
+ * Input: pathname hiện tại.
+ * Output: Id trận nếu đang ở `/orgs/<orgId>/org-history/<matchId>`, ngược lại chuỗi rỗng.
+ *
+ * Đọc thẳng từ pathname chứ không đợi biết tổ chức nào đang mở: hook lấy tên trận phải được
+ * gọi TRƯỚC mấy nhánh trả sớm ở dưới, mà lúc đó `active` có thể chưa có.
+ */
+function matchIdOf(pathname: string): string {
+  return /^\/orgs\/[^/]+\/org-history\/([^/]+)/.exec(pathname)?.[1] ?? ""
 }
 
 /**
@@ -44,25 +55,21 @@ export function useBreadcrumb(): Crumb[] {
   const organizations = useOrganizationStore((state) => state.organizations)
   const activeId = useOrganizationStore((state) => state.activeOrganizationId)
 
+  // Gọi VÔ ĐIỀU KIỆN, trước mọi nhánh trả sớm — hook không gọi có điều kiện được. Ở route
+  // không phải chi tiết trận thì `matchId` rỗng và query tự tắt.
+  const matchId = matchIdOf(pathname)
+  const { data: match } = useMatch(matchId, matchId !== "")
+
   const active = organizations.find((organization) => organization.id === activeId)
   if (!active) return []
 
   const root = `/orgs/${active.id}`
   if (!pathname.startsWith(root)) return []
 
-  // "" ở trang chủ, "history"/"settings" ở trang con, "matches/<id>" ở trang chi tiết trận.
+  // "" ở trang chủ, "history"/"org-history"/"settings" ở trang con, và "org-history/<matchId>"
+  // ở trang chi tiết trận — hai mẩu.
   const rest = pathname.slice(root.length).split("/").filter(Boolean)
   if (rest.length === 0) return [{ href: root, label: active.name, current: true }]
-
-  // Chi tiết trận: nhảy thẳng từ tên tổ chức sang trận, không có mẩu trung gian nào — đoạn
-  // `matches` trên URL không phải một trang. Nhãn cố định vì tên sân chỉ biết sau khi fetch,
-  // mà breadcrumb thì render ngay: để trống một nhịp rồi mới nhảy ra chữ còn khó đọc hơn.
-  if (rest[0] === "matches") {
-    return [
-      { href: root, label: active.name, current: false },
-      { href: pathname, label: "Chi tiết trận", current: true },
-    ]
-  }
 
   const sectionLabel = ORGANIZATION_LABELS[rest[0]]
   if (!sectionLabel) return [{ href: root, label: active.name, current: true }]
@@ -72,6 +79,14 @@ export function useBreadcrumb(): Crumb[] {
     { href: root, label: active.name, current: false },
     { href: sectionHref, label: sectionLabel, current: rest.length === 1 },
   ]
+
+  // Chi tiết trận — trang con DUY NHẤT có thêm một tầng, treo dưới "Lịch sử tổ chức". Mẩu cuối
+  // là TÊN SÂN lấy từ API, dùng chung query với chính trang đang mở nên không tốn thêm request.
+  // Trong lúc chờ (và khi trận không tải được) thì rơi về "Chi tiết trận": để trống một nhịp
+  // rồi mới nhảy ra chữ còn khó đọc hơn một nhãn chung chung.
+  if (rest.length > 1) {
+    crumbs.push({ href: pathname, label: match?.courtName ?? "Chi tiết trận", current: true })
+  }
 
   return crumbs
 }

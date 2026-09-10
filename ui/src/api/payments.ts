@@ -17,6 +17,23 @@ export async function fetchOrganizationCharges(
 }
 
 /**
+ * Input: id tổ chức + id lần chuyển khoản.
+ * Output: Chứng từ của lần đó: ảnh, ghi chú, thời điểm, tổng, và các buổi nó trả cho.
+ *
+ *         Owner đọc được mọi lần của tổ chức, người khác chỉ đọc được lần của chính mình — BE
+ *         ép, và mọi lối từ chối đều là 404 PAY_001.
+ */
+export async function fetchPayment(params: {
+  organizationId: string
+  paymentId: string
+}): Promise<Payment> {
+  const response = await apiClient.get(
+    `/organizations/${params.organizationId}/payments/${params.paymentId}`,
+  )
+  return paymentResponseSchema.parse(response.data).data.payment
+}
+
+/**
  * Input: id tổ chức + các khoản được chọn + ảnh chuyển khoản.
  * Output: Lần thanh toán vừa gửi.
  *

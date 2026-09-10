@@ -5,6 +5,7 @@ import {
   matchHistoryResponseSchema,
   matchResponseSchema,
   matchSettlementResponseSchema,
+  organizationHistoryPageResponseSchema,
 } from "@/schema/match"
 import type {
   ChargePaymentStatus,
@@ -13,6 +14,8 @@ import type {
   MatchStatus,
   MatchSummary,
   MatchVoteEvent,
+  OrganizationHistoryMatch,
+  OrganizationHistoryScope,
   SettlementFormPayload,
 } from "@/types/match"
 
@@ -72,6 +75,38 @@ export async function fetchOrganizationMatchHistory(params: {
     `/organizations/${params.organizationId}/matches/history${query ? `?${query}` : ""}`,
   )
   return matchPageResponseSchema.parse(response.data).data
+}
+
+/** Một lô trận trong sổ của tổ chức. Cùng hình dạng `MatchPage`, chỉ giàu hơn ở mỗi dòng. */
+export type OrganizationHistoryPage = {
+  matches: OrganizationHistoryMatch[]
+  nextCursor: string | null
+}
+
+/**
+ * Input: id tổ chức + lát cắt + mốc cuộn của lô trước (`undefined` cho lô đầu).
+ * Output: Một lô lịch sử của CẢ tổ chức, mới nhất trước.
+ *
+ *         CHỈ owner gọi được (BE trả ORG_004). Khác `fetchOrganizationMatchHistory`: hàm kia
+ *         là sổ của chính người hỏi và lọc theo khoản của họ, còn đây là sổ điều hành — mọi
+ *         buổi của tổ chức, kèm tổng tiền và tiến độ thu của từng buổi.
+ */
+export async function fetchOrganizationHistory(params: {
+  organizationId: string
+  scope: OrganizationHistoryScope
+  cursor?: string
+}): Promise<OrganizationHistoryPage> {
+  const search = new URLSearchParams()
+  // `all` là mặc định của BE nên không cần gửi — bớt một tham số trên URL, và cũng là cách
+  // nói rằng lát cắt mặc định do BE định nghĩa chứ không phải hai nơi cùng giữ.
+  if (params.scope !== "all") search.set("scope", params.scope)
+  if (params.cursor) search.set("cursor", params.cursor)
+
+  const query = search.toString()
+  const response = await apiClient.get(
+    `/organizations/${params.organizationId}/matches/org-history${query ? `?${query}` : ""}`,
+  )
+  return organizationHistoryPageResponseSchema.parse(response.data).data
 }
 
 /**

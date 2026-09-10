@@ -6,12 +6,16 @@ import { MatchHistoryList } from "./_components/match-history-list"
 
 /**
  * Input: Không nhận props — tổ chức đang xem lấy từ store (layout đã fetch, khớp với URL).
- * Output: Trang Lịch sử đấu: những buổi CỦA CHÍNH MÌNH đã chốt tiền hoặc đã huỷ, kèm dải nhắc
- *         nợ ở trên cùng.
+ * Output: Trang Trận của tôi: những buổi đã qua CỦA CHÍNH MÌNH kèm số tiền của mình ở từng
+ *         buổi, và dải nhắc nợ ở trên cùng.
  *
  *         BE chỉ trả buổi mình có mặt (đã đăng ký, hoặc đã bị chia tiền) — đây là sổ riêng chứ
  *         không phải sổ của cả tổ chức. Nhờ vậy nó trả lời được câu duy nhất người ta mở trang
  *         này để hỏi: "mình đã đá những buổi nào, còn nợ buổi nào".
+ *
+ *         Là một SỔ NỢ, không phải chỗ tra cứu: mỗi dòng chỉ còn giờ, sân và số tiền đã trả
+ *         hay chưa — không avatar, không sĩ số, và bấm vào cũng không mở gì. Buổi đã đá xong
+ *         thì không còn việc nào để làm với nó ngoài trả tiền.
  *
  *         Là một trang RIÊNG chứ không phải một khối ở trang chủ: trang chủ nói về những gì
  *         SẮP tới và phải vừa một màn hình, còn đây là danh sách cuộn dài không giới hạn.

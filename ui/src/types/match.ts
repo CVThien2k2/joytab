@@ -9,10 +9,14 @@ import {
   matchSettlementSchema,
   matchSummarySchema,
   matchVoteEventSchema,
+  organizationHistoryMatchSchema,
+  organizationHistoryScopeSchema,
   settlementFormSchema,
 } from "@/schema/match"
 
 export type MatchSummary = z.infer<typeof matchSummarySchema>
+export type OrganizationHistoryMatch = z.infer<typeof organizationHistoryMatchSchema>
+export type OrganizationHistoryScope = z.infer<typeof organizationHistoryScopeSchema>
 export type MatchDetail = z.infer<typeof matchDetailSchema>
 export type MatchParticipant = z.infer<typeof matchParticipantSchema>
 export type MatchVoteEvent = z.infer<typeof matchVoteEventSchema>

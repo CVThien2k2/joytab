@@ -79,6 +79,18 @@ export const MATCH_UPCOMING_MAX_LIMIT = 50;
 export const MATCH_HISTORY_STATUSES = ['settled', 'canceled'] as const;
 
 /**
+ * Ba lát cắt của sổ lịch sử TỔ CHỨC (chỉ owner xem):
+ *
+ *  - `all`: mọi buổi đã là quá khứ — đã chốt giá, đã huỷ, và đã đá xong mà chưa chốt.
+ *  - `uncollected`: đã chốt giá nhưng còn người chưa trả. Việc còn phải ĐÒI.
+ *  - `unsettled`: đã đá xong mà chưa chốt giá. Việc còn phải LÀM.
+ *
+ * Hai lát sau là hai việc còn treo của chủ tổ chức, và cũng là lý do trang này tồn tại: tab
+ * "Trận của tôi" trả lời "mình còn nợ buổi nào", còn ở đây câu hỏi là "mình còn thiếu việc gì".
+ */
+export const ORGANIZATION_HISTORY_SCOPES = ['all', 'uncollected', 'unsettled'] as const;
+
+/**
  * Mốc cuộn của lịch sử: `"<start_at ISO>|<match id>"`.
  *
  * BE sinh, FE gửi lại NGUYÊN VĂN — không ai tự dựng chuỗi này. Chốt shape bằng regex ở tầng

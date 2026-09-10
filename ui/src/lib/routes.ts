@@ -17,3 +17,20 @@ export function organizationHomePath(organizationId: string): string {
 export function organizationSettingsPath(organizationId: string): string {
   return `/orgs/${organizationId}/settings`
 }
+
+/** Sổ lịch sử của cả tổ chức. Chỉ owner mở được — chính trang đó tự đá member về trang chủ. */
+export function organizationHistoryPath(organizationId: string): string {
+  return `/orgs/${organizationId}/org-history`
+}
+
+/**
+ * Chi tiết một trận — nơi duy nhất chốt được giá.
+ *
+ * Nằm DƯỚI `/org-history` chứ không còn ở `/matches/<id>` riêng: sổ tổ chức là lối vào duy
+ * nhất của trang này, nên đặt nó thành trang con làm hai việc cùng lúc — sidebar giữ nguyên
+ * mục "Lịch sử tổ chức" đang sáng khi mở một trận, và breadcrumb có sẵn mẩu cha để quay lại.
+ * Đoạn `matches` cũ chỉ là một mẩu URL không dẫn tới trang nào.
+ */
+export function matchDetailPath(organizationId: string, matchId: string): string {
+  return `/orgs/${organizationId}/org-history/${matchId}`
+}

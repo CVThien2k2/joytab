@@ -62,6 +62,29 @@ export const matchSummarySchema = z.object({
   ),
 })
 
+/**
+ * Ba lát cắt của sổ lịch sử TỔ CHỨC. Mirror của ORGANIZATION_HISTORY_SCOPES ở BE.
+ *
+ *  - `all`: mọi buổi đã là quá khứ.
+ *  - `uncollected`: đã chốt giá mà còn người chưa trả — việc còn phải ĐÒI.
+ *  - `unsettled`: đã đá xong mà chưa chốt giá — việc còn phải LÀM.
+ */
+export const ORGANIZATION_HISTORY_SCOPES = ["all", "uncollected", "unsettled"] as const
+export const organizationHistoryScopeSchema = z.enum(ORGANIZATION_HISTORY_SCOPES)
+
+/**
+ * Một dòng trong sổ của tổ chức: `matchSummary` cộng ba con số nói về tiền của CẢ buổi, chứ
+ * không riêng tiền của người đang xem.
+ *
+ * Buổi chưa chốt giá và buổi đã huỷ không có khoản nào nên cả ba đều là 0 — thẻ phải đọc
+ * `status` trước rồi mới quyết định có hiện chúng hay không, chứ 0đ không có nghĩa là miễn phí.
+ */
+export const organizationHistoryMatchSchema = matchSummarySchema.extend({
+  totalAmount: z.number(),
+  paidCount: z.number(),
+  chargeCount: z.number(),
+})
+
 export const matchParticipantSchema = z.object({
   userId: z.string(),
   fullName: z.string().nullable(),
@@ -96,6 +119,14 @@ export const matchChargeSchema = z.object({
   ratio: z.number(),
   amount: z.number(),
   paymentStatus: chargePaymentStatusSchema,
+  /**
+   * Lần chuyển khoản đã trả cho khoản này; `null` = không có lần nào.
+   *
+   * `paid` mà `paymentId` null là chuyện CÓ THẬT: lúc chốt giá owner tick "tự đánh dấu đã trả"
+   * cho chính mình thì khoản sang `paid` mà không sinh chứng từ nào — nên không có ảnh chuyển
+   * khoản để mở ra xem.
+   */
+  paymentId: z.string().nullable(),
 })
 
 export const matchSettlementSchema = z.object({
@@ -118,6 +149,13 @@ export const matchSettlementSchema = z.object({
  */
 export const matchPageResponseSchema = envelope(
   z.object({ matches: z.array(matchSummarySchema), nextCursor: z.string().nullable() }),
+)
+/** Cùng shape với `matchPageResponseSchema`, chỉ khác kiểu của mỗi dòng. */
+export const organizationHistoryPageResponseSchema = envelope(
+  z.object({
+    matches: z.array(organizationHistoryMatchSchema),
+    nextCursor: z.string().nullable(),
+  }),
 )
 export const matchResponseSchema = envelope(z.object({ match: matchSummarySchema }))
 export const matchDetailResponseSchema = envelope(z.object({ match: matchDetailSchema }))

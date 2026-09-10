@@ -9,6 +9,7 @@ import {
   createMatch,
   fetchMatch,
   fetchMatchHistory,
+  fetchOrganizationHistory,
   fetchOrganizationMatchHistory,
   fetchOrganizationUpcomingMatches,
   fetchSettlement,
@@ -18,7 +19,7 @@ import {
   type MatchHistoryFilters,
   type MatchPayload,
 } from "@/api/matches"
-import type { SettlementFormPayload } from "@/types/match"
+import type { OrganizationHistoryScope, SettlementFormPayload } from "@/types/match"
 
 /**
  * Khoá cache của lịch. Khai một chỗ để mutation invalidate đúng thứ query đang giữ.
@@ -35,6 +36,13 @@ export const matchQueryKeys = {
    */
   organizationHistory: (organizationId: string, filters: MatchHistoryFilters) =>
     [...matchQueryKeys.organization(organizationId), "history", filters] as const,
+  /**
+   * Sổ lịch sử của CẢ tổ chức. Cũng lồng dưới khoá tổ chức, cùng lý do như trên: owner chốt
+   * giá xong là danh sách "chưa chốt giá" phải tự ngắn đi, mà mutation chốt giá thì đã
+   * invalidate đúng tiền tố đó rồi.
+   */
+  organizationOwnHistory: (organizationId: string, scope: OrganizationHistoryScope) =>
+    [...matchQueryKeys.organization(organizationId), "org-history", scope] as const,
   /** Buổi sắp diễn ra — cũng lồng dưới khoá tổ chức nên mọi mutation hiện có tự làm mới nó. */
   organizationUpcoming: (organizationId: string) =>
     [...matchQueryKeys.organization(organizationId), "upcoming"] as const,
@@ -52,7 +60,21 @@ export const matchQueryKeys = {
  */
 function invalidateMatchData(
   queryClient: ReturnType<typeof useQueryClient>,
-  params: { organizationId?: string; matchId?: string },
+  params: {
+    organizationId?: string
+    matchId?: string
+    /**
+     * Bỏ qua bốn con số ở trang chủ. Chỉ ĐĂNG KÝ / HUỶ ĐĂNG KÝ dùng cờ này.
+     *
+     * Bốn con số đó đếm tiền của mình (chưa trả / đã trả), số buổi đã CHỐT TIỀN mình có mặt, và
+     * số buổi chưa diễn ra của tổ chức — không con số nào đổi khi thêm hay bớt một người trong
+     * một buổi. Còn tạo / sửa giờ / huỷ / chốt tiền thì đều đụng tới, nên chúng KHÔNG bỏ qua.
+     *
+     * Cờ mặc định tắt (tức là vẫn làm mới) có chủ đích: quên bật cờ chỉ tốn một request thừa,
+     * còn quên tắt là một con số đứng im mà không ai giải thích được.
+     */
+    skipOverview?: boolean
+  },
 ): void {
   if (params.organizationId) {
     void queryClient.invalidateQueries({
@@ -65,8 +87,10 @@ function invalidateMatchData(
     void queryClient.invalidateQueries({ queryKey: matchQueryKeys.settlement(params.matchId) })
   }
   void queryClient.invalidateQueries({ queryKey: ["charges"] })
-  // Bốn con số ở trang chủ đếm chính những thứ vừa đổi (buổi sắp tới, buổi đã chốt, tiền).
-  void queryClient.invalidateQueries({ queryKey: ["organizations", "overview"] })
+  if (!params.skipOverview) {
+    // Bốn con số ở trang chủ đếm chính những thứ vừa đổi (buổi sắp tới, buổi đã chốt, tiền).
+    void queryClient.invalidateQueries({ queryKey: ["organizations", "overview"] })
+  }
 }
 
 /**
@@ -112,18 +136,41 @@ export function useOrganizationMatchHistory(organizationId: string, filters: Mat
 }
 
 /**
- * Input: id trận + có gọi hay không.
- * Output: Query chi tiết một trận (summary + danh sách người tham gia đầy đủ).
+ * Input: id tổ chức + lát cắt đang chọn.
+ * Output: Query cuộn vô hạn sổ lịch sử của cả tổ chức. CHỈ owner gọi (BE trả ORG_004).
  *
- *         `enabled` để hộp thoại xem nhanh chỉ hỏi khi nó thật sự mở: component đó vẫn nằm
- *         trong cây sau khi đóng (còn giữ trận vừa xem để chạy animation ra), mà đóng rồi thì
- *         không có gì để tải nữa.
+ *         Lát cắt nằm TRONG queryKey nên đổi tab là bắt đầu lại từ lô đầu — không có bước
+ *         reset nào phải nhớ gọi bằng tay, giống hệt sổ cá nhân.
+ *
+ *         `staleTime` 30 giây, bằng sổ cá nhân: cùng một loại dữ liệu gần như đứng yên.
+ */
+export function useOrganizationHistory(organizationId: string, scope: OrganizationHistoryScope) {
+  return useInfiniteQuery({
+    queryKey: matchQueryKeys.organizationOwnHistory(organizationId, scope),
+    queryFn: ({ pageParam }) =>
+      fetchOrganizationHistory({ organizationId, scope, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    staleTime: 30_000,
+  })
+}
+
+/**
+ * Input: id trận + có gọi hay không.
+ * Output: Query chi tiết trận.
+ *
+ *         `enabled` để breadcrumb dùng được: hook không gọi có điều kiện được, mà breadcrumb
+ *         thì chạy ở MỌI trang — nó phải gọi hook này ngay cả khi đang đứng ở một route không
+ *         có `matchId` nào.
+ *
+ *         Cùng queryKey với trang chi tiết nên hai chỗ dùng CHUNG một request: breadcrumb đọc
+ *         tên sân từ đúng cache mà trang đang chờ, không sinh thêm một lượt gọi.
  */
 export function useMatch(matchId: string, enabled = true) {
   return useQuery({
     queryKey: matchQueryKeys.detail(matchId),
     queryFn: () => fetchMatch(matchId),
-    enabled: enabled && Boolean(matchId),
+    enabled,
     staleTime: 15_000,
   })
 }
@@ -210,6 +257,10 @@ export function useCancelMatch(organizationId: string, onSuccess?: () => void) {
  *
  *         Một hook cho hai chiều vì chúng luôn đi cùng nhau trên cùng một cái nút, và cùng
  *         phải làm mới đúng bấy nhiêu cache.
+ *
+ *         Đây là mutation DUY NHẤT không đụng tới bốn con số ở trang chủ (`skipOverview`): vào
+ *         hay ra một buổi không đổi tiền của mình, cũng không đổi số buổi đã chốt hay số buổi
+ *         sắp tới. Mà nó lại là mutation người ta bấm nhiều nhất.
  */
 export function useVoteMatch(organizationId?: string) {
   const queryClient = useQueryClient()
@@ -219,7 +270,11 @@ export function useVoteMatch(organizationId?: string) {
       params.join ? voteMatch(params.matchId) : cancelVote(params.matchId),
     onSuccess: (_data, params) => {
       toast.success(params.join ? "Đã đăng ký tham gia" : "Đã huỷ đăng ký")
-      invalidateMatchData(queryClient, { organizationId, matchId: params.matchId })
+      invalidateMatchData(queryClient, {
+        organizationId,
+        matchId: params.matchId,
+        skipOverview: true,
+      })
     },
     onError: (error, params) => {
       toast.error(

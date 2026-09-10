@@ -1,66 +1,54 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
-import type { MatchHistoryFilters as MatchHistoryQuery } from "@/api/matches"
+import type { MatchHistoryFilters } from "@/api/matches"
 import { getApiErrorMessage } from "@/api/error"
-import { History, SearchX } from "lucide-react"
-import { MatchCard } from "@/components/common/match-card"
+import { History } from "lucide-react"
 import { MatchEmptyState } from "@/components/common/match-empty-state"
 import { Spinner } from "@/components/ui/spinner"
 import { useOrganizationMatchHistory } from "@/hooks/use-matches-api"
-import {
-  hasHistoryFilter,
-  MatchHistoryFilters,
-  NO_HISTORY_FILTER,
-  type MatchHistoryFilterValues,
-} from "./match-history-filters"
+import type { MatchSummary } from "@/types/match"
+import { HistoryMatchCard } from "./history-match-card"
+import { HistoryPaymentTabs, type HistoryPaymentTab } from "./history-payment-tabs"
+import { MyChargeDialog } from "./my-charge-dialog"
 
-/**
- * Input: ngày người dùng chọn (lịch trả về 0h ngày đó, giờ máy).
- * Output: 0h ngày HÔM SAU, dạng ISO.
- *
- *         Biên `to` của BE là biên MỞ `[from, to)`, nên gửi thẳng 0h của ngày người ta chọn sẽ
- *         cắt mất đúng các buổi trong ngày đó — "đến 30/8" mà không thấy buổi tối 30/8.
- */
-function exclusiveEndIso(date: Date): string {
-  const next = new Date(date)
-  next.setHours(0, 0, 0, 0)
-  next.setDate(next.getDate() + 1)
-  return next.toISOString()
-}
-
-/** 0h của ngày đã chọn, theo giờ máy — người ta lọc theo ngày ở sân, không phải ngày UTC. */
-function startOfDayIso(date: Date): string {
-  const start = new Date(date)
-  start.setHours(0, 0, 0, 0)
-  return start.toISOString()
+/** Câu "chỗ này trống" cho từng tab. Tab nào trống vì lý do nào cũng phải nói ra lý do đó. */
+const EMPTY_TEXT: Record<"all" | "unpaid" | "paid", { title: string; description: string }> = {
+  all: {
+    title: "Chưa có buổi nào trong lịch sử",
+    description: "Buổi bạn đã đăng ký sẽ hiện ở đây sau khi đá xong.",
+  },
+  unpaid: {
+    title: "Không còn khoản nào phải trả",
+    description: "Mọi buổi đã chốt tiền của bạn đều đã thanh toán.",
+  },
+  paid: {
+    title: "Chưa có khoản nào đã trả",
+    description: "Khoản bạn thanh toán xong sẽ được ghi lại ở đây.",
+  },
 }
 
 /**
  * Input: id tổ chức.
- * Output: Nội dung trang Lịch sử — thanh lọc + danh sách thẻ, cuộn tới đáy thì tải thêm.
+ * Output: Nội dung trang Lịch sử — ba tab lọc theo tiền + danh sách thẻ, cuộn tới đáy thì tải
+ *         thêm.
  *
- *         Danh sách PHẲNG, không gộp theo ngày: lịch sử trải nhiều tháng và còn bị lọc, nên
- *         phần lớn nhóm ngày sẽ chỉ có một thẻ — lúc đó tiêu đề nhóm nhiều hơn cả nội dung.
- *         Mỗi thẻ tự mang thứ và ngày ở cột giờ.
+ *         Danh sách PHẲNG, không gộp theo ngày: lịch sử trải nhiều tháng, nên phần lớn nhóm
+ *         ngày sẽ chỉ có một thẻ — lúc đó tiêu đề nhóm nhiều hơn cả nội dung. Mỗi thẻ tự mang
+ *         thứ và ngày ở cột giờ.
  *
- *         Bộ lọc nằm trong queryKey của react-query, nên đổi filter là danh sách tự bắt đầu
- *         lại từ lô đầu — không có bước reset nào phải nhớ gọi bằng tay.
+ *         Tab đang chọn nằm trong queryKey của react-query, nên đổi tab là danh sách tự bắt
+ *         đầu lại từ lô đầu — không có bước reset nào phải nhớ gọi bằng tay.
+ *
+ *         Hộp thoại "Khoản của tôi" thuộc về DANH SÁCH chứ không thuộc về từng thẻ: mỗi lúc
+ *         chỉ mở được một, mà danh sách thì cuộn vô hạn — để mỗi thẻ mang một Radix Dialog là
+ *         dựng sẵn ngần ấy portal cho một thứ dùng một lần.
  */
 export function MatchHistoryList({ organizationId }: { organizationId: string }) {
-  const router = useRouter()
-  const [values, setValues] = useState<MatchHistoryFilterValues>(NO_HISTORY_FILTER)
+  const [tab, setTab] = useState<HistoryPaymentTab>(null)
+  const [detailMatch, setDetailMatch] = useState<MatchSummary | null>(null)
 
-  const filters = useMemo<MatchHistoryQuery>(
-    () => ({
-      ...(values.range?.from ? { from: startOfDayIso(values.range.from) } : {}),
-      ...(values.range?.to ? { to: exclusiveEndIso(values.range.to) } : {}),
-      ...(values.status.length > 0 ? { status: values.status } : {}),
-      ...(values.paymentStatus.length > 0 ? { paymentStatus: values.paymentStatus } : {}),
-    }),
-    [values],
-  )
+  const filters = useMemo<MatchHistoryFilters>(() => (tab ? { paymentStatus: [tab] } : {}), [tab])
 
   const { data, error, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useOrganizationMatchHistory(organizationId, filters)
@@ -91,11 +79,11 @@ export function MatchHistoryList({ organizationId }: { organizationId: string })
     return () => observer.disconnect()
   }, [hasNextPage, fetchNextPage, pageCount])
 
-  const isFiltering = hasHistoryFilter(values)
+  const empty = EMPTY_TEXT[tab ?? "all"]
 
   return (
     <div className="flex flex-col gap-4">
-      <MatchHistoryFilters values={values} onChange={setValues} />
+      <HistoryPaymentTabs value={tab} onChange={setTab} />
 
       {isPending ? (
         <div className="flex h-32 items-center justify-center rounded-xl border bg-card">
@@ -106,31 +94,13 @@ export function MatchHistoryList({ organizationId }: { organizationId: string })
           {getApiErrorMessage(error, "Không tải được lịch sử. Vui lòng thử lại.")}
         </div>
       ) : matches.length === 0 ? (
-        // Hai câu cho hai tình huống khác hẳn nhau: lọc hụt là chuyện của bộ lọc (sửa được
-        // ngay), còn chưa có buổi nào là chuyện của tổ chức — gộp một câu thì người đang lọc
-        // tưởng mình chưa từng đá buổi nào.
-        isFiltering ? (
-          <MatchEmptyState
-            icon={SearchX}
-            title="Không có buổi nào khớp bộ lọc"
-            description="Thử nới khoảng ngày hoặc bỏ bớt điều kiện."
-          />
-        ) : (
-          <MatchEmptyState
-            icon={History}
-            title="Chưa có buổi nào trong lịch sử"
-            description="Buổi đã chốt tiền hoặc đã huỷ sẽ hiện ở đây."
-          />
-        )
+        <MatchEmptyState icon={History} title={empty.title} description={empty.description} />
       ) : (
         <>
           <ul className="flex flex-col gap-2">
             {matches.map((match) => (
               <li key={match.id}>
-                <MatchCard
-                  match={match}
-                  onSelect={(matchId) => router.push(`/orgs/${organizationId}/matches/${matchId}`)}
-                />
+                <HistoryMatchCard match={match} onOpenDetail={setDetailMatch} />
               </li>
             ))}
           </ul>
@@ -144,6 +114,18 @@ export function MatchHistoryList({ organizationId }: { organizationId: string })
           ) : null}
         </>
       )}
+
+      {/* Nằm NGOÀI mọi nhánh ở trên để không bị tháo khỏi cây lúc danh sách đổi trạng thái —
+          đóng hộp thoại làm react-query đánh dấu lại query nào đó thì một hộp thoại nằm trong
+          nhánh sẽ biến mất giữa lúc đang chạy animation ra. */}
+      <MyChargeDialog
+        organizationId={organizationId}
+        match={detailMatch}
+        open={detailMatch !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailMatch(null)
+        }}
+      />
     </div>
   )
 }

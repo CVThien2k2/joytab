@@ -20,7 +20,7 @@ import type { MatchSummary } from "@/types/match"
  *         vừa biến mất khỏi danh sách buổi sắp tới.
  *
  *         Sắc `destructive`: huỷ trận không có nút hoàn tác. Lịch sử đăng ký vẫn nằm trong DB,
- *         nhưng buổi đã huỷ chỉ còn tra được ở trang Lịch sử đấu.
+ *         nhưng buổi đã huỷ chỉ còn tra được ở trang Trận của tôi.
  */
 export function CancelMatchDialog({
   match,
