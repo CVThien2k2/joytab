@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 import { UPLOAD_IMAGE_CONTENT_TYPES, UPLOAD_MAX_BYTES } from "@/schema/upload"
 import type { UploadFolder } from "@/types/upload"
 
-/** Cạnh mặc định của khung xem trước (px). Đủ nhìn rõ mặt người hoặc quét thử một mã QR. */
+/** Cạnh mặc định của khung xem trước (px). Đủ nhìn rõ mặt người hoặc đọc số tiền trên biên lai. */
 const DEFAULT_SIZE = 64
 
 const MAX_MB = Math.round(UPLOAD_MAX_BYTES / 1024 / 1024)
@@ -25,7 +25,7 @@ export type ImageUploadProps = {
   organizationId?: string
   /**
    * `circle` = ảnh đại diện, thiếu ảnh thì rơi về chữ viết tắt trên nền màu (cần `name`).
-   * `square` = ảnh phải nhìn được nội dung (mã QR, biên lai chuyển khoản) nên giữ nguyên tỉ lệ
+   * `square` = ảnh phải nhìn được nội dung (biên lai chuyển khoản) nên giữ nguyên tỉ lệ
    * trong một khung vuông có viền.
    */
   shape?: "circle" | "square"
@@ -51,7 +51,7 @@ export type ImageUploadProps = {
  * Input: ảnh hiện tại, thư mục đích trên S3, hình dạng khung, và hai callback (có ảnh mới / gỡ ảnh).
  * Output: Khung xem trước + nút đổi ảnh + nút xoá ảnh (có xác nhận).
  *
- *         MỘT component cho mọi chỗ tải ảnh của app: ảnh đại diện, mã QR của tổ chức, ảnh
+ *         MỘT component cho mọi chỗ tải ảnh của app: ảnh đại diện, logo tổ chức, ảnh
  *         chuyển khoản. Trước đây là hai component gần giống nhau, và chúng đã bắt đầu lệch —
  *         một cái có xác nhận trước khi xoá, cái kia xoá thẳng.
  *

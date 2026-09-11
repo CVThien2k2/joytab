@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { envelope } from "@/schema/envelope"
 import { chargePaymentStatusSchema } from "@/schema/match"
+import { bankAccountSchema } from "@/schema/organization"
 
 /** Mirror của BE (api/src/payments/payments.constants.ts). */
 export const MAX_PAYMENT_NOTE_LENGTH = 300
@@ -16,12 +17,19 @@ export const userChargeSchema = z.object({
 })
 
 /**
- * Công nợ trong MỘT tổ chức — đơn vị mà một lần chuyển khoản trả được, vì QR là của tổ chức.
+ * Công nợ trong MỘT tổ chức — đơn vị mà một lần chuyển khoản trả được, vì tài khoản nhận tiền
+ * là của tổ chức.
  */
 export const organizationChargeGroupSchema = z.object({
   organizationId: z.string(),
   organizationName: z.string(),
-  paymentQrUrl: z.string().nullable(),
+  /** null = tổ chức chưa cấu hình tài khoản nhận tiền; FE phải chặn nút thanh toán. */
+  bankAccount: bankAccountSchema.nullable(),
+  /**
+   * Chuỗi để vẽ thành mã QR, BE đã nhét sẵn ĐÚNG `unpaidTotal` và tên người trả.
+   * null cùng lúc với `bankAccount`.
+   */
+  vietQrPayload: z.string().nullable(),
   unpaidTotal: z.number(),
   charges: z.array(userChargeSchema),
 })

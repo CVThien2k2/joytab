@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { notFound, useParams } from "next/navigation"
 import { AppShell } from "@/components/common/app-shell"
+import { OrgNoticeBars } from "@/components/common/org-notice-bars"
 import { useOrganizations } from "@/hooks/use-organizations-api"
 import { useOrganizationStore } from "@/stores/organization-store"
 
@@ -47,5 +48,12 @@ export default function OrganizationLayout({ children }: { children: React.React
 
   if (isStoreEmpty) return null
 
-  return <AppShell>{children}</AppShell>
+  return (
+    <AppShell>
+      {children}
+      {/* Các thanh nhắc việc còn treo đứng NGOÀI `children` để chúng dính đáy ở mọi trang con
+          — nợ là việc đi theo người, không phải thuộc tính của một trang nào. */}
+      <OrgNoticeBars organizationId={current.id} isOwner={current.role === "owner"} />
+    </AppShell>
+  )
 }

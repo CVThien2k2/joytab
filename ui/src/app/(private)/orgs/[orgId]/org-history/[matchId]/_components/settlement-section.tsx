@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Receipt } from "lucide-react"
+import { SettlementDialog } from "@/components/common/settlement-dialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { useSettlement } from "@/hooks/use-matches-api"
@@ -9,7 +10,6 @@ import { useNow } from "@/hooks/use-now"
 import { formatMoney } from "@/lib/format"
 import { matchPhase } from "@/lib/match-phase"
 import type { MatchDetail } from "@/types/match"
-import { SettlementDialog } from "./settlement-dialog"
 
 /**
  * Input: chi tiết trận.
@@ -21,7 +21,7 @@ import { SettlementDialog } from "./settlement-dialog"
  *
  *         Không còn nhận `isOwner` hay `currentUserId`: trang chứa nó chỉ owner vào được, nên
  *         nhánh "người khác thấy lời nhắc" là nhánh chết. Và cũng không còn khối "bạn cần trả
- *         X" — trả tiền đi từ "Trận của tôi" hoặc dải nhắc nợ, chỗ nói về tiền CỦA MÌNH; ở đây
+ *         X" — trả tiền đi từ thanh nhắc nợ dính đáy màn hình, chỗ nói về tiền CỦA MÌNH; ở đây
  *         người xem đang đứng ở vai người đi thu.
  *
  *         Chốt giá là MỘT lần: đã chốt rồi thì không còn nút sửa lại bảng chia tiền. Muốn đổi

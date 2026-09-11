@@ -13,11 +13,6 @@ export function organizationHomePath(organizationId: string): string {
   return `/orgs/${organizationId}`
 }
 
-/** Trang cấu hình tổ chức. Chỉ owner mở được — chính trang đó tự đá member về trang chủ. */
-export function organizationSettingsPath(organizationId: string): string {
-  return `/orgs/${organizationId}/settings`
-}
-
 /** Sổ lịch sử của cả tổ chức. Chỉ owner mở được — chính trang đó tự đá member về trang chủ. */
 export function organizationHistoryPath(organizationId: string): string {
   return `/orgs/${organizationId}/org-history`

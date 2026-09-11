@@ -45,3 +45,26 @@ export function normalizeOrganizationName(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   return value.trim().replace(/\s+/g, ' ');
 }
+
+/**
+ * Input: Giá trị thô của field `bankBin`.
+ * Output: Chuỗi đã bỏ khoảng trắng; giá trị không phải string đi qua nguyên vẹn để @Matches
+ *         báo lỗi thay vì âm thầm biến thành chuỗi rỗng (mà chuỗi rỗng lại có nghĩa là "gỡ").
+ */
+export function normalizeBankBin(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  return value.trim();
+}
+
+/**
+ * Input: Giá trị thô của field `bankAccountNo`.
+ * Output: Chuỗi đã bỏ MỌI khoảng trắng và dấu chấm/gạch ở giữa.
+ *
+ *         Số tài khoản hay được chép từ tin nhắn dưới dạng "0123 4567 890" hoặc "0123.4567.890"
+ *         — người gõ không sai, chỉ là chép nguyên cách người khác trình bày cho dễ đọc. Từ
+ *         chối những chuỗi đó là bắt họ tự dọn một thứ mình dọn được.
+ */
+export function normalizeBankAccountNo(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  return value.replace(/[\s.\-_]/g, '');
+}

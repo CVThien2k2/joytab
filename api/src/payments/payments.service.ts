@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { BanksService } from '../banks/banks.service';
+import { buildVietQrPayload, toTransferNote } from '../banks/banks.utils';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import { requireMembership } from '../common/utils/membership';
@@ -10,15 +12,22 @@ import { CreatePaymentDto } from './payments.dto';
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly banksService: BanksService,
+  ) {}
 
   /**
    * Input: userId + id tổ chức.
    * Output: Công nợ của user trong tổ chức đó, GOM THEO TỔ CHỨC (một phần tử).
    *
-   *         Vẫn trả dạng nhóm chứ không phải mảng khoản phẳng: nhóm mang theo mã QR và tổng
-   *         nợ — đúng những thứ màn thanh toán cần, và một lần chuyển khoản chỉ trả được cho
-   *         một tổ chức vì QR khác nhau.
+   *         Vẫn trả dạng nhóm chứ không phải mảng khoản phẳng: nhóm mang theo tài khoản nhận
+   *         tiền và tổng nợ — đúng những thứ màn thanh toán cần, và một lần chuyển khoản chỉ
+   *         trả được cho một tổ chức vì tài khoản khác nhau.
+   *
+   *         `vietQrPayload` sinh Ở ĐÂY chứ không để FE dựng: nó phải mang ĐÚNG `unpaidTotal`
+   *         mà chính hàm này vừa cộng. Hai nơi cùng dựng một chuỗi là hai nơi lệch nhau được,
+   *         và lệch ở đây nghĩa là người ta chuyển sai số tiền.
    *
    *         CHỈ trả khoản `unpaid`: trả rồi là xong, và nó đã có mặt trong sổ chứng từ. Nhờ vậy
    *         danh sách này không phình theo số buổi đã chơi — nó là danh sách VIỆC CÒN PHẢI LÀM,
@@ -40,13 +49,18 @@ export class PaymentsService {
             id: true,
             court_name: true,
             start_at: true,
-            organization: { select: { id: true, name: true, payment_qr_url: true } },
+            organization: {
+              select: { id: true, name: true, bank_bin: true, bank_account_no: true },
+            },
           },
         },
       },
     });
 
     const groups = new Map<string, OrganizationChargeGroup>();
+    /** Cột bank thô của từng tổ chức, giữ riêng để gắn mã QR SAU khi đã cộng xong tổng nợ. */
+    const bankColumns = new Map<string, { bin: string | null; accountNo: string | null }>();
+
     for (const charge of charges) {
       const organization = charge.match.organization;
       let group = groups.get(organization.id);
@@ -54,11 +68,16 @@ export class PaymentsService {
         group = {
           organizationId: organization.id,
           organizationName: organization.name,
-          paymentQrUrl: organization.payment_qr_url,
+          bankAccount: null,
+          vietQrPayload: null,
           unpaidTotal: 0,
           charges: [],
         };
         groups.set(organization.id, group);
+        bankColumns.set(organization.id, {
+          bin: organization.bank_bin,
+          accountNo: organization.bank_account_no,
+        });
       }
 
       const item: UserChargeItem = {
@@ -73,7 +92,64 @@ export class PaymentsService {
       group.unpaidTotal += charge.amount;
     }
 
+    await this.attachPaymentTargets(userId, groups, bankColumns);
     return [...groups.values()];
+  }
+
+  /**
+   * Input: userId người trả + các nhóm công nợ đã cộng xong tổng + cột bank thô của từng tổ chức.
+   * Output: Không trả gì; gắn `bankAccount` và `vietQrPayload` vào từng nhóm tại chỗ.
+   *
+   *         Chạy SAU vòng cộng tiền vì mã QR phải mang đúng `unpaidTotal` cuối cùng — dựng
+   *         trong vòng lặp thì mã sinh ra ở lần lặp đầu chỉ mang tiền của một khoản.
+   *
+   *         Nội dung chuyển khoản là TÊN NGƯỜI TRẢ, không dấu: nó đi thẳng vào sao kê của chủ
+   *         tổ chức, và sao kê chính là chỗ họ đối chiếu xem ai đã chuyển. Không có tên thì để
+   *         trống — mã QR vẫn quét được, chỉ là người nhận phải tự đoán.
+   */
+  private async attachPaymentTargets(
+    userId: string,
+    groups: Map<string, OrganizationChargeGroup>,
+    bankColumns: Map<string, { bin: string | null; accountNo: string | null }>,
+  ): Promise<void> {
+    const configured = [...groups.values()].filter((group) => {
+      const columns = bankColumns.get(group.organizationId);
+      return Boolean(columns?.bin && columns.accountNo);
+    });
+    // Tổ chức nào cũng chưa cấu hình tài khoản thì khỏi đụng tới danh sách ngân hàng.
+    if (configured.length === 0) return;
+
+    const [user, banks] = await Promise.all([
+      this.databaseService.user.findUnique({ where: { id: userId }, select: { full_name: true } }),
+      this.banksService.list(),
+    ]);
+    const bankByBin = new Map(banks.map((bank) => [bank.bin, bank]));
+    const note = toTransferNote(user?.full_name ?? '');
+
+    for (const group of configured) {
+      const { bin, accountNo } = bankColumns.get(group.organizationId) as {
+        bin: string;
+        accountNo: string;
+      };
+      const bank = bankByBin.get(bin);
+
+      // Tra hụt tên ngân hàng KHÔNG làm mất tài khoản: bin vẫn dựng được mã QR hợp lệ, và
+      // danh sách VietQR có thể đang là bản bundle sẵn hẹp hơn bản thật.
+      group.bankAccount = {
+        bin,
+        accountNo,
+        bankCode: bank?.code ?? '',
+        bankShortName: bank?.shortName ?? bin,
+        bankName: bank?.name ?? `Ngân hàng ${bin}`,
+        bankLogo: bank?.logo ?? '',
+      };
+      group.vietQrPayload = buildVietQrPayload({
+        bin,
+        accountNo,
+        amount: group.unpaidTotal,
+        note,
+      });
+    }
   }
 
   /**
@@ -93,12 +169,14 @@ export class PaymentsService {
 
     const organization = await this.databaseService.organization.findUnique({
       where: { id: organizationId },
-      select: { payment_qr_url: true },
+      select: { bank_bin: true, bank_account_no: true },
     });
     if (!organization) throw new AppException(ERROR_CODES.ORG_001);
-    // Không có QR thì không có chỗ để chuyển tiền tới — ảnh gửi lên lúc này là ảnh của một
-    // giao dịch không ai biết đi đâu.
-    if (!organization.payment_qr_url) throw new AppException(ERROR_CODES.PAY_005);
+    // Không có tài khoản thì không có chỗ để chuyển tiền tới — ảnh gửi lên lúc này là ảnh của
+    // một giao dịch không ai biết đi đâu.
+    if (!organization.bank_bin || !organization.bank_account_no) {
+      throw new AppException(ERROR_CODES.PAY_005);
+    }
 
     const chargeIds = [...new Set(dto.chargeIds)];
     const paymentId = await this.databaseService.$transaction(async (tx) => {

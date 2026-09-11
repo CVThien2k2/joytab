@@ -66,7 +66,8 @@ model Organization {
   ///
   /// NULL CHÍNH LÀ công tắc: không có cột `join_by_code_enabled` riêng, vì hai nguồn sự thật
   /// cho cùng một câu hỏi sẽ có lúc lệch nhau (enabled = true mà mã rỗng thì nghĩa là gì?).
-  /// Tổ chức mới tạo là NULL — kín cho tới khi owner tự mở.
+  /// Tổ chức mới tạo ĐÃ CÓ MÃ — mở sẵn, vì việc đầu tiên của người lập nhóm là mời người vào.
+  /// Owner đóng lại bất cứ lúc nào, và đóng là set cột này về NULL.
   ///
   /// Mỗi lần mở cửa là một mã MỚI, không dùng lại mã cũ: nhờ vậy đóng cửa là mọi liên kết đã
   /// chia sẻ chết hẳn, mở lại không hồi sinh chúng.
@@ -74,11 +75,19 @@ model Organization {
   /// Lưu PLAINTEXT (khác refresh_token) vì mọi thành viên phải đọc được để chia sẻ. `unique`
   /// vẫn dùng được với cột nullable: Postgres cho phép nhiều NULL trong unique index.
   join_code          String?              @unique @db.VarChar(12)
-  /// Ảnh QR chuyển khoản của tổ chức. NULL = owner chưa cấu hình, FE ẩn nút thanh toán.
+  /// Tài khoản nhận tiền của tổ chức: BIN Napas 6 số của ngân hàng (vd 970422 = MB).
+  /// NULL = owner chưa cấu hình, FE ẩn nút thanh toán.
   ///
-  /// Nguồn DUY NHẤT: trận KHÔNG giữ bản sao. Vì một lần chuyển khoản gom nhiều trận
-  /// (xem Payment), mỗi trận một QR thì người trả không biết quét cái nào.
-  payment_qr_url     String?
+  /// Lưu BIN chứ không lưu tên/mã ngân hàng: tên thương hiệu đổi được (VietCapitalBank thành
+  /// BVBank) còn BIN thì không — nó là số hiệu Napas cấp, và cũng chính là thứ đi vào mã QR.
+  ///
+  /// Thay cho cột `payment_qr_url` cũ (ảnh QR owner tự tải lên): ảnh tĩnh không mang được số
+  /// tiền, nên người trả vẫn phải tự gõ và vẫn gõ sai. Có BIN + số tài khoản thì mã QR được
+  /// sinh lại ở từng lần thanh toán với ĐÚNG số tiền còn nợ.
+  bank_bin           String?              @db.VarChar(6)
+  /// Số tài khoản nhận tiền. Đi CÙNG `bank_bin`: có cái này mà thiếu cái kia thì vô nghĩa,
+  /// nên service luôn ghi/xoá cả cặp.
+  bank_account_no    String?              @db.VarChar(24)
   /// Hệ số nam mặc định cho trận mới. Nữ luôn là mốc 1, nam đóng `male_ratio` lần nữ.
   /// Trận CHỤP LẠI giá trị này lúc tạo nên đổi ở đây không làm đổi trận đã tạo.
   male_ratio         Decimal              @default(1.0) @db.Decimal(4, 2)

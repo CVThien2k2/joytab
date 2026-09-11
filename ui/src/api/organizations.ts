@@ -10,6 +10,7 @@ import {
 } from "@/schema/organization"
 import type {
   CreateOrganizationPayload,
+  EditOrganizationPayload,
   JoinOrganizationPayload,
   Organization,
   OrganizationMember,
@@ -81,7 +82,7 @@ export async function fetchOrganizationPreview(joinCode: string): Promise<Organi
 }
 
 /**
- * Input: Tên tổ chức đã qua validate.
+ * Input: Tên + (tuỳ chọn) tài khoản nhận tiền + hệ số nam + cài đặt chủ tổ chức đã ứng tiền.
  * Output: Tổ chức mới, người gọi là owner.
  *
  *         Parse lại response bằng schema thay vì tin BE: shape sai thì phải nổ ở đây chứ
@@ -90,7 +91,16 @@ export async function fetchOrganizationPreview(joinCode: string): Promise<Organi
 export async function createOrganization(
   payload: CreateOrganizationPayload,
 ): Promise<Organization> {
-  const response = await apiClient.post("/organizations", payload)
+  // BỎ HẲN cặp bank khi owner chưa nhập, thay vì gửi chuỗi rỗng: ở POST, chuỗi rỗng không có
+  // nghĩa "gỡ" như bên PATCH — tổ chức chưa tồn tại thì không có gì để gỡ — nên BE từ chối nó
+  // như một số tài khoản sai định dạng.
+  const hasBankAccount = payload.bankBin.length > 0 && payload.bankAccountNo.length > 0
+  const response = await apiClient.post("/organizations", {
+    name: payload.name,
+    maleRatio: payload.maleRatio,
+    skipOwnerPayment: payload.skipOwnerPayment,
+    ...(hasBankAccount ? { bankBin: payload.bankBin, bankAccountNo: payload.bankAccountNo } : {}),
+  })
   return organizationResponseSchema.parse(response.data).data.organization
 }
 
@@ -122,38 +132,24 @@ export async function updateJoinByCodeEnabled(payload: {
 }
 
 /**
- * Input: id tổ chức + tên mới + hệ số nam mặc định + cài đặt chủ tổ chức tự đánh dấu đã trả.
+ * Input: id tổ chức + tên + tài khoản nhận tiền + hệ số nam + cài đặt chủ tổ chức đã ứng tiền.
  * Output: Tổ chức sau khi đổi. Chỉ owner gọi được.
+ *
+ *         `bankBin`/`bankAccountNo` LUÔN gửi cả cặp, kể cả khi rỗng: BE hiểu cặp rỗng là "gỡ
+ *         tài khoản" và hiểu nửa cặp là lỗi. Form luôn có đủ hai ô nên đây là chuyện tự nhiên.
  *
  *         KHÔNG gửi kèm `joinByCodeEnabled`: BE coi mỗi field là một ý định riêng, gửi kèm là
  *         vô tình xoay mã tham gia và làm chết mọi liên kết mời đang lưu hành.
  */
-export async function updateOrganization(payload: {
-  organizationId: string
-  name: string
-  maleRatio: number
-  skipOwnerPayment: boolean
-}): Promise<Organization> {
+export async function updateOrganization(
+  payload: { organizationId: string } & EditOrganizationPayload,
+): Promise<Organization> {
   const response = await apiClient.patch(`/organizations/${payload.organizationId}`, {
     name: payload.name,
+    bankBin: payload.bankBin,
+    bankAccountNo: payload.bankAccountNo,
     maleRatio: payload.maleRatio,
     skipOwnerPayment: payload.skipOwnerPayment,
-  })
-  return organizationResponseSchema.parse(response.data).data.organization
-}
-
-/**
- * Input: id tổ chức + URL ảnh QR (chuỗi RỖNG = gỡ mã).
- * Output: Tổ chức sau khi đổi. Chỉ owner gọi được.
- *
- *         Ảnh lưu ngay khi chọn nên đây là một mutation riêng, không đi qua form sửa thông tin.
- */
-export async function updatePaymentQr(payload: {
-  organizationId: string
-  paymentQrUrl: string
-}): Promise<Organization> {
-  const response = await apiClient.patch(`/organizations/${payload.organizationId}`, {
-    paymentQrUrl: payload.paymentQrUrl,
   })
   return organizationResponseSchema.parse(response.data).data.organization
 }

@@ -5,7 +5,7 @@ import { CreatePaymentDto, PaymentIdParamDto, PaymentOrganizationParamDto } from
 import { PaymentsService } from './payments.service';
 
 /**
- * Thanh toán luôn nằm trong phạm vi một tổ chức: QR là của tổ chức, nên một lần chuyển khoản
+ * Thanh toán luôn nằm trong phạm vi một tổ chức: tài khoản nhận tiền là của tổ chức, nên một lần chuyển khoản
  * chỉ trả được cho các trận của cùng tổ chức đó.
  */
 @Controller('organizations/:organizationId')
@@ -16,7 +16,8 @@ export class PaymentsController {
   /**
    * Input: cookie `at` + id tổ chức.
    * Output: { groups } — công nợ của chính người gọi trong tổ chức này (một phần tử). Trả
-   *         dạng NHÓM (một phần tử) chứ không phải mảng khoản phẳng: nhóm mang theo mã QR và
+   *         dạng NHÓM (một phần tử) chứ không phải mảng khoản phẳng: nhóm mang theo mã QR (đã
+   *         nhét sẵn số tiền) và
    *         tổng nợ — đúng những thứ hộp thoại thanh toán cần.
    */
   @Get('charges/me')

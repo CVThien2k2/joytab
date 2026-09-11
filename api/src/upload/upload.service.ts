@@ -154,7 +154,7 @@ export class UploadService {
   /**
    * Input: id tổ chức.
    * Output: Xoá SẠCH mọi object dưới `joytab/orgs/<organizationId>/` — mọi ảnh của tổ chức đó
-   *         (QR, minh chứng thanh toán, và bất kỳ loại ảnh nào thêm sau này), không phải nhớ
+   *         (logo, minh chứng thanh toán, và bất kỳ loại ảnh nào thêm sau này), không phải nhớ
    *         liệt kê từng trường ảnh trong DB.
    *
    *         Dùng khi xoá cả tổ chức. Không ném lỗi: tổ chức đã xoá xong ở DB, một lần dọn S3

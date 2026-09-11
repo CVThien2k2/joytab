@@ -57,15 +57,15 @@ export function PayNowButton({
   return (
     <>
       {hasDebt ? (
-        // Không có QR thì không có chỗ chuyển tiền tới (BE cũng chặn bằng PAY_005), nên nói
-        // thẳng phải nhắc ai — thay vì để một cái nút bấm vào chỉ để nhận lỗi.
-        group?.paymentQrUrl ? (
+        // Chưa có tài khoản nhận tiền thì không có chỗ chuyển tới (BE cũng chặn bằng PAY_005),
+        // nên nói thẳng phải nhắc ai — thay vì để một cái nút bấm vào chỉ để nhận lỗi.
+        group?.bankAccount ? (
           <Button type="button" size={size} onClick={openDialog}>
             {label}
           </Button>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Tổ chức chưa có mã QR — nhắc chủ tổ chức cấu hình
+            Tổ chức chưa có tài khoản nhận tiền — nhắc chủ tổ chức cấu hình
           </p>
         )
       ) : null}

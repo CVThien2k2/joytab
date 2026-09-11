@@ -60,6 +60,3 @@ export const ACTIVE_ORGANIZATION_COOKIE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 
 /** Từ khoá tìm kiếm thành viên — dài hơn thế thì không còn là tên hay email nữa. */
 export const MEMBER_SEARCH_MAX_LENGTH = 100;
-
-/** URL ảnh QR do chính API upload cấp; giới hạn để không ai nhét cả data-uri vào cột. */
-export const MAX_PAYMENT_QR_URL_LENGTH = 2048;

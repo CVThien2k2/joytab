@@ -19,7 +19,7 @@ import {
   type MatchHistoryFilters,
   type MatchPayload,
 } from "@/api/matches"
-import type { OrganizationHistoryScope, SettlementFormPayload } from "@/types/match"
+import type { MatchDetail, OrganizationHistoryScope, SettlementFormPayload } from "@/types/match"
 
 /**
  * Khoá cache của lịch. Khai một chỗ để mutation invalidate đúng thứ query đang giữ.
@@ -50,6 +50,9 @@ export const matchQueryKeys = {
   history: (matchId: string) => ["matches", "history", matchId] as const,
   settlement: (matchId: string) => ["matches", "settlement", matchId] as const,
 }
+
+/** Chi tiết trận coi như còn tươi trong 15 giây — dùng chung cho cả `useMatch` lẫn `useFetchMatch`. */
+const MATCH_DETAIL_STALE_TIME = 15_000
 
 /**
  * Làm mới MỌI thứ mà một thay đổi trên trận có thể đụng tới: lịch của tổ chức, chi tiết trận,
@@ -171,8 +174,29 @@ export function useMatch(matchId: string, enabled = true) {
     queryKey: matchQueryKeys.detail(matchId),
     queryFn: () => fetchMatch(matchId),
     enabled,
-    staleTime: 15_000,
+    staleTime: MATCH_DETAIL_STALE_TIME,
   })
+}
+
+/**
+ * Input: Không có.
+ * Output: Hàm nạp chi tiết một trận THEO YÊU CẦU, trả về promise.
+ *
+ *         `useMatch` là query khai báo: dựng hook lên là có request. Chỗ nào chỉ cần chi tiết
+ *         SAU KHI người dùng bấm — nút "Chốt giá" trên từng dòng danh sách — thì dùng hàm này:
+ *         cùng `queryKey` và cùng `staleTime` nên dữ liệu vẫn nằm chung một chỗ với `useMatch`,
+ *         chỉ khác ở thời điểm gọi. Một danh sách 20 dòng vì vậy không sinh 20 request cho một
+ *         việc người ta làm mỗi lần một buổi.
+ */
+export function useFetchMatch(): (matchId: string) => Promise<MatchDetail> {
+  const queryClient = useQueryClient()
+
+  return (matchId) =>
+    queryClient.fetchQuery({
+      queryKey: matchQueryKeys.detail(matchId),
+      queryFn: () => fetchMatch(matchId),
+      staleTime: MATCH_DETAIL_STALE_TIME,
+    })
 }
 
 export function useMatchHistory(matchId: string, enabled = true) {

@@ -120,6 +120,9 @@ export class OrganizationsController {
    * Input: cookie `at` + id tổ chức trên URL + ?page&pageSize&q.
    * Output: { members, pagination } — một trang thành viên, owner trước rồi theo thứ tự vào.
    *
+   *         MỌI thành viên gọi được, không riêng owner: xem nhóm gồm những ai là việc của cả
+   *         nhóm. Xoá thành viên thì vẫn chỉ owner (DELETE :id/members/:userId).
+   *
    *         Đặt SAU 'by-code/:code' nhưng trước hay sau cũng không đổi nghĩa: ':id/members'
    *         có hai đoạn nên không đụng route một đoạn nào.
    */

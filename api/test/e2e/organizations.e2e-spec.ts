@@ -107,7 +107,7 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
     await api().post('/organizations').set(asUser('owner')).send({ name: 'A' }).expect(400);
   });
 
-  it('tạo tổ chức: người tạo là owner, và tổ chức ĐANG KÍN (chưa có mã)', async () => {
+  it('tạo tổ chức: người tạo là owner, và tổ chức ĐÃ MỞ kèm mã mời', async () => {
     const res = await api()
       .post('/organizations')
       .set(asUser('owner'))
@@ -119,9 +119,10 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
     expect(org.name).toBe(`E2E Quỹ ${RUN_ID}`);
     expect(org.role).toBe('owner');
     expect(org.memberCount).toBe(1);
-    // Mã tồn tại đồng nghĩa cửa đang mở, nên tổ chức mới tạo KHÔNG có mã.
-    expect(org.joinByCodeEnabled).toBe(false);
-    expect(org.joinCode).toBeNull();
+    // Mở sẵn: việc đầu tiên sau khi lập nhóm là mời người vào, nên mã phải có ngay. Công tắc
+    // suy ra TỪ mã chứ không phải một cột riêng, nên hai dòng này luôn đi cùng nhau.
+    expect(org.joinByCodeEnabled).toBe(true);
+    expect(org.joinCode).toMatch(/^[0-9A-HJKMNP-TV-Z]{8}$/);
 
     organizationId = org.id;
   });
@@ -212,6 +213,27 @@ describe('Tổ chức — luồng đầy đủ từ tạo tới mời người v
       .set(asUser('joiner'))
       .expect(200);
     expect(preview.body.data.organization.alreadyMember).toBe(true);
+  });
+
+  it('member ĐỌC được danh sách thành viên — xem nhóm gồm ai là việc của cả nhóm', async () => {
+    const res = await api()
+      .get(`/organizations/${organizationId}/members`)
+      .set(asUser('joiner'))
+      .expect(200);
+
+    const members = res.body.data.members as { role: string; userId: string }[];
+    expect(members).toHaveLength(2);
+    // Owner xếp trước theo hợp đồng sắp xếp của BE.
+    expect(members[0].role).toBe('owner');
+    expect(members.some((member) => member.role === 'member')).toBe(true);
+  });
+
+  it('người NGOÀI tổ chức hỏi danh sách thành viên → ORG_001, không phải 403', async () => {
+    const res = await api()
+      .get(`/organizations/${organizationId}/members`)
+      .set(asUser('outsider'))
+      .expect(404);
+    expect(res.body.code).toBe('ORG_001');
   });
 
   it('member không đổi được công tắc → ORG_004', async () => {

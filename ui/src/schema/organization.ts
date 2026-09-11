@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { bankAccountFormSchema } from "@/schema/bank"
 import { envelope } from "@/schema/envelope"
 
 /** Khớp ORGANIZATION_ROLES ở BE (api/src/organizations/organizations.constants.ts). */
@@ -30,6 +31,21 @@ export function normalizeJoinCode(value: string): string {
     .replace(/[IL]/g, "1")
 }
 
+/**
+ * Tài khoản nhận tiền của tổ chức, BE đã tra sẵn tên ngân hàng từ danh sách VietQR.
+ * Mirror của `BankAccount` ở BE (api/src/common/utils/types.ts).
+ *
+ * `bankShortName` lùi về chính `bin` khi BE tra hụt, nên chỗ hiển thị luôn có gì đó để in ra.
+ */
+export const bankAccountSchema = z.object({
+  bin: z.string(),
+  accountNo: z.string(),
+  bankCode: z.string(),
+  bankShortName: z.string(),
+  bankName: z.string(),
+  bankLogo: z.string(),
+})
+
 export const organizationSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -38,8 +54,8 @@ export const organizationSchema = z.object({
   joinCode: z.string().nullable(),
   joinByCodeEnabled: z.boolean(),
   memberCount: z.number(),
-  /** Ảnh QR chuyển khoản; null = owner chưa cấu hình. Member cũng thấy — họ là người quét. */
-  paymentQrUrl: z.string().nullable(),
+  /** Tài khoản nhận tiền; null = owner chưa cấu hình. Member cũng thấy — họ là người quét. */
+  bankAccount: bankAccountSchema.nullable(),
   /** Hệ số nam mặc định cho trận mới (nữ là mốc 1). */
   maleRatio: z.number(),
   /** Giá trị fill sẵn cho ô tích ở màn chốt chi phí — xem settlementFormSchema.skipOwnerPayment. */
@@ -117,8 +133,24 @@ export const organizationMemberListResponseSchema = envelope(
 export const MIN_MALE_RATIO = 0.1
 export const MAX_MALE_RATIO = 10
 
-/** Form tạo tổ chức. */
-export const createOrganizationFormSchema = z.object({
+/**
+ * Hệ số của tổ chức mới. Trùng với `@default(1.0)` của cột `male_ratio` trong schema.prisma —
+ * form tạo phải fill sẵn đúng giá trị BE sẽ tự đặt, để người bỏ qua ô này và người gõ tay
+ * "1" nhận về cùng một tổ chức.
+ */
+export const DEFAULT_MALE_RATIO = 1
+
+/**
+ * Ô hệ số nhận CHUỖI (input trả chuỗi) rồi mới ép số, nên `z.input` khác `z.output` — form
+ * dùng hệ số phải khai riêng hai kiểu này.
+ */
+export const maleRatioSchema = z.coerce
+  .number()
+  .min(MIN_MALE_RATIO, `Hệ số nam từ ${MIN_MALE_RATIO}`)
+  .max(MAX_MALE_RATIO, `Hệ số nam tối đa ${MAX_MALE_RATIO}`)
+
+/** Chỉ phần tên, tách riêng để form sửa tổ chức dùng lại cùng một ràng buộc. */
+export const organizationNameSchema = z.object({
   name: z
     .string()
     .trim()
@@ -127,6 +159,24 @@ export const createOrganizationFormSchema = z.object({
     .max(MAX_ORGANIZATION_NAME_LENGTH, `Tên tổ chức tối đa ${MAX_ORGANIZATION_NAME_LENGTH} ký tự`)
     .transform((value) => value.replace(/\s+/g, " ")),
 })
+
+/**
+ * Form tạo tổ chức: tên + tài khoản nhận tiền + hệ số nam + "chủ tổ chức đã ứng tiền".
+ *
+ * Hỏi cả bốn ngay ở màn tạo vì đó là những thứ người lập nhóm đã quyết trong đầu rồi ("tiền
+ * vào tài khoản nào, nam đóng gấp mấy, tôi có ứng trước không"). Chỉ TÊN là bắt buộc — ba thứ
+ * còn lại bỏ trống được và sửa sau ở màn cài đặt.
+ *
+ * `z.intersection` chứ không `.extend`: `bankAccountFormSchema` có `superRefine` nên nó là
+ * ZodEffects, mà ZodEffects thì không `.extend` được.
+ */
+export const createOrganizationFormSchema = z.intersection(
+  organizationNameSchema.extend({
+    maleRatio: maleRatioSchema,
+    skipOwnerPayment: z.boolean(),
+  }),
+  bankAccountFormSchema,
+)
 
 /**
  * Bốn con số của trang chủ, đều là của CHÍNH người đang đăng nhập.
@@ -146,18 +196,16 @@ export const organizationOverviewResponseSchema = envelope(
 )
 
 /**
- * Form sửa tổ chức: tên + hệ số nam mặc định + cài đặt chủ tổ chức tự đánh dấu đã trả.
+ * Form sửa tổ chức: ĐÚNG BẰNG form tạo.
  *
- * Hệ số nhập dạng chuỗi (input trả chuỗi) rồi mới ép số, nên `z.input` khác `z.output` — form
- * phải dùng riêng hai kiểu này.
+ * Cố ý là một bí danh chứ không phải một schema riêng: hai màn hỏi cùng bốn thứ, viết lại
+ * ràng buộc lần hai chỉ mở đường cho chúng lệch nhau (một bên cho số tài khoản 24 ký tự, bên
+ * kia 20, và không ai phát hiện cho tới lúc owner sửa xong thì không lưu được).
+ *
+ * Giữ tên riêng vì hai form là hai ý định khác nhau — nếu sau này màn sửa hỏi thêm thứ màn tạo
+ * không hỏi, chỗ cần đổi đã có sẵn ở đây.
  */
-export const editOrganizationFormSchema = createOrganizationFormSchema.extend({
-  maleRatio: z.coerce
-    .number()
-    .min(MIN_MALE_RATIO, `Hệ số nam từ ${MIN_MALE_RATIO}`)
-    .max(MAX_MALE_RATIO, `Hệ số nam tối đa ${MAX_MALE_RATIO}`),
-  skipOwnerPayment: z.boolean(),
-})
+export const editOrganizationFormSchema = createOrganizationFormSchema
 
 /**
  * Form tham gia bằng mã. Chuẩn hoá NGAY trong schema để payload gửi BE đúng thứ FE đã

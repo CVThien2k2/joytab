@@ -47,6 +47,27 @@ export const ERROR_CODES = {
     status: 409,
     message: 'Chủ tổ chức không thể rời tổ chức. Hãy xoá tổ chức nếu không dùng nữa.',
   },
+  /**
+   * Gửi ngân hàng mà thiếu số tài khoản, hoặc ngược lại.
+   *
+   * Không đoán hộ nửa còn lại: nửa cặp ghi được vào DB thì tới màn thanh toán mới lộ ra, lúc đó
+   * người đang cần trả tiền là người chịu.
+   */
+  ORG_006: {
+    code: 'ORG_006',
+    status: 400,
+    message: 'Cần chọn cả ngân hàng và số tài khoản.',
+  },
+  /**
+   * BIN gửi lên đúng 6 chữ số nhưng không khớp ngân hàng nào trong danh sách VietQR.
+   *
+   * Gần như chỉ xảy ra khi client tự dựng request — ô chọn của FE lấy thẳng từ GET /banks.
+   */
+  ORG_007: {
+    code: 'ORG_007',
+    status: 400,
+    message: 'Ngân hàng không hợp lệ.',
+  },
 
   /** Trận không tồn tại, hoặc user không thuộc tổ chức của trận nên coi như không tồn tại. */
   MATCH_001: { code: 'MATCH_001', status: 404, message: 'Không tìm thấy lịch thi đấu.' },
@@ -112,8 +133,8 @@ export const ERROR_CODES = {
   /** Có khoản trong danh sách đã trả rồi, hoặc không phải của người gửi. */
   PAY_002: { code: 'PAY_002', status: 409, message: 'Có khoản đã được thanh toán rồi.' },
   PAY_004: { code: 'PAY_004', status: 400, message: 'Chưa chọn khoản nào để thanh toán.' },
-  /** Tổ chức chưa có QR — không có chỗ để chuyển tiền tới. */
-  PAY_005: { code: 'PAY_005', status: 409, message: 'Tổ chức chưa cấu hình mã QR thanh toán.' },
+  /** Tổ chức chưa có tài khoản ngân hàng — không có chỗ để chuyển tiền tới. */
+  PAY_005: { code: 'PAY_005', status: 409, message: 'Tổ chức chưa cấu hình tài khoản nhận tiền.' },
 
   /**
    * Kho ảnh (S3) chưa được cấu hình trên môi trường này. Là lỗi cấu hình nên 500, nhưng CỐ TÌNH

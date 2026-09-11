@@ -72,6 +72,25 @@ export type OrganizationPreview = {
   alreadyMember: boolean;
 };
 
+/**
+ * Tài khoản nhận tiền của tổ chức, kèm thông tin ngân hàng đã tra sẵn.
+ *
+ * BE tra tên/logo từ danh sách VietQR rồi trả luôn, thay vì để FE tự join với `GET /banks`:
+ * màn thanh toán chỉ cần hiện "MBBank · 0912345678", bắt nó tải thêm 42 ngân hàng để tìm một
+ * dòng là đổi một lượt gọi lấy một chuỗi đã có sẵn trong RAM của BE.
+ */
+export type BankAccount = {
+  /** BIN Napas 6 số — thứ thật sự đi vào mã QR. */
+  bin: string;
+  accountNo: string;
+  /** Mã chữ của ngân hàng (MB, VCB...), dùng để đọc bằng mắt và đặt tên logo. */
+  bankCode: string;
+  bankShortName: string;
+  bankName: string;
+  /** Chuỗi rỗng khi VietQR không có logo cho ngân hàng đó. */
+  bankLogo: string;
+};
+
 export type OrganizationSummary = {
   id: string;
   name: string;
@@ -80,9 +99,9 @@ export type OrganizationSummary = {
   joinCode: string | null;
   joinByCodeEnabled: boolean;
   memberCount: number;
-  /** Ảnh QR chuyển khoản của tổ chức; null = owner chưa cấu hình. Mọi thành viên đều thấy —
-   *  người phải quét mã chính là member. */
-  paymentQrUrl: string | null;
+  /** Tài khoản nhận tiền; null = owner chưa cấu hình. Mọi thành viên đều thấy — người phải
+   *  quét mã chính là member. */
+  bankAccount: BankAccount | null;
   /** Hệ số nam mặc định cho trận mới (nữ là mốc 1). */
   maleRatio: number;
   /** Giá trị FILL SẴN cho ô tích ở màn chốt chi phí — xem SettleMatchDto.skipOwnerPayment. */
@@ -282,8 +301,16 @@ export type UserChargeItem = {
 export type OrganizationChargeGroup = {
   organizationId: string;
   organizationName: string;
-  /** null = tổ chức chưa cấu hình QR, FE phải chặn nút thanh toán. */
-  paymentQrUrl: string | null;
+  /** null = tổ chức chưa cấu hình tài khoản nhận tiền, FE phải chặn nút thanh toán. */
+  bankAccount: BankAccount | null;
+  /**
+   * Chuỗi để FE vẽ thành mã QR, đã nhét sẵn ĐÚNG `unpaidTotal` và nội dung chuyển khoản.
+   * null khi tổ chức chưa cấu hình tài khoản.
+   *
+   * Sinh ở BE chứ không để FE tự dựng: nó phải khớp từng đồng với số tiền BE sắp ghi nhận là
+   * đã trả, mà số tiền đó do BE tính. Hai nơi cùng dựng một chuỗi là hai nơi có thể lệch nhau.
+   */
+  vietQrPayload: string | null;
   unpaidTotal: number;
   charges: UserChargeItem[];
 };

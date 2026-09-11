@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { MapPin, Users } from "lucide-react"
+import { SettleMatchButton } from "@/components/common/settle-match-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatDayLabel, formatMoney, formatTime } from "@/lib/format"
@@ -92,7 +93,8 @@ const WORK_STYLE: Record<
  *         TÌM việc chứ không phải để mở từng dòng.
  */
 export function OrgHistoryCard({ match }: { match: OrganizationHistoryMatch }) {
-  const work = WORK_STYLE[workStateOf(match)]
+  const workState = workStateOf(match)
+  const work = WORK_STYLE[workState]
   // Tiền chỉ có nghĩa khi đã chốt giá. Buổi chưa chốt và buổi đã huỷ đều có `totalAmount = 0`,
   // mà hiện "0đ" ở đó là nói rằng buổi đó miễn phí — trong khi thật ra chưa có con số nào.
   const settled = match.status === "settled"
@@ -163,8 +165,15 @@ export function OrgHistoryCard({ match }: { match: OrganizationHistoryMatch }) {
         <Badge variant={work.variant}>{work.label}</Badge>
       </span>
 
-      {/* Đích bấm duy nhất của thẻ. Cùng một nút cho mọi trạng thái — trang chi tiết tự biết
-          hiện nút chốt giá hay bảng chia tiền, nên ở đây không phải đoán trước. */}
+      {/* Buổi CHƯA CHỐT GIÁ chốt được ngay tại dòng này: đó là việc duy nhất nó đang chờ, mà
+          bắt đi qua trang chi tiết rồi quay lại là hai lần chuyển trang cho một lần gõ số —
+          trong khi đây đúng là danh sách người ta mở ra để làm cho xong việc đó. Cùng một nút
+          với tấm nhắc dính đáy màn hình, nên hai lối vào cho cảm giác như một. */}
+      {workState === "unsettled" ? (
+        <SettleMatchButton matchId={match.id} organizationId={match.organizationId} />
+      ) : null}
+
+      {/* Lối sang trang chi tiết vẫn còn cho mọi trạng thái: ở đó mới xem được ai đã trả. */}
       <Button asChild variant="outline" size="sm" className="shrink-0">
         <Link href={matchDetailPath(match.organizationId, match.id)}>Xem chi tiết</Link>
       </Button>

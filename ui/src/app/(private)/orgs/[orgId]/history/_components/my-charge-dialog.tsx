@@ -127,9 +127,7 @@ function MyChargeBody({ organizationId, match }: { organizationId: string; match
               {formatMoney(myCharge.amount)}
               <span className="ml-0.5 text-sm text-muted-foreground">đ</span>
             </span>
-            <Badge variant={paid ? "success" : "destructive"}>
-              {paid ? "Đã trả" : "Chưa trả"}
-            </Badge>
+            <Badge variant={paid ? "success" : "destructive"}>{paid ? "Đã trả" : "Chưa trả"}</Badge>
           </span>
         </div>
       </div>

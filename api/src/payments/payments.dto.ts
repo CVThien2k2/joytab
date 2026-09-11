@@ -2,7 +2,7 @@ import { Transform } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsOptional, IsString, IsUrl, IsUUID, MaxLength } from 'class-validator';
 import { MAX_CHARGES_PER_PAYMENT, MAX_PAYMENT_NOTE_LENGTH, MAX_PROOF_URL_LENGTH } from './payments.constants';
 
-/** Param của mọi route thanh toán — đều lồng dưới một tổ chức vì QR là của tổ chức. */
+/** Param của mọi route thanh toán — đều lồng dưới một tổ chức vì tài khoản nhận tiền là của tổ chức. */
 export class PaymentOrganizationParamDto {
   @IsUUID(undefined, { message: 'Id tổ chức không hợp lệ' })
   organizationId: string;

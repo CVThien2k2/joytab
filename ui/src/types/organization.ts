@@ -1,5 +1,6 @@
 import { z } from "zod"
 import {
+  bankAccountSchema,
   createOrganizationFormSchema,
   editOrganizationFormSchema,
   joinOrganizationFormSchema,
@@ -21,9 +22,16 @@ export type OrganizationMember = z.infer<typeof organizationMemberSchema>
 
 export type Pagination = z.infer<typeof paginationSchema>
 
+/** Tài khoản nhận tiền đã gắn tên ngân hàng, BE tra sẵn. */
+export type BankAccount = z.infer<typeof bankAccountSchema>
+
+/**
+ * Ô hệ số và ô số tài khoản đều nhận chuỗi rồi mới chuẩn hoá, nên input khác output — cả hai
+ * form đều phải khai riêng hai kiểu này.
+ */
+export type CreateOrganizationFormValues = z.input<typeof createOrganizationFormSchema>
 export type CreateOrganizationPayload = z.infer<typeof createOrganizationFormSchema>
 
-/** Ô hệ số nhập chuỗi rồi mới ép số, nên input khác output — xem chú thích ở schema. */
 export type EditOrganizationFormValues = z.input<typeof editOrganizationFormSchema>
 export type EditOrganizationPayload = z.infer<typeof editOrganizationFormSchema>
 

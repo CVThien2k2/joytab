@@ -14,19 +14,36 @@ import {
 } from 'class-validator';
 import { MALE_RATIO_DECIMALS, MAX_MALE_RATIO, MIN_MALE_RATIO } from '../matches/matches.constants';
 import {
+  BANK_ACCOUNT_NO_REGEX,
+  BANK_BIN_REGEX,
+  MAX_BANK_ACCOUNT_NO_LENGTH,
+  MIN_BANK_ACCOUNT_NO_LENGTH,
+  OPTIONAL_BANK_ACCOUNT_NO_REGEX,
+  OPTIONAL_BANK_BIN_REGEX,
+} from '../banks/banks.constants';
+import {
   JOIN_CODE_REGEX,
   MAX_ORGANIZATION_NAME_LENGTH,
   MEMBER_SEARCH_MAX_LENGTH,
   MEMBERS_DEFAULT_PAGE_SIZE,
   MEMBERS_MAX_PAGE_SIZE,
-  MAX_PAYMENT_QR_URL_LENGTH,
   MIN_ORGANIZATION_NAME_LENGTH,
 } from './organizations.constants';
-import { normalizeJoinCode, normalizeOrganizationName } from './organizations.utils';
+import {
+  normalizeBankAccountNo,
+  normalizeBankBin,
+  normalizeJoinCode,
+  normalizeOrganizationName,
+} from './organizations.utils';
 
 /**
- * Body của POST /organizations. Chỉ cần tên — mã tham gia do BE sinh, công tắc mở cửa mặc
- * định TẮT nên tổ chức mới tạo là kín cho tới khi owner tự bật.
+ * Body của POST /organizations. Chỉ `name` là BẮT BUỘC — mã tham gia do BE sinh, công tắc mở
+ * cửa mặc định TẮT nên tổ chức mới tạo là kín cho tới khi owner tự bật.
+ *
+ * Ba thứ còn lại hỏi luôn ở màn tạo vì chúng là những quyết định owner đã có sẵn trong đầu lúc
+ * lập nhóm ("tiền vào tài khoản nào, nam đóng gấp mấy, tôi có ứng trước không"). Bắt họ tạo
+ * xong rồi vào Cài đặt sửa từng cái là ba lần quay lại cho một việc. Vẫn để TUỲ CHỌN: chưa
+ * nghĩ ra thì bỏ trống, sửa sau ở màn cài đặt.
  */
 export class CreateOrganizationDto {
   @Transform(({ value }): unknown => normalizeOrganizationName(value))
@@ -35,6 +52,35 @@ export class CreateOrganizationDto {
     message: `Tên tổ chức phải từ ${MIN_ORGANIZATION_NAME_LENGTH} đến ${MAX_ORGANIZATION_NAME_LENGTH} ký tự`,
   })
   name: string;
+
+  @IsOptional()
+  @Transform(({ value }): unknown => normalizeBankBin(value))
+  @Matches(BANK_BIN_REGEX, { message: 'Ngân hàng không hợp lệ' })
+  bankBin?: string;
+
+  @IsOptional()
+  @Transform(({ value }): unknown => normalizeBankAccountNo(value))
+  @Matches(BANK_ACCOUNT_NO_REGEX, { message: 'Số tài khoản chỉ gồm chữ và số' })
+  @Length(MIN_BANK_ACCOUNT_NO_LENGTH, MAX_BANK_ACCOUNT_NO_LENGTH, {
+    message: `Số tài khoản phải từ ${MIN_BANK_ACCOUNT_NO_LENGTH} đến ${MAX_BANK_ACCOUNT_NO_LENGTH} ký tự`,
+  })
+  bankAccountNo?: string;
+
+  /** Hệ số nam mặc định cho trận mới. Không gửi thì DB lấy mặc định 1.0. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber(
+    { maxDecimalPlaces: MALE_RATIO_DECIMALS },
+    { message: `Hệ số nam tối đa ${MALE_RATIO_DECIMALS} chữ số thập phân` },
+  )
+  @Min(MIN_MALE_RATIO, { message: `Hệ số nam phải từ ${MIN_MALE_RATIO}` })
+  @Max(MAX_MALE_RATIO, { message: `Hệ số nam không quá ${MAX_MALE_RATIO}` })
+  maleRatio?: number;
+
+  /** Giá trị fill sẵn cho ô tích ở màn chốt chi phí. Không gửi thì DB lấy mặc định false. */
+  @IsOptional()
+  @IsBoolean({ message: 'Giá trị bật/tắt không hợp lệ' })
+  skipOwnerPayment?: boolean;
 }
 
 /** Body của POST /organizations/join. */
@@ -90,14 +136,24 @@ export class UpdateOrganizationDto {
   joinByCodeEnabled?: boolean;
 
   /**
-   * Ảnh QR chuyển khoản của tổ chức. Chuỗi RỖNG là hợp lệ và có nghĩa là gỡ QR — khác với
-   * không gửi field (giữ nguyên), nên không dùng @IsUrl trần được.
+   * Tài khoản nhận tiền. Hai field này đi THÀNH CẶP: service từ chối nếu chỉ gửi một cái, vì
+   * ngân hàng không có số tài khoản (hay ngược lại) không dựng nổi mã QR.
+   *
+   * Chuỗi RỖNG ở CẢ HAI là hợp lệ và có nghĩa là gỡ tài khoản — khác với không gửi field
+   * (giữ nguyên), nên regex phải cho qua chuỗi rỗng và service mới là nơi phân biệt.
    */
   @IsOptional()
-  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
-  @IsString({ message: 'Ảnh QR không hợp lệ' })
-  @MaxLength(MAX_PAYMENT_QR_URL_LENGTH, { message: 'Đường dẫn ảnh QR quá dài' })
-  paymentQrUrl?: string;
+  @Transform(({ value }): unknown => normalizeBankBin(value))
+  @Matches(OPTIONAL_BANK_BIN_REGEX, { message: 'Ngân hàng không hợp lệ' })
+  bankBin?: string;
+
+  @IsOptional()
+  @Transform(({ value }): unknown => normalizeBankAccountNo(value))
+  @Matches(OPTIONAL_BANK_ACCOUNT_NO_REGEX, { message: 'Số tài khoản chỉ gồm chữ và số' })
+  @MaxLength(MAX_BANK_ACCOUNT_NO_LENGTH, {
+    message: `Số tài khoản tối đa ${MAX_BANK_ACCOUNT_NO_LENGTH} ký tự`,
+  })
+  bankAccountNo?: string;
 
   /** Hệ số nam mặc định cho trận mới. Nữ luôn là mốc 1. */
   @IsOptional()

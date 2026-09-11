@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
+import { BanksModule } from './banks/banks.module';
 import { AppLogger } from './common/loggers/app.logger';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
@@ -51,6 +52,7 @@ function validateEnvironmentVariables(env: Record<string, unknown>): Record<stri
     }),
     DatabaseModule,
     AuthModule,
+    BanksModule,
     OrganizationsModule,
     MatchesModule,
     PaymentsModule,

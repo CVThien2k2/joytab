@@ -19,8 +19,9 @@ import { OrgHistoryList } from "./_components/org-history-list"
  *         Vì vậy nó cũng là một danh sách VIỆC chứ không phải chỗ tra cứu: mỗi dòng có nút
  *         sang trang chi tiết, nơi chốt được giá và xem được ai đã trả.
  *
- *         Không có dải nhắc nợ như trang kia: dải đó nói về tiền CỦA MÌNH, mà ở đây người xem
- *         đang đứng ở vai người đi thu.
+ *         Trong THÂN trang không có gì nói về tiền của mình: ở đây người xem đang đứng ở vai
+ *         người đi thu. Thanh nhắc nợ dính đáy màn hình thì vẫn có mặt như mọi trang khác —
+ *         nó đi theo người chứ không theo trang.
  *
  *         CHỈ owner vào được. Member bị đá về trang chủ: sidebar đã không hiện mục này, nhưng
  *         đường dẫn cũ trong bookmark hay link dán cho nhau thì vẫn tới đây — mà ẩn khỏi nav

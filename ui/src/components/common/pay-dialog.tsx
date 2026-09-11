@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowLeft, ArrowRight, Camera, Send, X } from "lucide-react"
+import { ArrowLeft, ArrowRight, Camera, Check, Copy, Send, X } from "lucide-react"
+import { QRCodeSVG } from "qrcode.react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,6 +19,7 @@ import { formatDate, formatMoney } from "@/lib/format"
 import { uploadOneImage } from "@/lib/upload"
 import { cn } from "@/lib/utils"
 import { UPLOAD_IMAGE_CONTENT_TYPES, UPLOAD_MAX_BYTES } from "@/schema/upload"
+import type { BankAccount } from "@/types/organization"
 import type { OrganizationChargeGroup } from "@/types/payment"
 
 /** QR và ảnh chuyển khoản đứng CÙNG một cỡ, CÙNG một chỗ (cột trái) ở hai bước — hai nửa của
@@ -93,6 +95,62 @@ function AmountBlock({
           Gồm {count} buổi chưa trả · trả cả một lần
         </span>
       )}
+    </div>
+  )
+}
+
+/**
+ * Input: Tài khoản nhận tiền của tổ chức.
+ * Output: Tên ngân hàng + số tài khoản, kèm nút chép số.
+ *
+ *         Có mặt bên cạnh mã QR chứ không thay nó: quét được thì không ai đọc tới đây, nhưng
+ *         quét KHÔNG được là chuyện có thật (app bank cũ, camera mờ, người dùng đang ở máy
+ *         tính mà bank thì trên điện thoại). Lúc đó số tài khoản là đường lùi duy nhất, và nó
+ *         phải chép được bằng một lần bấm — gõ tay 10 chữ số là gõ sai.
+ *
+ *         Nút chép chỉ chép SỐ TÀI KHOẢN. Số tiền đã nằm trong mã QR và đã in to ngay trên,
+ *         thêm một nút nữa chỉ làm người ta phải chọn.
+ */
+function BankAccountBlock({ account }: { account: BankAccount }) {
+  const [copied, setCopied] = useState(false)
+
+  /**
+   * Input: Không nhận tham số.
+   * Output: Chép số tài khoản vào clipboard và đổi icon trong 2 giây.
+   *
+   *         `navigator.clipboard` không có ở ngữ cảnh không bảo mật (http trên máy khác trong
+   *         mạng LAN) — hỏng thì nói thẳng, vì im lặng nghĩa là người dùng tưởng đã chép xong
+   *         rồi dán ra một số tài khoản cũ còn trong clipboard.
+   */
+  async function copyAccountNo(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(account.accountNo)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error("Không chép được. Vui lòng chọn và chép thủ công.")
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border px-2.5 py-2">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs text-muted-foreground">{account.bankShortName}</p>
+        <p className="truncate font-medium tabular-nums">{account.accountNo}</p>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Chép số tài khoản"
+        onClick={() => void copyAccountNo()}
+      >
+        {copied ? (
+          <Check className="size-4 text-emerald-600" aria-hidden="true" />
+        ) : (
+          <Copy className="size-4" aria-hidden="true" />
+        )}
+      </Button>
     </div>
   )
 }
@@ -225,7 +283,7 @@ export function PayDialog({
               đó là chỗ duy nhất cảnh báo việc này không lùi lại được. */}
           <DialogDescription>
             {step === 1
-              ? "Quét mã QR và chuyển đúng số tiền bên dưới."
+              ? "Quét mã QR — số tiền đã điền sẵn trong mã."
               : "Tải ảnh chuyển khoản. Gửi là ghi nhận đã trả."}
           </DialogDescription>
         </DialogHeader>
@@ -239,32 +297,43 @@ export function PayDialog({
               hộp lên trên. */}
           {step === 1 ? (
             <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
-              {group.paymentQrUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={group.paymentQrUrl}
-                  alt={`Mã QR thanh toán của ${group.organizationName}`}
+              {group.vietQrPayload ? (
+                // VẼ tại chỗ từ chuỗi BE gửi, không tải ảnh từ đâu cả: chuỗi đó đã mang sẵn
+                // đúng `total` bên dưới, nên mã này và con số kia không thể lệch nhau.
+                //
+                // `level="M"` là mức sửa lỗi vừa đủ cho một mã quét trên màn hình sáng; cao
+                // hơn thì mã dày ô hơn mà chẳng giải quyết vấn đề nào có thật ở đây.
+                <div
                   className={cn(
                     PROOF_BOX_CLASS,
-                    "shrink-0 rounded-lg border bg-card object-contain p-2",
+                    "grid shrink-0 place-items-center rounded-lg border bg-white p-3",
                   )}
-                />
+                >
+                  <QRCodeSVG
+                    value={group.vietQrPayload}
+                    level="M"
+                    title={`Mã QR thanh toán của ${group.organizationName}`}
+                    className="size-full"
+                  />
+                </div>
               ) : (
                 // Lối này gần như không tới được: chỗ duy nhất mở hộp thoại (`PayNowButton`) đã
-                // chặn khi tổ chức chưa có QR. Vẫn nói ra thay vì để một ô trống, vì "không
-                // thấy gì" là thứ người dùng không biết phải làm gì với nó.
+                // chặn khi tổ chức chưa có tài khoản. Vẫn nói ra thay vì để một ô trống, vì
+                // "không thấy gì" là thứ người dùng không biết phải làm gì với nó.
                 <div
                   className={cn(
                     PROOF_BOX_CLASS,
                     "grid shrink-0 place-items-center rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground",
                   )}
                 >
-                  Tổ chức chưa có mã QR — nhắc chủ tổ chức cấu hình
+                  Tổ chức chưa có tài khoản nhận tiền — nhắc chủ tổ chức cấu hình
                 </div>
               )}
 
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <AmountBlock total={total} count={unpaid.length} />
+
+                {group.bankAccount ? <BankAccountBlock account={group.bankAccount} /> : null}
 
                 {/* Danh sách buổi ĐỌC THÔI, không checkbox: nó trả lời "số tiền kia gồm những
                     gì", chứ không mời chọn lại — một lần chuyển khoản là trả cả.
@@ -373,7 +442,7 @@ export function PayDialog({
               </Button>
               <Button
                 type="button"
-                disabled={!group.paymentQrUrl}
+                disabled={!group.vietQrPayload}
                 onClick={() => {
                   setDirection("forward")
                   setStep(2)

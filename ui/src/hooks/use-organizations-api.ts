@@ -2,6 +2,7 @@
 
 import {
   keepPreviousData,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -22,7 +23,6 @@ import {
   setActiveOrganization,
   updateJoinByCodeEnabled,
   updateOrganization,
-  updatePaymentQr,
   type MemberListParams,
 } from "@/api/organizations"
 import type { Organization } from "@/types/organization"
@@ -116,7 +116,15 @@ export const memberQueryKeys = {
       params.pageSize,
       params.q ?? "",
     ] as const,
+  infinite: (organizationId: string, q: string) =>
+    [...memberQueryKeys.all(organizationId), "infinite", q] as const,
 }
+
+/**
+ * Số thành viên mỗi lô của danh sách cuộn. Bằng `MEMBERS_DEFAULT_PAGE_SIZE` của BE, nên lô đầu
+ * là đúng cái BE trả khi không truyền gì — không có lô nào bị cắt lẻ vì FE tự chọn con số khác.
+ */
+export const MEMBERS_BATCH_SIZE = 3
 
 /**
  * Input: id tổ chức + trang + từ khoá.
@@ -136,6 +144,40 @@ export function useOrganizationMembers(params: MemberListParams) {
   return useQuery({
     queryKey: memberQueryKeys.page(params),
     queryFn: () => fetchOrganizationMembers(params),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  })
+}
+
+/**
+ * Input: id tổ chức + từ khoá đã debounce.
+ * Output: Query cuộn vô hạn danh sách thành viên — mỗi `fetchNextPage` là một lô nối sau lô
+ *         trước.
+ *
+ *         Vẫn là API phân trang `page/pageSize` chứ không cursor: danh sách thành viên xếp theo
+ *         một thứ tự cố định (owner trước, rồi ngày vào), nên trang thứ n luôn là cùng một lô —
+ *         không có chuyện trôi dòng như sổ lịch sử đang được ghi thêm liên tục.
+ *
+ *         Từ khoá nằm TRONG queryKey nên gõ chữ mới là react-query tự bắt đầu lại từ lô đầu:
+ *         không có bước "reset về trang 1" nào phải nhớ gọi bằng tay.
+ *
+ *         `staleTime` 30 giây, cùng lý do với bản phân trang: người vào/ra tính theo phút.
+ */
+export function useInfiniteOrganizationMembers(organizationId: string, q: string) {
+  return useInfiniteQuery({
+    queryKey: memberQueryKeys.infinite(organizationId, q),
+    queryFn: ({ pageParam }) =>
+      fetchOrganizationMembers({
+        organizationId,
+        page: pageParam,
+        pageSize: MEMBERS_BATCH_SIZE,
+        q: q || undefined,
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.page < lastPage.pagination.totalPages
+        ? lastPage.pagination.page + 1
+        : undefined,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   })
@@ -320,30 +362,4 @@ function buildHandlers(params: {
       toast.error(getApiErrorMessage(error, params.fallbackError))
     },
   }
-}
-
-/**
- * Input: Không nhận tham số.
- * Output: Mutation đổi/gỡ mã QR thanh toán của tổ chức.
- *
- *         Tách khỏi useUpdateOrganization (form sửa thông tin) vì ảnh lưu NGAY khi chọn, không
- *         chờ bấm Lưu — giữ một URL chưa lưu trong form chỉ tạo ảnh mồ côi trên S3 khi người ta
- *         rời trang.
- *
- *         Invalidate danh sách tổ chức: ảnh QR nằm trong chính tổ chức đó, mà store của khu
- *         này được dựng từ query danh sách.
- */
-export function useUpdatePaymentQr() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: updatePaymentQr,
-    onSuccess: (_organization, variables) => {
-      toast.success(variables.paymentQrUrl ? "Đã cập nhật mã QR" : "Đã gỡ mã QR")
-      void queryClient.invalidateQueries({ queryKey: organizationQueryKeys.list })
-    },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error, "Không lưu được mã QR. Vui lòng thử lại."))
-    },
-  })
 }

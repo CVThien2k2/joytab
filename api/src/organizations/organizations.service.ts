@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Bank } from '../banks/banks.constants';
+import { BanksService } from '../banks/banks.service';
 import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { AppException } from '../common/exceptions/app.exception';
 import {
+  BankAccount,
   OrganizationMemberSummary,
   OrganizationOverview,
   OrganizationPreview,
@@ -24,7 +27,8 @@ type OrganizationWithMembership = {
   name: string;
   /** NULL = tổ chức đang kín. Xem chú thích ở schema.prisma. */
   join_code: string | null;
-  payment_qr_url: string | null;
+  bank_bin: string | null;
+  bank_account_no: string | null;
   male_ratio: unknown;
   skip_owner_payment: boolean;
   _count: { members: number };
@@ -37,6 +41,7 @@ export class OrganizationsService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly uploadService: UploadService,
+    private readonly banksService: BanksService,
   ) {}
 
   /**
@@ -58,8 +63,9 @@ export class OrganizationsService {
       },
     });
 
+    const banks = await this.bankIndex();
     return memberships.map((membership) =>
-      this.toSummary(membership.organization, this.toRole(membership.role), membership.joined_at),
+      this.toSummary(membership.organization, this.toRole(membership.role), membership.joined_at, banks),
     );
   }
 
@@ -67,12 +73,14 @@ export class OrganizationsService {
    * Input: userId người hỏi + id tổ chức + phân trang/từ khoá.
    * Output: Một trang thành viên (owner trước, rồi theo thứ tự vào) kèm meta phân trang.
    *
-   *         CHỈ owner đọc được. Người ngoài tổ chức nhận ORG_001 (không tồn tại) — CÙNG lý do
-   *         với setJoinByCodeEnabled: người ngoài không cần biết id đó có thật hay không.
-   *         Ở đây còn quan trọng hơn vì cái rò ra sẽ là email của người khác. Member trong tổ
-   *         chức thì nhận ORG_004 (không đủ quyền) chứ không phải ORG_001: họ đã biết tổ chức
-   *         này có thật, giấu tiếp chỉ làm thông báo lỗi nói dối. Đây cũng là hàng rào thật của
-   *         việc "chỉ chủ tổ chức thấy danh sách thành viên" — FE ẩn màn hình chỉ là lớp ngoài.
+   *         MỌI thành viên đọc được. Danh sách "trong nhóm có những ai" là thứ ai trong nhóm
+   *         cũng cần — người ta đăng ký đi đá cùng nhau, mà không biết nhóm gồm những ai thì
+   *         mỗi buổi lại phải đi hỏi. XOÁ thành viên thì vẫn chỉ owner (kiểm riêng ở
+   *         `removeMember`), nên mở đọc ở đây không mở theo quyền nào khác.
+   *
+   *         Người NGOÀI tổ chức vẫn nhận ORG_001 (không tồn tại) — cùng lý do với
+   *         setJoinByCodeEnabled: người ngoài không cần biết id đó có thật hay không, và cái
+   *         rò ra ở đây là email của người khác.
    *
    *         Sắp owner lên đầu bằng `role: 'desc'` ('owner' > 'member' theo thứ tự chữ) chứ
    *         không sắp trong JS: chỉ trang hiện tại được tải về, nên thứ tự BẮT BUỘC phải do DB
@@ -86,8 +94,7 @@ export class OrganizationsService {
     organizationId: string,
     query: ListMembersQueryDto,
   ): Promise<{ members: OrganizationMemberSummary[]; pagination: Pagination }> {
-    const membership = await this.requireMembership(userId, organizationId);
-    if (this.toRole(membership.role) !== 'owner') throw new AppException(ERROR_CODES.ORG_004);
+    await this.requireMembership(userId, organizationId);
 
     const where = this.buildMemberFilter(organizationId, query.q);
     const [totalItems, rows] = await this.databaseService.$transaction([
@@ -284,27 +291,43 @@ export class OrganizationsService {
 
   /**
    * Input: userId người tạo + tên tổ chức đã validate.
-   * Output: Tổ chức mới với người tạo là owner, và ĐANG KÍN (`join_code` = null).
+   * Output: Tổ chức mới với người tạo là owner, và ĐANG MỞ (`join_code` có sẵn).
    *
-   *         Không sinh mã sẵn: mã tồn tại đồng nghĩa cửa đang mở, nên sinh sẵn là mở cửa hộ
-   *         owner. Owner bật công tắc thì lúc đó mới có mã.
+   *         Mở sẵn vì việc đầu tiên của người vừa lập nhóm luôn là mời người vào: bắt họ tạo
+   *         xong rồi đi tìm một công tắc để bật mới có mã là chèn một bước vào giữa đúng lúc
+   *         họ đang muốn gửi lời mời. Công tắc vẫn còn nguyên — owner đóng lại bất cứ lúc nào,
+   *         và đóng là mọi liên kết đã phát ra chết ngay.
+   *
+   *         Đánh đổi: từ lúc tạo, ai có mã là vào thẳng, không qua bước duyệt nào. Chấp nhận
+   *         được vì mã chỉ nằm ở chỗ owner cho tới khi chính owner chia sẻ nó.
    *
    *         Tạo org và tạo member nằm trong MỘT transaction (`members.create` lồng trong
    *         `organization.create`): một tổ chức không có owner là tổ chức không ai vào sửa
    *         được, thà không tạo còn hơn tạo hỏng.
+   *
+   *         Thử lại khi trùng mã, y như `updateWithNewJoinCode`: unique index là nơi chặn
+   *         thật, còn 1.1e12 tổ hợp thì trùng 5 lần liên tiếp nghĩa là hỏng ở chỗ khác.
    */
   async create(userId: string, dto: CreateOrganizationDto): Promise<OrganizationSummary> {
-    const organization = await this.databaseService.organization.create({
-      data: {
-        name: dto.name,
-        created_by: userId,
-        members: { create: { user_id: userId, role: 'owner' } },
-      },
-      include: { _count: { select: { members: true } } },
-    });
+    // Validate TRƯỚC khi ghi: bin rác lọt vào là mã QR sinh ra sau này dẫn tiền tới một ngân
+    // hàng không tồn tại, mà lúc đó không ai đi soát lại cột này nữa.
+    await this.requireValidBankAccount(dto.bankBin, dto.bankAccountNo);
 
-    this.logger.log(`Organization "${organization.name}" created by ${userId} (closed)`);
-    return this.toSummary(organization, 'owner', new Date());
+    const data = {
+      name: dto.name,
+      created_by: userId,
+      // Không gửi thì để DB lấy mặc định (male_ratio 1.0, skip_owner_payment false) — ghi
+      // đè bằng giá trị mình tự nghĩ ra là dựng thêm một nguồn sự thật thứ hai.
+      ...(dto.bankBin ? { bank_bin: dto.bankBin, bank_account_no: dto.bankAccountNo } : {}),
+      ...(dto.maleRatio !== undefined ? { male_ratio: dto.maleRatio } : {}),
+      ...(dto.skipOwnerPayment !== undefined ? { skip_owner_payment: dto.skipOwnerPayment } : {}),
+      members: { create: { user_id: userId, role: 'owner' as const } },
+    };
+
+    const organization = await this.createWithNewJoinCode(data);
+
+    this.logger.log(`Organization "${organization.name}" created by ${userId} (open)`);
+    return this.toSummary(organization, 'owner', new Date(), await this.bankIndex());
   }
 
   /**
@@ -355,8 +378,8 @@ export class OrganizationsService {
    *         người ngoài không cần biết id đó có thật hay không. Là member nhưng không phải
    *         owner mới trả ORG_004 — người trong nhà thì nói thẳng là không đủ quyền.
    *
-   *         Ảnh QR cũ bị xoá trên S3 khi owner đổi/gỡ QR — không dọn thì mỗi lần đổi QR là thêm
-   *         một file mồ côi, cùng lý do với avatar (xem `AuthService.updateProfile`).
+   *         `bankBin` và `bankAccountNo` đi THÀNH CẶP: gửi một mình một cái là ORG_006. Nửa
+   *         cặp không dựng nổi mã QR, mà ghi vào DB rồi thì màn thanh toán mới phát hiện ra.
    */
   async update(userId: string, organizationId: string, dto: UpdateOrganizationDto): Promise<OrganizationSummary> {
     const membership = await this.databaseService.organizationMember.findFirst({
@@ -365,10 +388,10 @@ export class OrganizationsService {
     if (!membership) throw new AppException(ERROR_CODES.ORG_001);
     if (this.toRole(membership.role) !== 'owner') throw new AppException(ERROR_CODES.ORG_004);
 
-    const current = await this.databaseService.organization.findUniqueOrThrow({
-      where: { id: organizationId },
-      select: { payment_qr_url: true },
-    });
+    // Cặp bank đi cùng nhau, và bin phải là ngân hàng có thật — kiểm TRƯỚC mọi lượt ghi để
+    // không có chuyện đổi tên thành công còn tài khoản thì hỏng giữa chừng.
+    const bankChange = this.resolveBankChange(dto.bankBin, dto.bankAccountNo);
+    if (bankChange?.bank_bin) await this.requireValidBankAccount(bankChange.bank_bin, bankChange.bank_account_no);
 
     // Xoay mã đứng riêng một query vì nó phải thử lại khi trùng mã; tên thì ghi thẳng.
     if (dto.joinByCodeEnabled === true) {
@@ -380,24 +403,21 @@ export class OrganizationsService {
       data: {
         ...(dto.name !== undefined ? { name: dto.name } : {}),
         ...(dto.joinByCodeEnabled === false ? { join_code: null } : {}),
-        // Chuỗi rỗng = gỡ QR. Phân biệt được với "không gửi" nhờ `!== undefined`, nên owner
-        // đổi tên tổ chức không vô tình xoá mất mã QR đang dùng.
-        ...(dto.paymentQrUrl !== undefined ? { payment_qr_url: dto.paymentQrUrl || null } : {}),
+        // Chuỗi rỗng ở cả hai = gỡ tài khoản. Phân biệt được với "không gửi" nhờ `!== undefined`,
+        // nên owner đổi tên tổ chức không vô tình xoá mất tài khoản đang nhận tiền.
+        ...(bankChange ?? {}),
         ...(dto.maleRatio !== undefined ? { male_ratio: dto.maleRatio } : {}),
         ...(dto.skipOwnerPayment !== undefined ? { skip_owner_payment: dto.skipOwnerPayment } : {}),
       },
       include: { _count: { select: { members: true } } },
     });
 
-    if (dto.paymentQrUrl !== undefined && organization.payment_qr_url !== current.payment_qr_url) {
-      await this.uploadService.deleteStoredImage(current.payment_qr_url);
-    }
-
     const changes = [
       dto.name !== undefined ? `renamed to "${dto.name}"` : null,
       dto.joinByCodeEnabled === true ? 'opened with a new join code' : null,
       dto.joinByCodeEnabled === false ? 'closed' : null,
-      dto.paymentQrUrl !== undefined ? 'payment QR changed' : null,
+      // KHÔNG log số tài khoản: log đi vào file và đi qua nhiều tay hơn DB.
+      bankChange ? (bankChange.bank_bin ? `bank account set (bin ${bankChange.bank_bin})` : 'bank account removed') : null,
       dto.maleRatio !== undefined ? `male ratio set to ${dto.maleRatio}` : null,
       dto.skipOwnerPayment !== undefined ? `skip owner payment set to ${dto.skipOwnerPayment}` : null,
     ].filter(Boolean);
@@ -405,7 +425,7 @@ export class OrganizationsService {
       this.logger.log(`Organization ${organizationId} ${changes.join(', ')} by ${userId}`);
     }
 
-    return this.toSummary(organization, 'owner', membership.joined_at);
+    return this.toSummary(organization, 'owner', membership.joined_at, await this.bankIndex());
   }
 
   /**
@@ -449,6 +469,7 @@ export class OrganizationsService {
       { ...organization, _count: { members: organization._count.members + 1 } },
       'member',
       joinedAt,
+      await this.bankIndex(),
     );
   }
 
@@ -459,6 +480,36 @@ export class OrganizationsService {
    *         Mã sinh ngẫu nhiên nên có thể trùng mã đang dùng ở tổ chức khác; thay vì "đọc xem
    *         có chưa rồi mới ghi" (vẫn race), cứ ghi và bắt lỗi unique để thử mã khác.
    */
+  /**
+   * Input: Mảnh `data` của `organization.create`, CHƯA có `join_code`.
+   * Output: Tổ chức vừa tạo, đã kèm mã tham gia.
+   *
+   *         Sinh mã rồi thử ghi, trùng thì sinh lại — không đọc trước để kiểm mã đã tồn tại
+   *         chưa: giữa lượt đọc và lượt ghi vẫn có chỗ cho một request khác chen vào lấy đúng
+   *         mã đó. Unique index mới là nơi chặn thật.
+   *
+   *         Song sinh với `updateWithNewJoinCode` (dùng cho lượt MỞ CỬA lại) chứ không gộp
+   *         được: một bên `create` một bên `update`, và bên create còn phải tạo cả hàng
+   *         membership trong cùng transaction.
+   */
+  private async createWithNewJoinCode(
+    data: Parameters<DatabaseService['organization']['create']>[0]['data'],
+  ): Promise<OrganizationWithMembership> {
+    for (let attempt = 1; attempt <= JOIN_CODE_MAX_ATTEMPTS; attempt++) {
+      try {
+        return await this.databaseService.organization.create({
+          data: { ...data, join_code: generateJoinCode() },
+          include: { _count: { select: { members: true } } },
+        });
+      } catch (err) {
+        if (!this.isUniqueViolation(err) || attempt === JOIN_CODE_MAX_ATTEMPTS) throw err;
+        this.logger.warn(`Join code collision on attempt ${attempt}, retrying`);
+      }
+    }
+    // Không tới được: vòng lặp trên hoặc return hoặc throw. Có để TypeScript thấy mọi nhánh.
+    throw new AppException(ERROR_CODES.SYS_001);
+  }
+
   private async updateWithNewJoinCode(organizationId: string): Promise<OrganizationWithMembership> {
     for (let attempt = 1; attempt <= JOIN_CODE_MAX_ATTEMPTS; attempt++) {
       try {
@@ -497,10 +548,60 @@ export class OrganizationsService {
    *         lại, mã trong tay nhiều người hơn — nên việc BẬT/TẮT và xoay mã vẫn CHỈ owner làm
    *         được (PATCH /organizations/:id), và đóng cửa là mã chết ngay lập tức.
    */
+  /**
+   * Input: Không nhận tham số.
+   * Output: Bảng tra ngân hàng theo BIN.
+   *
+   *         Dựng MỘT LẦN cho cả danh sách tổ chức rồi truyền xuống `toSummary`, thay vì mỗi
+   *         tổ chức một lượt tra: danh sách nằm sẵn trong RAM nên tra lẻ không tốn mạng, nhưng
+   *         nó biến `toSummary` thành hàm async và kéo theo `Promise.all` ở mọi chỗ gọi.
+   */
+  private async bankIndex(): Promise<Map<string, Bank>> {
+    const banks = await this.banksService.list();
+    return new Map(banks.map((bank) => [bank.bin, bank]));
+  }
+
+  /**
+   * Input: `bankBin` và `bankAccountNo` lấy từ body PATCH (có thể undefined, có thể rỗng).
+   * Output: Mảnh `data` để ghi vào Prisma, hoặc `null` khi lần này không đụng tới tài khoản.
+   *
+   *         Ba trạng thái, không phải hai: KHÔNG GỬI gì (giữ nguyên), gửi CẢ HAI rỗng (gỡ),
+   *         gửi CẢ HAI có giá trị (đặt). Gửi nửa cặp là ORG_006 — không đoán hộ, vì đoán sai
+   *         ở đây nghĩa là tiền của cả nhóm chảy vào một số tài khoản không ai kiểm.
+   */
+  private resolveBankChange(
+    bankBin: string | undefined,
+    bankAccountNo: string | undefined,
+  ): { bank_bin: string | null; bank_account_no: string | null } | null {
+    if (bankBin === undefined && bankAccountNo === undefined) return null;
+    if (bankBin === undefined || bankAccountNo === undefined) throw new AppException(ERROR_CODES.ORG_006);
+
+    const hasBin = bankBin.length > 0;
+    const hasAccount = bankAccountNo.length > 0;
+    if (hasBin !== hasAccount) throw new AppException(ERROR_CODES.ORG_006);
+
+    return hasBin ? { bank_bin: bankBin, bank_account_no: bankAccountNo } : { bank_bin: null, bank_account_no: null };
+  }
+
+  /**
+   * Input: Cặp bin + số tài khoản sắp ghi vào DB (bin rỗng/undefined = không có gì để kiểm).
+   * Output: Không trả gì; ném ORG_006 nếu thiếu nửa cặp, ORG_007 nếu bin không phải ngân hàng
+   *         có thật.
+   *
+   *         Kiểm bin ở đây là hàng rào cuối: DTO chỉ biết "6 chữ số", còn "6 chữ số này có phải
+   *         một ngân hàng không" thì chỉ danh sách VietQR trả lời được.
+   */
+  private async requireValidBankAccount(bin: string | undefined | null, accountNo: string | undefined | null): Promise<void> {
+    if (!bin && !accountNo) return;
+    if (!bin || !accountNo) throw new AppException(ERROR_CODES.ORG_006);
+    if (!(await this.banksService.findByBin(bin))) throw new AppException(ERROR_CODES.ORG_007);
+  }
+
   private toSummary(
     organization: OrganizationWithMembership,
     role: OrganizationRole,
     joinedAt: Date,
+    banks: Map<string, Bank>,
   ): OrganizationSummary {
     return {
       id: organization.id,
@@ -510,7 +611,7 @@ export class OrganizationsService {
       // Suy ra từ mã, không đọc cột riêng: cửa mở đúng bằng việc có mã.
       joinByCodeEnabled: organization.join_code !== null,
       memberCount: organization._count.members,
-      paymentQrUrl: organization.payment_qr_url,
+      bankAccount: toBankAccount(organization.bank_bin, organization.bank_account_no, banks),
       maleRatio: Number(organization.male_ratio),
       skipOwnerPayment: organization.skip_owner_payment,
       joinedAt: joinedAt.toISOString(),
@@ -524,4 +625,31 @@ export class OrganizationsService {
   private toRole(value: string): OrganizationRole {
     return ORGANIZATION_ROLES.includes(value as OrganizationRole) ? (value as OrganizationRole) : 'member';
   }
+}
+
+/**
+ * Input: Hai cột bank trong DB + bảng tra ngân hàng.
+ * Output: Tài khoản nhận tiền đã gắn tên ngân hàng, hoặc null khi tổ chức chưa cấu hình.
+ *
+ *         BIN không tra ra vẫn TRẢ VỀ tài khoản, chỉ là tên ngân hàng lùi về chính con số:
+ *         tiền đã cấu hình rồi, mà danh sách VietQR thì có thể đang là bản bundle sẵn hẹp hơn
+ *         bản thật. Nuốt luôn tài khoản chỉ vì tra hụt một cái tên là làm cả tổ chức không
+ *         thanh toán được vì một sự cố ở chỗ khác.
+ */
+function toBankAccount(
+  bin: string | null,
+  accountNo: string | null,
+  banks: Map<string, Bank>,
+): BankAccount | null {
+  if (!bin || !accountNo) return null;
+
+  const bank = banks.get(bin);
+  return {
+    bin,
+    accountNo,
+    bankCode: bank?.code ?? '',
+    bankShortName: bank?.shortName ?? bin,
+    bankName: bank?.name ?? `Ngân hàng ${bin}`,
+    bankLogo: bank?.logo ?? '',
+  };
 }

@@ -7,7 +7,7 @@
  * ghi được vào bất kỳ prefix nào của bucket — kể cả prefix của app khác đang dùng chung bucket.
  * (Hub không chặn ở BE; đây là chỗ joytab làm chặt hơn.)
  */
-export const UPLOAD_FOLDERS = ['avatars', 'org-logos', 'payment-qr', 'payment-proofs'] as const;
+export const UPLOAD_FOLDERS = ['avatars', 'org-logos', 'payment-proofs'] as const;
 export type UploadFolder = (typeof UPLOAD_FOLDERS)[number];
 
 /**
@@ -17,7 +17,7 @@ export type UploadFolder = (typeof UPLOAD_FOLDERS)[number];
  * Gắn theo tổ chức để một lần xoá tổ chức là xoá sạch theo PREFIX, không phải nhớ dọn từng loại
  * ảnh một (xem `UploadService.deleteOrganizationFolder`).
  */
-export const ORG_SCOPED_UPLOAD_FOLDERS = ['org-logos', 'payment-qr', 'payment-proofs'] as const;
+export const ORG_SCOPED_UPLOAD_FOLDERS = ['org-logos', 'payment-proofs'] as const;
 
 export function isOrgScopedFolder(folder: UploadFolder): boolean {
   return (ORG_SCOPED_UPLOAD_FOLDERS as readonly string[]).includes(folder);

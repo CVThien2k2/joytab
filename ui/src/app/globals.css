@@ -63,6 +63,28 @@
   }
   html {
     @apply font-sans;
+
+    /* Chừa sẵn máng cho thanh cuộn dọc, kể cả ở trang ngắn không cuộn được.
+
+       Không có nó thì mỗi lần đi từ một trang ngắn sang một trang dài, thanh cuộn hiện ra và
+       ăn mất ~15px bề ngang: cả nội dung nhích sang trái một cái — đúng lúc mắt đang tìm chỗ
+       vừa bấm. Máng cố định thì trang nào cũng rộng như nhau, đi lại không còn cú giật nào.
+
+       Trên macOS (thanh cuộn kiểu overlay) máng rộng 0, nên không mất gì cả. */
+    scrollbar-gutter: stable;
+  }
+
+  /* Radix khoá cuộn nền lúc mở hộp thoại (react-remove-scroll): nó GỠ thanh cuộn rồi bù đúng
+     bấy nhiêu px bằng `margin-right` trên body, để trang khỏi nhích. Nhưng với
+     `scrollbar-gutter: stable` thì chỗ đó chưa từng mất đi — phần bù thành ra một cú nhảy 15px
+     mỗi lần mở hộp thoại, tức đúng thứ vừa chữa xong ở trên lại quay lại ở chỗ khác.
+
+     Đè được vì đây là khai báo `!important` nằm TRONG một layer, còn của Radix là style chèn
+     lúc chạy, không thuộc layer nào: với `!important` thì thứ tự layer đảo lại, layer thắng
+     phần không layer. Chỉ chặn đúng `margin-right`; `overflow: hidden` của họ vẫn giữ nguyên,
+     vì đó mới là thứ khoá cuộn. */
+  body[data-scroll-locked] {
+    margin-right: 0 !important;
   }
 
   /* Con trỏ NGÓN TAY cho mọi thứ bấm được.
