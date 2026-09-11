@@ -82,8 +82,12 @@ export async function fetchOrganizationPreview(joinCode: string): Promise<Organi
 }
 
 /**
- * Input: Tên + (tuỳ chọn) tài khoản nhận tiền + hệ số nam + cài đặt chủ tổ chức đã ứng tiền.
+ * Input: Tên + tài khoản nhận tiền + hệ số nam + cài đặt chủ tổ chức đã ứng tiền.
  * Output: Tổ chức mới, người gọi là owner.
+ *
+ *         Cặp bank LUÔN gửi và luôn có chữ: form bắt nhập đủ trước khi submit. BE vẫn để hai
+ *         field này tuỳ chọn (chuỗi rỗng ở POST bị từ chối như số tài khoản sai định dạng), nên
+ *         nếu sau này bỏ ràng buộc ở form thì phải bỏ cả hai field khỏi body chứ không gửi rỗng.
  *
  *         Parse lại response bằng schema thay vì tin BE: shape sai thì phải nổ ở đây chứ
  *         không phải ở component đọc `organization.joinCode`.
@@ -91,15 +95,12 @@ export async function fetchOrganizationPreview(joinCode: string): Promise<Organi
 export async function createOrganization(
   payload: CreateOrganizationPayload,
 ): Promise<Organization> {
-  // BỎ HẲN cặp bank khi owner chưa nhập, thay vì gửi chuỗi rỗng: ở POST, chuỗi rỗng không có
-  // nghĩa "gỡ" như bên PATCH — tổ chức chưa tồn tại thì không có gì để gỡ — nên BE từ chối nó
-  // như một số tài khoản sai định dạng.
-  const hasBankAccount = payload.bankBin.length > 0 && payload.bankAccountNo.length > 0
   const response = await apiClient.post("/organizations", {
     name: payload.name,
+    bankBin: payload.bankBin,
+    bankAccountNo: payload.bankAccountNo,
     maleRatio: payload.maleRatio,
     skipOwnerPayment: payload.skipOwnerPayment,
-    ...(hasBankAccount ? { bankBin: payload.bankBin, bankAccountNo: payload.bankAccountNo } : {}),
   })
   return organizationResponseSchema.parse(response.data).data.organization
 }
@@ -135,8 +136,8 @@ export async function updateJoinByCodeEnabled(payload: {
  * Input: id tổ chức + tên + tài khoản nhận tiền + hệ số nam + cài đặt chủ tổ chức đã ứng tiền.
  * Output: Tổ chức sau khi đổi. Chỉ owner gọi được.
  *
- *         `bankBin`/`bankAccountNo` LUÔN gửi cả cặp, kể cả khi rỗng: BE hiểu cặp rỗng là "gỡ
- *         tài khoản" và hiểu nửa cặp là lỗi. Form luôn có đủ hai ô nên đây là chuyện tự nhiên.
+ *         `bankBin`/`bankAccountNo` LUÔN gửi cả cặp: BE hiểu nửa cặp là lỗi. Form bắt nhập đủ
+ *         cả hai nên không còn đường gửi cặp rỗng (thứ BE hiểu là "gỡ tài khoản").
  *
  *         KHÔNG gửi kèm `joinByCodeEnabled`: BE coi mỗi field là một ý định riêng, gửi kèm là
  *         vô tình xoay mã tham gia và làm chết mọi liên kết mời đang lưu hành.

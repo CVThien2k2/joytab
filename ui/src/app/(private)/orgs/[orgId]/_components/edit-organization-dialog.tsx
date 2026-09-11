@@ -46,6 +46,10 @@ import type {
  *         thông tin): giờ nó là hai ô để gõ rồi bấm Lưu, đúng loại với những ô còn lại. Mã tham
  *         gia vẫn không ở đây — cái đó là hành vi bật/tắt, không phải field.
  *
+ *         Không GỠ được tài khoản ở đây nữa (trước kia xoá trắng cả hai ô là gỡ): tài khoản nhận
+ *         tiền đã là bắt buộc từ lúc tạo tổ chức, cho gỡ ở màn sửa thì chỉ là một đường vòng để
+ *         quay lại đúng trạng thái không thu được tiền. Đổi sang tài khoản khác thì vẫn đổi.
+ *
  *         Dùng CHUNG `createOrganizationFormSchema`: cùng ràng buộc, viết lại là mở đường cho
  *         hai bên lệch nhau.
  *
@@ -85,11 +89,16 @@ export function EditOrganizationDialog({
       <DialogContent className="sm:max-w-md">
         {mutation.isPending ? <LoadingOverlay label="Đang lưu" /> : null}
 
+        {/* `contents` ở CẢ `form` lẫn `fieldset`: hai thẻ này chỉ gom hành vi (submit, khoá khi
+            đang lưu), không được chiếm một hàng trong lưới ba hàng của hộp thoại. Chiếm thì
+            `DialogBody` mất neo chiều cao và form dài hơn màn hình tràn khỏi hộp thay vì cuộn
+            bên trong. */}
         <form
           onSubmit={form.handleSubmit((payload) =>
             mutation.mutate({ organizationId: organization.id, ...payload }),
           )}
           noValidate
+          className="contents"
         >
           <fieldset disabled={mutation.isPending} className="contents">
             <DialogHeader>
@@ -180,8 +189,8 @@ export function EditOrganizationDialog({
  * Output: Giá trị fill vào form.
  *
  *         Tài khoản chưa cấu hình thành hai chuỗi RỖNG chứ không phải undefined: ô input phải
- *         luôn là controlled, và chuỗi rỗng cũng chính là thứ BE hiểu là "gỡ tài khoản" khi
- *         owner xoá trắng hai ô rồi bấm Lưu.
+ *         luôn là controlled. Tổ chức tạo từ trước khi tài khoản thành bắt buộc vẫn rơi vào
+ *         nhánh này — form mở ra trống và bắt nhập trước khi lưu được, đúng thứ mình muốn.
  */
 function toFormValues(organization: Organization): EditOrganizationFormValues {
   return {

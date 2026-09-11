@@ -69,13 +69,21 @@ async function createMatch(params: {
   return response.body.data.match.id as string;
 }
 
-/** Dời một trận về quá khứ để chốt chi phí được — API cho phép sửa sang quá khứ (nhập bù). */
+/**
+ * Dời một trận về quá khứ để chốt chi phí được.
+ *
+ * Ghi THẲNG vào DB chứ không đi qua `PATCH /matches/:id`: API chặn dời giờ về quá khứ — đúng
+ * luật của nó, nên gọi qua đó là mọi ca phía sau chết ngay ở khâu dựng dữ liệu. Ở đây "trận đã
+ * đá xong" chỉ là điều kiện ĐẦU VÀO, không phải thứ đang được kiểm.
+ */
 async function moveToPast(matchId: string): Promise<void> {
-  await api()
-    .patch(`/matches/${matchId}`)
-    .set(asUser('owner'))
-    .send({ startAt: at(-3 * HOUR), endAt: at(-1 * HOUR) })
-    .expect(200);
+  await db.match.update({
+    where: { id: matchId },
+    data: {
+      start_at: new Date(Date.now() - 3 * HOUR),
+      end_at: new Date(Date.now() - 1 * HOUR),
+    },
+  });
 }
 
 beforeAll(async () => {
@@ -206,13 +214,42 @@ describe('Vote', () => {
   });
 
   it('trận khác trùng giờ thì không vote được — kể cả ở tổ chức khác', async () => {
-    const overlapping = await createMatch({
-      startOffset: 10 * DAY + HOUR,
-      endOffset: 10 * DAY + 3 * HOUR,
-      courtName: 'E2E Sân trùng giờ',
-    });
+    // Trận trùng giờ phải dựng ở tổ chức KHÁC: trong cùng tổ chức thì chính API tạo trận đã
+    // chặn (MATCH_014), không dựng nổi tình huống này. Mà luật đang kiểm là luật của NGƯỜI —
+    // một người không đá hai nơi cùng một giờ — nên nó phải đúng xuyên tổ chức.
+    const other = await api()
+      .post('/organizations')
+      .set(asUser('third'))
+      .send({ name: `E2E Matches khac ${RUN_ID}` })
+      .expect(201);
+    const otherOrganizationId = other.body.data.organization.id as string;
 
-    const response = await api().post(`/matches/${overlapping}/vote`).set(asUser('mate')).expect(409);
+    const opened = await api()
+      .patch(`/organizations/${otherOrganizationId}`)
+      .set(asUser('third'))
+      .send({ joinByCodeEnabled: true })
+      .expect(200);
+    await api()
+      .post('/organizations/join')
+      .set(asUser('mate'))
+      .send({ joinCode: opened.body.data.organization.joinCode })
+      .expect(201);
+
+    const overlapping = await api()
+      .post(`/organizations/${otherOrganizationId}/matches`)
+      .set(asUser('third'))
+      .send({
+        courtName: 'E2E Sân trùng giờ',
+        startAt: at(10 * DAY + HOUR),
+        endAt: at(10 * DAY + 3 * HOUR),
+        maxPlayers: 4,
+      })
+      .expect(201);
+
+    const response = await api()
+      .post(`/matches/${overlapping.body.data.match.id}/vote`)
+      .set(asUser('mate'))
+      .expect(409);
     expect(response.body.code).toBe('MATCH_006');
   });
 
@@ -376,9 +413,10 @@ describe('Chốt chi phí', () => {
 
     const settlement = response.body.data.settlement;
     const byUser = Object.fromEntries(
-      settlement.charges.map(
-        (charge: { userId: string; amount: number; paymentStatus: string }) => [charge.userId, charge],
-      ),
+      settlement.charges.map((charge: { userId: string; amount: number; paymentStatus: string }) => [
+        charge.userId,
+        charge,
+      ]),
     );
     // Vẫn chia đều 150.000 mỗi người — công thức chia không đổi.
     expect(byUser[users.owner.id].amount).toBe(150000);
@@ -409,16 +447,12 @@ describe('Thanh toán gom nhiều trận', () => {
     matchId: string;
     amount: number;
     paymentStatus: string;
-    rejectReason: string | null;
   };
   type Group = { organizationId: string; unpaidTotal: number; charges: ChargeItem[] };
 
   /** Công nợ của `mate` ở tổ chức này, lấy qua đúng API mà trang thanh toán dùng. */
   const myGroup = async (): Promise<Group> => {
-    const response = await api()
-      .get(`/organizations/${organizationId}/charges/me`)
-      .set(asUser('mate'))
-      .expect(200);
+    const response = await api().get(`/organizations/${organizationId}/charges/me`).set(asUser('mate')).expect(200);
     return response.body.data.groups.find((group: Group) => group.organizationId === organizationId);
   };
   /** Chỉ hai trận của describe này — tổ chức còn khoản từ describe trước nên phải lọc. */
@@ -469,7 +503,7 @@ describe('Thanh toán gom nhiều trận', () => {
     await api()
       .patch(`/organizations/${organizationId}`)
       .set(asUser('owner'))
-      .send({ paymentQrUrl: 'http://localhost:4566/joytab/qr.png' })
+      .send({ bankBin: '970418', bankAccountNo: '0123456789' })
       .expect(200);
 
     await moveToPast(matchB);
@@ -500,7 +534,14 @@ describe('Thanh toán gom nhiều trận', () => {
     // Phía user: hai khoản này đã trả xong, không còn nằm trong danh sách phải thanh toán.
     expect(ownCharges(after)).toHaveLength(0);
     expect(before.unpaidTotal - after.unpaidTotal).toBe(150000);
-    expect(ownScope(after).every((charge) => charge.paymentStatus === 'submitted')).toBe(true);
+    // Khoản đã trả không còn nằm trong `charges/me` (API chỉ trả khoản chưa trả), nên trạng
+    // thái mới phải soi thẳng dưới DB: `every` trên mảng rỗng thì lúc nào cũng xanh.
+    const paidRows = await db.matchCharge.findMany({
+      where: { user_id: users.mate.id, match_id: { in: [matchA, matchB] } },
+      select: { payment_status: true },
+    });
+    expect(paidRows).toHaveLength(2);
+    expect(paidRows.every((row) => row.payment_status === 'paid')).toBe(true);
   });
 
   it('gửi lại đúng những khoản đó thì bị chặn', async () => {
@@ -527,50 +568,6 @@ describe('Thanh toán gom nhiều trận', () => {
       .send({ maleRatio: 1, expenses: [{ name: 'Sân', quantity: 1, unitPrice: 500000 }] })
       .expect(409);
     expect(response.body.code).toBe('MATCH_011');
-  });
-
-  it('owner từ chối thì khoản quay lại kèm lý do', async () => {
-    const queue = await api()
-      .get(`/organizations/${organizationId}/payments`)
-      .set(asUser('owner'))
-      .query({ status: 'submitted' })
-      .expect(200);
-    const paymentId = queue.body.data.payments[0].id;
-
-    await api()
-      .post(`/organizations/${organizationId}/payments/${paymentId}/reject`)
-      .set(asUser('owner'))
-      .send({ reason: 'Chưa thấy tiền về tài khoản' })
-      .expect(201);
-
-    const group = await myGroup();
-    const back = ownCharges(group);
-    expect(sum(back)).toBe(150000);
-    expect(back.every((charge) => charge.rejectReason === 'Chưa thấy tiền về tài khoản')).toBe(true);
-  });
-
-  it('gửi lại rồi owner duyệt thì mọi khoản trong lần đó thành đã đối soát', async () => {
-    const payment = await api()
-      .post(`/organizations/${organizationId}/payments`)
-      .set(asUser('mate'))
-      .send({
-        chargeIds: ownCharges(await myGroup()).map((charge) => charge.chargeId),
-        proofUrl: 'http://localhost:4566/joytab/proof-3.png',
-      })
-      .expect(201);
-
-    const confirmed = await api()
-      .post(`/organizations/${organizationId}/payments/${payment.body.data.payment.id}/confirm`)
-      .set(asUser('owner'))
-      .expect(201);
-    expect(confirmed.body.data.payment.status).toBe('confirmed');
-
-    const settlement = await api().get(`/matches/${matchA}/settlement`).set(asUser('owner')).expect(200);
-    const mateCharge = settlement.body.data.settlement.charges.find(
-      (charge: { userId: string }) => charge.userId === users.mate.id,
-    );
-    expect(mateCharge.paymentStatus).toBe('confirmed');
-    expect(settlement.body.data.settlement.editable).toBe(false);
   });
 
   it('member không thấy lần thanh toán của người khác', async () => {
@@ -629,8 +626,7 @@ describe('Lịch sử thi đấu', () => {
   const history = (as: string, query: string = '') =>
     api().get(`/organizations/${orgId}/matches/history${query}`).set(asUser(as));
 
-  const idsOf = (body: { data: { matches: { id: string }[] } }) =>
-    body.data.matches.map((match) => match.id);
+  const idsOf = (body: { data: { matches: { id: string }[] } }) => body.data.matches.map((match) => match.id);
 
   beforeAll(async () => {
     // Tổ chức RIÊNG: các describe trước đã để lại trận đã chốt/đã huỷ trong tổ chức chung, mà ở
@@ -694,9 +690,7 @@ describe('Lịch sử thi đấu', () => {
     expect(returned).toEqual([ids.unpaid, ids.paid, ids.canceled, ids.openPast]);
     expect(response.body.data.nextCursor).toBeNull();
 
-    const times = response.body.data.matches.map((match: { startAt: string }) =>
-      new Date(match.startAt).getTime(),
-    );
+    const times = response.body.data.matches.map((match: { startAt: string }) => new Date(match.startAt).getTime());
     expect([...times].sort((a: number, b: number) => b - a)).toEqual(times);
   });
 
@@ -896,9 +890,7 @@ describe('Dòng trong danh sách trận', () => {
 
   it('người đăng ký thứ 7 vẫn thấy mình ĐÃ đăng ký, dù không có trong phần xem trước', async () => {
     const row = await rowOf('owner');
-    expect(row.participantsPreview.map((p: { userId: string }) => p.userId)).not.toContain(
-      users.owner.id,
-    );
+    expect(row.participantsPreview.map((p: { userId: string }) => p.userId)).not.toContain(users.owner.id);
     expect(row.voted).toBe(true);
     expect(row.canCancelVote).toBe(true);
   });
@@ -919,11 +911,7 @@ describe('Dòng trong danh sách trận', () => {
 
     // `trimOrUndefined` biến chuỗi rỗng thành `undefined`, tức là "không gửi field này" — nên
     // ô trống không xoá được địa chỉ đã lưu. Đúng như `note` từ trước tới nay.
-    const blank = await api()
-      .patch(`/matches/${matchId}`)
-      .set(asUser('owner'))
-      .send({ address: '   ' })
-      .expect(200);
+    const blank = await api().patch(`/matches/${matchId}`).set(asUser('owner')).send({ address: '   ' }).expect(200);
     expect(blank.body.data.match.address).toBe('45 Nguyễn Trãi, Thanh Xuân, Hà Nội');
   });
 
@@ -975,8 +963,7 @@ describe('Buổi sắp diễn ra', () => {
   const upcoming = (as: string, query: string = '') =>
     api().get(`/organizations/${orgId}/matches/upcoming${query}`).set(asUser(as));
 
-  const idsOf = (body: { data: { matches: { id: string }[] } }) =>
-    body.data.matches.map((match) => match.id);
+  const idsOf = (body: { data: { matches: { id: string }[] } }) => body.data.matches.map((match) => match.id);
 
   beforeAll(async () => {
     const created = await api()
@@ -1097,11 +1084,9 @@ describe('Lịch sử tổ chức', () => {
     api().get(`/organizations/${orgId}/matches/org-history${query}`).set(asUser(as));
 
   /** Sổ CÁ NHÂN của owner trong chính tổ chức này — để đối chiếu hai sổ cắt khác nhau ra sao. */
-  const myHistory = () =>
-    api().get(`/organizations/${orgId}/matches/history`).set(asUser('owner')).expect(200);
+  const myHistory = () => api().get(`/organizations/${orgId}/matches/history`).set(asUser('owner')).expect(200);
 
-  const idsOf = (body: { data: { matches: { id: string }[] } }) =>
-    body.data.matches.map((match) => match.id);
+  const idsOf = (body: { data: { matches: { id: string }[] } }) => body.data.matches.map((match) => match.id);
 
   beforeAll(async () => {
     const created = await api()
@@ -1214,9 +1199,7 @@ describe('Lịch sử tổ chức', () => {
     // `myAmount` phải là khoản của CHÍNH owner (70.000 ở buổi `uncollected`), không phải khoản
     // đầu tiên trong mảng charges của buổi.
     const response = await orgHistory('owner').expect(200);
-    const row = response.body.data.matches.find(
-      (match: { id: string }) => match.id === ids.uncollected,
-    );
+    const row = response.body.data.matches.find((match: { id: string }) => match.id === ids.uncollected);
     expect(row).toMatchObject({ myAmount: 70_000, myPaymentStatus: 'paid' });
   });
 
@@ -1342,9 +1325,7 @@ describe('Chi tiết một lần thanh toán', () => {
       note: 'Chuyển khoản 2 buổi',
       total: 100_000,
     });
-    expect(payment.items.map((item: { matchId: string }) => item.matchId).sort()).toEqual(
-      [...matchIds].sort(),
-    );
+    expect(payment.items.map((item: { matchId: string }) => item.matchId).sort()).toEqual([...matchIds].sort());
     expect(payment.items.map((item: { courtName: string }) => item.courtName).sort()).toEqual([
       'E2E Sân chứng từ 1',
       'E2E Sân chứng từ 2',
@@ -1357,10 +1338,7 @@ describe('Chi tiết một lần thanh toán', () => {
   });
 
   it('bảng chia tiền chỉ đúng lần thanh toán của từng khoản', async () => {
-    const settlement = await api()
-      .get(`/matches/${matchIds[0]}/settlement`)
-      .set(asUser('owner'))
-      .expect(200);
+    const settlement = await api().get(`/matches/${matchIds[0]}/settlement`).set(asUser('owner')).expect(200);
     const charge = settlement.body.data.settlement.charges.find(
       (item: { userId: string }) => item.userId === users.mate.id,
     );
@@ -1381,10 +1359,7 @@ describe('Chi tiết một lần thanh toán', () => {
       },
     });
 
-    const settlement = await api()
-      .get(`/matches/${matchIds[0]}/settlement`)
-      .set(asUser('owner'))
-      .expect(200);
+    const settlement = await api().get(`/matches/${matchIds[0]}/settlement`).set(asUser('owner')).expect(200);
     const charge = settlement.body.data.settlement.charges.find(
       (item: { userId: string }) => item.userId === users.owner.id,
     );

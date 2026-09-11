@@ -39,9 +39,13 @@ export function normalizeBankAccountNo(value: string): string {
 /**
  * Hai ô ngân hàng + số tài khoản, dùng chung ở form tạo và form sửa tổ chức.
  *
- * CẢ HAI cùng rỗng (chưa cấu hình) hoặc cùng có (đã cấu hình) — nửa cặp không dựng nổi mã QR.
- * Ràng buộc này ở `superRefine` chứ không ở từng field: nó nói về QUAN HỆ giữa hai ô, mà một
- * ô thì không nhìn thấy ô kia.
+ * CẢ HAI đều BẮT BUỘC: tài khoản nhận tiền là thứ dựng ra mã QR mà thành viên quét để trả —
+ * tổ chức không có nó thì mọi khoản phải thu đều dừng ở chỗ "chuyển vào đâu?". Hỏi ngay lúc lập
+ * nhóm rẻ hơn nhiều so với hỏi lúc đang chốt tiền một trận.
+ *
+ * Ràng buộc ở `superRefine` chứ không ở từng field: `bankAccountNo` phải được chuẩn hoá TRƯỚC
+ * khi đo độ dài (người dán vào hay kèm khoảng trắng), mà transform của field chạy xong thì
+ * refine của chính field đó đã qua rồi.
  */
 export const bankAccountFormSchema = z
   .object({
@@ -49,14 +53,10 @@ export const bankAccountFormSchema = z
     bankAccountNo: z.string().transform(normalizeBankAccountNo),
   })
   .superRefine((value, ctx) => {
-    const hasBin = value.bankBin.length > 0
-    const hasAccount = value.bankAccountNo.length > 0
-    if (!hasBin && !hasAccount) return
-
-    if (!hasBin) {
+    if (value.bankBin.length === 0) {
       ctx.addIssue({ code: "custom", path: ["bankBin"], message: "Vui lòng chọn ngân hàng" })
     }
-    if (!hasAccount) {
+    if (value.bankAccountNo.length === 0) {
       ctx.addIssue({
         code: "custom",
         path: ["bankAccountNo"],

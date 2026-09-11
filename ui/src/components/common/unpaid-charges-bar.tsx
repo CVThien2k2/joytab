@@ -39,7 +39,7 @@ export function UnpaidChargesBar({
   const { group, unpaidCount, unpaidTotal } = useUnpaidChargeSummary(organizationId)
 
   /**
-   * Công nợ CHỤP LẠI lúc bấm trả, và số lần đã mở — cùng khuôn với `PayNowButton`.
+   * Công nợ CHỤP LẠI lúc bấm trả, và số lần đã mở.
    *
    * Chụp lại vì hộp thoại phải sống lâu hơn thanh nhắc: trả xong là `unpaidCount` về 0 và thanh
    * biến mất, kéo theo hộp thoại đang mờ dần biến mất giữa chừng. `openToken` vừa là điều kiện

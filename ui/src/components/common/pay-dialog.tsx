@@ -317,7 +317,7 @@ export function PayDialog({
                   />
                 </div>
               ) : (
-                // Lối này gần như không tới được: chỗ duy nhất mở hộp thoại (`PayNowButton`) đã
+                // Lối này gần như không tới được: chỗ duy nhất mở hộp thoại (`UnpaidChargesBar`) đã
                 // chặn khi tổ chức chưa có tài khoản. Vẫn nói ra thay vì để một ô trống, vì
                 // "không thấy gì" là thứ người dùng không biết phải làm gì với nó.
                 <div

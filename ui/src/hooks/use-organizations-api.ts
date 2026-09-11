@@ -124,7 +124,7 @@ export const memberQueryKeys = {
  * Số thành viên mỗi lô của danh sách cuộn. Bằng `MEMBERS_DEFAULT_PAGE_SIZE` của BE, nên lô đầu
  * là đúng cái BE trả khi không truyền gì — không có lô nào bị cắt lẻ vì FE tự chọn con số khác.
  */
-export const MEMBERS_BATCH_SIZE = 3
+export const MEMBERS_BATCH_SIZE = 20
 
 /**
  * Input: id tổ chức + trang + từ khoá.

@@ -11,6 +11,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { MALE_RATIO_DECIMALS, MAX_MALE_RATIO, MIN_MALE_RATIO } from '../matches/matches.constants';
 import {
@@ -18,7 +19,6 @@ import {
   BANK_BIN_REGEX,
   MAX_BANK_ACCOUNT_NO_LENGTH,
   MIN_BANK_ACCOUNT_NO_LENGTH,
-  OPTIONAL_BANK_ACCOUNT_NO_REGEX,
   OPTIONAL_BANK_BIN_REGEX,
 } from '../banks/banks.constants';
 import {
@@ -147,11 +147,17 @@ export class UpdateOrganizationDto {
   @Matches(OPTIONAL_BANK_BIN_REGEX, { message: 'Ngân hàng không hợp lệ' })
   bankBin?: string;
 
+  /**
+   * Sàn độ dài chỉ áp khi CÓ gõ gì đó: chuỗi rỗng là lệnh gỡ tài khoản, còn một số tài khoản
+   * dài 1 ký tự thì không phải số tài khoản nào cả — mà nó sẽ được đem đi encode vào mã QR của
+   * mọi thành viên. `ValidateIf` tắt toàn bộ kiểm cho property khi rỗng, đúng thứ cần ở đây.
+   */
   @IsOptional()
   @Transform(({ value }): unknown => normalizeBankAccountNo(value))
-  @Matches(OPTIONAL_BANK_ACCOUNT_NO_REGEX, { message: 'Số tài khoản chỉ gồm chữ và số' })
-  @MaxLength(MAX_BANK_ACCOUNT_NO_LENGTH, {
-    message: `Số tài khoản tối đa ${MAX_BANK_ACCOUNT_NO_LENGTH} ký tự`,
+  @ValidateIf((dto: UpdateOrganizationDto) => dto.bankAccountNo !== '')
+  @Matches(BANK_ACCOUNT_NO_REGEX, { message: 'Số tài khoản chỉ gồm chữ và số' })
+  @Length(MIN_BANK_ACCOUNT_NO_LENGTH, MAX_BANK_ACCOUNT_NO_LENGTH, {
+    message: `Số tài khoản phải từ ${MIN_BANK_ACCOUNT_NO_LENGTH} đến ${MAX_BANK_ACCOUNT_NO_LENGTH} ký tự`,
   })
   bankAccountNo?: string;
 

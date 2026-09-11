@@ -83,7 +83,10 @@ export function OrganizationSummaryCard({ organization }: { organization: Organi
     pageSize: PREVIEW_LIMIT,
   })
   const members = data?.members ?? []
-  const overflow = organization.memberCount - members.length
+  // Lúc đang tải thì `members` còn rỗng, mà lấy `memberCount - 0` là bong bóng "+N" hiện đúng
+  // TỔNG số thành viên bên cạnh mấy khung xám, rồi nhảy về số thật khi dữ liệu tới. Chưa biết
+  // thì chưa nói.
+  const overflow = isPending ? 0 : organization.memberCount - members.length
 
   /**
    * Input: Mã mời đang mở.

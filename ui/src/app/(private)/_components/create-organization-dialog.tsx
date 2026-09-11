@@ -46,7 +46,9 @@ import type { OrganizationDialogProps } from "./join-organization-dialog"
  *         Hỏi luôn bốn thứ (tên, tài khoản nhận tiền, hệ số nam, chủ tổ chức đã ứng tiền) thay
  *         vì chỉ hỏi tên rồi đẩy người ta sang màn Cài đặt: cả ba thứ sau đều là quyết định đã
  *         có sẵn trong đầu lúc lập nhóm, mà tách ra thì thành ba lần quay lại cho một việc.
- *         CHỈ TÊN là bắt buộc — ba ô kia bỏ trống được và sửa sau ở Cài đặt bất cứ lúc nào.
+ *         TÊN và TÀI KHOẢN NHẬN TIỀN là bắt buộc — không có tài khoản thì không dựng được mã QR,
+ *         tức là tổ chức lập ra mà chưa thu được đồng nào. Hai ô còn lại đã có sẵn giá trị mặc
+ *         định nên người không quan tâm bấm Tạo là xong.
  *
  *         HAI BƯỚC: điền form → tạo xong thì hiện MÃ MỜI ngay tại chỗ, chưa đóng vội. Tổ chức
  *         mới tạo đã mở cửa sẵn nên mã có ngay từ giây đầu tiên, mà việc kế tiếp của người vừa
@@ -136,7 +138,15 @@ export function CreateOrganizationDialog({
         {created ? (
           <CreatedStep organization={created} onDone={close} />
         ) : (
-          <form onSubmit={form.handleSubmit((payload) => mutation.mutate(payload))} noValidate>
+          // `contents` ở CẢ `form` lẫn `fieldset`: hai thẻ này chỉ gom hành vi (submit, khoá khi
+          // đang gửi), không được chiếm một hàng trong lưới ba hàng của hộp thoại. Chiếm thì
+          // `DialogBody` mất neo chiều cao, `overflow-y-auto` của nó không có gì để cuộn, và
+          // form dài hơn màn hình sẽ tràn khỏi hộp thay vì trượt bên trong.
+          <form
+            onSubmit={form.handleSubmit((payload) => mutation.mutate(payload))}
+            noValidate
+            className="contents"
+          >
             <fieldset disabled={mutation.isPending} className="contents">
               <DialogHeader>
                 <DialogTitle>Tạo tổ chức mới</DialogTitle>

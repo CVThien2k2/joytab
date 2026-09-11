@@ -88,6 +88,12 @@ export class BanksService {
       // nó trả lỗi dưới dạng 200. Cả hai đều đáng dùng danh sách bundle sẵn hơn.
       if (banks.length === 0) throw new Error('VietQR returned no usable bank');
 
+      // Sắp theo tên ngắn NGAY Ở ĐÂY, một lần cho mỗi lượt cache: VietQR trả về theo thứ tự
+      // của họ (gần như là thứ tự thêm vào), mà ô chọn ngân hàng thì người ta dò bằng mắt theo
+      // bảng chữ cái. Sắp ở FE là mỗi chỗ hiển thị phải nhớ sắp lại một lần.
+      // `localeCompare` với locale `vi`: tên có dấu phải đứng đúng chỗ của nó.
+      banks.sort((a, b) => a.shortName.localeCompare(b.shortName, 'vi'));
+
       this.cache = { banks, fetchedAt: Date.now() };
       return banks;
     } catch (error) {
